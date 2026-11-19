@@ -640,9 +640,12 @@ function applyToWikiPages(targetPages, correctedValue, reviewId, by, dateStr) {
  * **반드시 withLock(...) 콜백 안에서만 호출할 것** — review_queue.md 직렬쓰기 보장.
  * @returns {{httpStatus:number, body:object}}
  */
-function finalizeApproval(entry, decision, correctedValue, by) {
+function finalizeApproval(entry, decision, correctedValue, by, opts) {
   const id = entry.id;
-  const now = new Date();
+  // opts.at — 서버를 켤 때 승인 이력을 다시 맞출 때(replayApprovalsLog)는 **사람이 누른 그날** 날짜로 찍는다.
+  // opts.log === false — 그때는 이력에 한 줄 더 쌓지 않는다(이미 있는 기록을 옮겨 적는 것뿐이다).
+  const o = opts || {};
+  const now = o.at && !isNaN(Date.parse(o.at)) ? new Date(o.at) : new Date();
   const dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
 
   // 1) review_queue.md 승인/반려 마킹(원자적)
@@ -678,10 +681,13 @@ function finalizeApproval(entry, decision, correctedValue, by) {
     undoDemoted = r.demoted;
   }
 
-  // 3) 승인 이력 로그(감사 추적)
-  const { log, brokenMovedTo } = readApprovalsLog();
-  log.push({ id, decision, correctedValue, by, at: now.toISOString(), targetPages: entry.targetPages, changedFiles });
-  writeApprovalsLog(log);
+  // 3) 승인 이력 로그(감사 추적) — 다시 맞추기(opts.log === false)는 쌓지 않는다
+  let brokenMovedTo = '';
+  if (o.log !== false) {
+    const r = readApprovalsLog(); brokenMovedTo = r.brokenMovedTo;
+    r.log.push({ id, decision, correctedValue, by, at: now.toISOString(), targetPages: entry.targetPages, changedFiles });
+    writeApprovalsLog(r.log);
+  }
 
   // 정직한 note: 실제 승격 페이지 수 기준(무음 성공 금지)
   // 정직한 note: **실제로 일어난 것만** 적는다. 각인만 지운 것과 draft 로 내린 것은 다르다.
@@ -699,6 +705,51 @@ function finalizeApproval(entry, decision, correctedValue, by) {
     promotedCount: changedFiles.length,
     note: note + (brokenMovedTo ? ' ⚠승인 이력 파일이 깨져 있어 ' + path.basename(brokenMovedTo)
       + ' 로 옮기고 새로 시작했습니다 — 옛 기록을 사람이 확인해야 합니다.' : '') } };
+}
+
+/**
+ * 영구 칸(볼륨)의 승인 이력으로 대기 목록(review_queue.md)의 승인 줄과 위키 「확정」을 다시 맞춘다 — 서버를 켤 때 한 번.
+ * [왜] review_queue.md 와 위키 페이지는 **앱 이미지 안**이라 배포할 때마다 저장소의 옛 내용으로 돌아간다.
+ *   승인 이력(APPROVALS_LOG)만 볼륨에 남는다(2026-08-28). 그래서 배포 뒤엔 사람이 누른 승인이 화면에서 사라지고
+ *   「다시 승인하라」고 나왔다 — 2026-11-19 사용자 「아무리 승인을 눌러도 그때뿐이고 나갔다 들어오면 다시 승인하라고 나오는데」
+ *   (최근 3일 main 머지 58건 = 배포 58번). 종전 해법(apply_approvals.py — 이력을 받아 저장소에 손으로 반영)은 아무도 안 돌리면 소용이 없었다.
+ * [무엇을] 항목마다 **마지막 결정**만 본다(누른 순서대로 쌓인 이력의 맨 뒤):
+ *   - 승인인데 파일은 아직 대기 → 승인 줄 [x] + 대상 위키 canonical·확정 각인(사람이 누른 날짜·이름·확정값 그대로)
+ *   - 되돌림·반려인데 파일은 승인 → 그 결정대로(되돌림은 위키도 원래대로 — finalizeApproval 과 같은 동작)
+ *   - 파일이 이미 같은 상태면(저장소에 반영돼 있으면) 손대지 않는다 — 여러 번 돌려도 결과가 같다
+ *   이력에 한 줄도 더 쌓지 않는다. 대기열에 없는 항목(이름이 바뀌었거나 빠진 것)은 건너뛰고 수만 적는다.
+ * 예: 이력 [{id:'REVIEW-선박평형수…-806', decision:'approve', by:'관리자', at:'2026-11-19T…'}] · 파일은 [ ] 대기 → 그 항목을 [x] 승인(관리자, 2026-11-19)으로
+ * @returns {{approved:string[], reverted:string[], missing:string[], skipped:string[]}} skipped = 대상 페이지가 승인 때와 달라 건너뜀
+ * [연계] ← 이 파일 맨 아래(서버를 켤 때 withLock 안에서) / → readApprovalsLog · parseReviewQueue · finalizeApproval(opts.log:false)
+ *        같은 일을 저장소에 하는 도구: _dashboard/loop/apply_approvals.py
+ */
+function replayApprovalsLog() {
+  const out = { approved: [], reverted: [], missing: [], skipped: [] };
+  const { log } = readApprovalsLog();
+  if (!log.length || !fs.existsSync(REVIEW_QUEUE)) return out;
+  const last = new Map();
+  log.forEach((a) => { if (a && a.id) last.set(a.id, a); });   // 뒤에 쌓인 것이 마지막 결정
+  const list = parseReviewQueue();
+  const pagesKey = (arr) => JSON.stringify((Array.isArray(arr) ? arr : []).map((x) => String(x).trim()).sort());
+  for (const [id, a] of last) {
+    const same = list.filter((e) => e.id === id);
+    if (!same.length) { out.missing.push(id); continue; }
+    // ⚠같은 번호가 다른 항목을 가리키면 남의 항목을 승인하게 된다 — 승인할 때 적어 둔 대상 페이지(a.targetPages)가 지금과 같을 때만 맞춘다.
+    //   대기열에 같은 번호가 둘 이상인 항목(2026-11-19 현재 3개)도 있다: 승인 쓰기(replaceApprovalLine)는 번호로만 찾으므로
+    //   **맨 앞 항목**이 그 승인의 대상일 때만 맞춘다. 아니면 건너뛰고 수만 적는다(사람이 다시 누르면 된다).
+    const e = same[0];
+    if (Array.isArray(a.targetPages) && pagesKey(a.targetPages) !== pagesKey(e.targetPages)) { out.skipped.push(id); continue; }
+    if (e.excluded) continue;
+    const d = a.decision === 'undo' || a.decision === 'reject' ? a.decision : 'approve';
+    if (d === 'approve' && !e.approved) {
+      finalizeApproval(e, 'approve', a.correctedValue != null ? a.correctedValue : null, a.by || '관리자', { at: a.at, log: false });
+      out.approved.push(id);
+    } else if (d !== 'approve' && e.approved) {
+      finalizeApproval(e, d, null, a.by || '관리자', { at: a.at, log: false });
+      out.reverted.push(id);
+    }
+  }
+  return out;
 }
 
 // POST /api/legal/reviews/:id/approve — 승인(+교정값 확정) 또는 반려 → 서버 반영
@@ -2911,4 +2962,15 @@ router.get('/api/legal/rooms/law', adminAuth.requireAdminToken, (req, res) => {
 
 // 시험용 손잡이(test_review_card_view.js) — 파일을 읽지 않는 순수 함수만 내놓는다.
 router.__test = { parseReviewQueueText, replaceApprovalLine, findAiDone };
+// 서버를 켤 때 승인 이력으로 대기 목록·위키 확정을 다시 맞춘다(replayApprovalsLog — 배포 때마다 사람이 누른 승인이 사라지던 것, 2026-11-19).
+//   승인 쓰기와 같은 줄(withLock)에 세워 동시에 쓰지 않게 한다. 실패해도 서버는 뜬다(대신 크게 적는다).
+// ⚠작업 중(2026-11-19) — 옛 승인(내용 지문 없음)을 어떻게 다룰지 사용자 결정을 기다리는 동안 **기본은 꺼 둔다**
+//   (LEGAL_REPLAY_APPROVALS=on 일 때만 돈다). 결정이 나면 지문 비교와 함께 켠다.
+if (process.env.LEGAL_REPLAY_APPROVALS === 'on') {
+  withLock(async () => replayApprovalsLog())
+    .then((r) => { if (r.approved.length || r.reverted.length || r.missing.length || r.skipped.length) console.log('[legal] 승인 이력 다시 맞춤 — 승인 ' + r.approved.length + '건 · 되돌림/반려 ' + r.reverted.length + '건 · 대기열에 없음 ' + r.missing.length + '건 · 대상 페이지가 달라 건너뜀 ' + r.skipped.length + '건' + (r.missing.length + r.skipped.length ? ' (' + r.missing.concat(r.skipped).slice(0, 5).join(', ') + ')' : '')); })
+    .catch((e) => console.error('[legal] ⚠승인 이력 다시 맞추기 실패 — 배포 전 승인이 화면에 다시 「대기」로 보일 수 있다:', e && e.message));
+}
+
 module.exports = router;
+module.exports._replayApprovalsLog = replayApprovalsLog;   // 시험용(test_review_replay)
