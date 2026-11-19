@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-19 09:40 KST] ✅완료 — 특보 카드 머리줄 — 큰 글자·좁은 폭에서 📋 통보문 버튼과 뱃지가 함께 다음 줄로 (브랜치 claude/festive-tesla-k7ie2s)
+사용자 2026-11-19(스크린샷: 글자 크기 최대, 동해남부해상 카드들): 해역명이 길어 한 줄에 안 들어가면 종전엔 📋 는 윗줄 오른쪽, 뱃지만 아랫줄로 갈라졌다 → 「통보문 버튼과 뱃지 둘다 다음줄로」. 수정: forecast/alerts/render.js createAlertElement 에서 📋 와 .alert-badges 를 .alert-header-actions(display:flex; flex:1 1 auto) 한 묶음으로 감쌌다 → 줄바꿈이 묶음 단위로 일어남. 한 줄에 들어갈 땐 모양 그대로(📋 는 해역명 바로 뒤, 뱃지는 오른쪽 끝). 둘째 줄로 가면 📋 왼쪽·뱃지 오른쪽. index2.html render.js 버전표 갱신. 확인: 가짜 특보 5건으로 실제 renderApp 을 그려 잼 — 큰 글자 360px 5/5·412px 4/5 둘째 줄, 갈라짐 0 · 기본(412)·작게(430) 전부 한 줄. test_forecast_gear_ui ⑤ 추가(고치기 전 코드로 돌리면 「다른 줄」 실패, 고친 뒤 33/0). simulate 회귀 없음, test_marine_smallzone_ui·test_marine_ui·test_station_briefing_ui·test_zone_tree_wiring·test_guide_tabs·test_tab_structure 통과, check_order 통과.
+
+
 ### [2026-11-19 00:36 KST] ✅완료 — 📋 해역별 통보문 팝업 — 휴대폰 뒤로가기로 안 닫히던 것 수정 (브랜치 claude/festive-tesla-k7ie2s, PR #1506)
 사용자 보고(스크린샷: 경북북부앞바다 통보문 팝업) 「휴대폰 내장 뒤로가기버튼이 안먹힘」. 원인: core/backbutton.js 의 wrapAlertHistoryPopup 이 옛 showAlertHistoryPopup 만 PopupStack 에 올리고, 지금 📋 버튼(forecast/alerts/render.js)이 부르는 showZoneBulletins(alert_history.js)는 같은 #alert-history-modal 을 쓰면서도 스택에 안 올라갔다 → 뒤로가기가 닫을 팝업을 못 찾음. 수정: 같은 래퍼에서 showZoneBulletins 도 감싸 같은 id('alert-history-modal')로 push(닫기는 기존 closeAlertHistoryPopup 래퍼가 remove). index2.html backbutton.js 버전표 갱신(캐시). 시험: test_forecast_gear_ui 에 ④ 1건 추가 — 고치기 전 코드로 되돌려 돌리면 실패(30/2), 고친 뒤 32/0. simulate 회귀 없음, test_life_safety_tab_keep 25/0·test_risk_sheet_ui 35/0·test_station_briefing_ui 101/0·test_accident_sheet 200/0·check_order 통과.
 
