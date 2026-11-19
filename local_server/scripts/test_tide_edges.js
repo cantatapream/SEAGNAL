@@ -448,7 +448,10 @@ console.log('\n[C] 제주 「모레」 — 서버 기동 때 제주 두 수집�
     const SCHED = fs.readFileSync(path.join(LS, 'scheduler.js'), 'utf8');
     const blk = (SERVER.match(/runTideBatchExclusive\(async \(\) => \{[\s\S]*?\n {16}\}\);/) || [''])[0];
     ok('기동 보충이 물빠짐 → 제주 간출암 → 제주 고립판정 순서로 한 묶음이다',
-        /bootstrapTideField\(\)[\s\S]*collectHazardRockTides\(\)[\s\S]*collectJejuIsolationTides\(\)/.test(blk), blk.slice(0, 80));
+        /bootstrapTideField\(\{ dates \}\)[\s\S]*collectHazardRockTides\(\{ dates \}\)[\s\S]*collectJejuIsolationTides\(\{ dates \}\)/.test(blk), blk.slice(0, 80));
+    // 2026-11-19 — 기동 보충은 오늘·내일만(「모레」는 02:00 정기 수집 몫). 세 수집기에 같은 dates 를 넘긴다.
+    ok('기동 보충은 오늘·내일만 받는다(windowDatesKST(2))', /const dates = tideFieldCollector\.windowDatesKST\(2\);/.test(blk));
+    ok('02:00 정기 묶음은 날짜를 좁히지 않는다(오늘~모레 그대로)', !/collect(TideField|HazardRockTides|JejuIsolationTides)\(\{[^}]*dates/.test(SCHED));
     ok('기동 보충은 await 로 차례차례(동시 호출 없음)', (blk.match(/await /g) || []).length >= 3);
     ok('02:00 묶음도 같은 줄(runTideBatchExclusive)에 선다', /hm === '02:00'[\s\S]{0,600}runTideBatchExclusive\(async/.test(SCHED));
     ok('02:00 묶음 순서 그대로(서해·남해 → 제주 → 고립판정 → 잠김 교차시각)',

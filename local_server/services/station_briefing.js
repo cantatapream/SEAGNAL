@@ -10,6 +10,8 @@
  *         유형별로 처리 완료한다 — 관리자 버튼, 또는 그 md 로 고친 PR 에 함께 넣은 config/station_briefing_resolved.json 이 머지·배포된 뒤 서버가 읽어 자동으로(§11.10.48).
  *         실행 요약에는 관광지 자료 확인 불가(spotFailOf — 실행 기록은 수만, 마지막 실행·마지막 정시 판(lastEdition)은 관할·관광지 이름까지)도 남긴다(§11.10.21 — 관리자 「상태」 상자·정시 판 소요 표).
  *         자동 실행(정시 판·특보 변경 판)이 끝날 때마다 관리자 휴대폰에 결과 푸시 1통(오류가 없어도), 던지면 「분석 실패」 1통(§11.10.8 — 관리자 즉시 실행은 보내지 않음).
+ *         세션 정시 판(§11.10.56): 만들기 시작 21분 전(06:29·16:29·21:59) 예약 작업이 띄운 Claude Code 세션이 일감(session_job.json — 판 종류는 서버가 정함)을 받아 분석 문단을 쓰고 한 번 내면,
+ *         정시 판 실행이 관할 입력이 그대로이고 검사를 통과한 관할만 그 글을 쓰고 나머지는 AI 사슬로 쓴다(답이 아직이면 시작을 10분까지 미룬다).
  *         해역 기상은 소해구 예보(§11.10.19): 모으기 전에 저장된 소해구 판(smallzone_forecast — 대해구 예보가 새 판을 받을 때 미리 받아 둠)을 찾기 함수로 넘기고,
  *         저장 판이 대해구 예보 판보다 옛것이면 그 실행에서 필요한 대해구만 한 번 받아 본다(실패·시간 초과여도 계속 — 그 해역만 대해구 예보로).
  * ----------------------------------------------------------------------------
@@ -291,9 +293,10 @@ function resultLine(x, method) {
     if (method === 'template') return n + '곳 규칙 분석만(AI 안 부름) · 오류 ' + e;
     const parts = [];
     // AI 를 한 번도 부르지 않고 전부 지난 분석을 다시 쓴 판은 「모두 AI 분석」이라 하지 않는다(§11.10.8 독립 검토 — 이번에 AI 가 분석한 것으로 읽힌다)
-    if (!st.template) parts.push(st.reused && !st.ai ? n + '곳 모두 지난 AI 분석 재사용(입력 변화 없음)' : n + '곳 모두 AI 분석' + (st.reused ? '(새로 ' + (st.ai || 0) + ' · 재사용 ' + st.reused + ')' : ''));
+    // §11.10.56 세션 정시 판: 세션이 쓴 관할(stats.session)은 「세션 N」으로 따로 센다 — 세션이 없으면 종전 글 그대로.
+    if (!st.template) parts.push(st.reused && !st.ai && !st.session ? n + '곳 모두 지난 AI 분석 재사용(입력 변화 없음)' : n + '곳 모두 AI 분석' + (st.session ? '(세션 ' + st.session + ' · 새로 ' + (st.ai || 0) + (st.reused ? ' · 재사용 ' + st.reused : '') + ')' : st.reused ? '(새로 ' + (st.ai || 0) + ' · 재사용 ' + st.reused + ')' : ''));
     else {
-        parts.push(n + '곳 — AI ' + (st.ai || 0));
+        parts.push(n + '곳 — ' + (st.session ? '세션 ' + st.session + ' · ' : '') + 'AI ' + (st.ai || 0));
         if (st.reused) parts.push('재사용 ' + st.reused);
         parts.push('규칙 분석 ' + st.template + (rule.length ? '(' + shortNames(rule) + ')' : ''));
     }
@@ -310,13 +313,34 @@ function resultLine(x, method) {
  *     ({kind:'warning', results:[]}) → body '특보 변경 — 다시 만든 판 없음(오늘·내일 브리핑이 아직 없음)'
  * @param {object} o - kind·method·results(run 반환값) @returns {{title:string, body:string}} [연계] ← createService.pushResult
  */
-function runPushText({ kind, method, results }) {
+function runPushText({ kind, method, results, session = null }) {
     const head = kind === 'warning' ? '특보 변경 ' : '', list = results || [];
     let body;
     if (!list.length) body = head + '— 다시 만든 판 없음(오늘·내일 브리핑이 아직 없음)';
     else if (list.length === 1) body = head + resultLine(list[0], method);
     else body = head + list.map((x) => String(x.date || '').slice(5) + ' 판 ' + resultLine(x, method)).join('\n');
+    const sl = sessionLine(session); if (sl) body += '\n' + sl;
     return { title: '연안 안전 브리핑 ' + editionName(kind) + ' 결과', body };
+}
+/**
+ * 세션 정시 판(§11.10.56) 한 줄 — 세션이 안 왔거나 늦었거나 일부만 쓰였을 때 관리자가 알게(조용한 것이 「이상 없음」처럼 보이지 않게 — CLAUDE.md L-291).
+ * 세션 글을 모두 쓴 판은 결과 줄의 「세션 N」으로 충분해 덧붙이지 않는다.
+ * 예: {status:'none'} → '세션: 이 판 일감이 없음(예약 작업이 안 떴거나 그때 서버가 꺼져 있었음)' · {status:'late'} → '세션: 시작 10분 뒤까지 답이 없어 모두 AI'
+ *     {status:'used', used:80, changed:12, submitted:{passed:93, failed:3, missing:1}} → '세션: 통과 93 중 80곳 사용(입력 바뀜 12) · 검사 탈락 3 · 빠짐 1'
+ *     null·{status:'used', used:97, changed:0, submitted:{passed:97,failed:0,missing:0}} → null
+ * @param {object|null} s - run 결과 session @returns {string|null} [연계] ← runPushText
+ */
+function sessionLine(s) {
+    if (!s) return null;
+    if (s.status === 'none') return '세션: 이 판 일감이 없음(예약 작업이 안 떴거나 그때 서버가 꺼져 있었음)';
+    if (s.status === 'late') return '세션: 시작 10분 뒤까지 답이 없어 모두 AI';
+    const sub = s.submitted || {}, extra = [];
+    if (s.changed) extra.push('입력 바뀜 ' + s.changed);
+    if (sub.failed) extra.push('검사 탈락 ' + sub.failed);
+    if (sub.missing) extra.push('빠짐 ' + sub.missing);
+    if (sub.parseErrors) extra.push('해석 실패 묶음 ' + sub.parseErrors);
+    if (!extra.length && (s.used || 0) === (sub.passed || 0)) return null;
+    return '세션: 통과 ' + (sub.passed || 0) + ' 중 ' + (s.used || 0) + '곳 사용' + (extra.length ? '(' + extra[0] + ')' + (extra.length > 1 ? ' · ' + extra.slice(1).join(' · ') : '') : '');
 }
 /**
  * 자동 실행이 던졌을 때의 푸시 글. 오류 원문(파일 경로·주소가 섞일 수 있다)은 넣지 않고 짧은 분류만 — 시스템 오류 코드(ENOSPC 등)가 있으면 그것,
@@ -450,7 +474,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
         I.writeJson(p('config.json'), { ...next, updatedAt: R.isoKst(clock()) }); return next;
     }
     /** 상태 파일(만든 판·특보 서명·관할별 특보구역·마지막 실행·오류·실행 실패 백오프·특보 변경 대기). @returns {object} [연계] ← run·tick·status */
-    function state() { const s = I.readJson(p('state.json')) || {}; return { done: s.done || [], warnSig: s.warnSig || null, stationZones: s.stationZones || {}, lastRun: s.lastRun || null, lastEdition: s.lastEdition || null, runs: s.runs || [], errors: s.errors || [], errorsCapped: s.errorsCapped || null, alertsMtime: s.alertsMtime || null, failures: s.failures || {}, pendingWarn: s.pendingWarn || null }; }
+    function state() { const s = I.readJson(p('state.json')) || {}; return { done: s.done || [], warnSig: s.warnSig || null, stationZones: s.stationZones || {}, lastRun: s.lastRun || null, lastEdition: s.lastEdition || null, runs: s.runs || [], errors: s.errors || [], errorsCapped: s.errorsCapped || null, alertsMtime: s.alertsMtime || null, failures: s.failures || {}, pendingWarn: s.pendingWarn || null, sessionSeenAt: s.sessionSeenAt || null }; }
     /**
      * 오류를 더한다 — 먼저 누적 오류 기록(error_log.json — 처리 완료 전까지 최대 90일, §11.10.48)에 번호를 붙여 넣고, 같은 번호가 붙은 것을
      * 상태 파일의 최근 3일 목록(실행별 화면 — 보관 규칙 최근 3일·안전 상한)에도 넣는다. 상한으로 지운 것이 있으면 errorsCapped 에 시각·수.
@@ -598,7 +622,21 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
     async function trialJob({ kind = 'evening' } = {}) {
         if (!EDITION_KINDS.includes(kind)) { const e = new Error('kind 는 morning·evening·night'); e.status = 400; throw e; }
         if (running) { const e = new Error('브리핑 실행 중 — 끝난 뒤 다시'); e.status = 409; throw e; }
-        const t0 = Date.now(), now = clock(), config = readConfig(), all = stations();
+        const t0 = Date.now(), now = clock(), { win, items, batches, unit, k } = await buildJob(kind, now);
+        const job_id = 't-' + R.isoKst(now).slice(0, 16).replace(/[-T:]/g, '') + '-' + Math.random().toString(16).slice(2, 6);
+        for (const [id, j] of trials) if (now - j.at > TRIAL_TTL_MS) trials.delete(id);
+        trials.set(job_id, { at: now, kind, targetDate: win.targetDate, si: new Map(items.map((it) => [it.b.key, it.si])), batches: batches.map((b) => ({ name: b.name, keys: b.keys })) });
+        while (trials.size > TRIAL_KEEP) trials.delete(trials.keys().next().value);
+        return { job_id, kind, targetDate: win.targetDate, unit, stations: items.length, batches: batches.map((b) => ({ ...b, prompt: AI.buildPrompt(AI.batchInput(b.keys.map((key) => items.find((it) => it.b.key === key).si), k, null)) })), build_ms: Date.now() - t0, issuedAt: R.isoKst(now) };
+    }
+    /**
+     * 일감 재료 — 정시 판과 같은 재료(I.gather → R.buildBriefing → AI.stationInput)를 모아 관할 입력과 묶음(이름·관할 열쇠)을 만든다. AI 는 부르지 않는다.
+     * 시험 일감(trialJob)과 운영 일감(sessionJob — §11.10.56)이 함께 쓴다.
+     * 예: await buildJob('morning', now) → {win, items:[{b, si}], batches:[{name:'인천해양경찰서', keys:[…]}], unit:'office', k(기상청 전망)}
+     * @param {string} kind - morning|evening|night @param {number} now - ms @returns {Promise<object>} [연계] ← trialJob·sessionJob / → I.gather·R.buildBriefing·AI.stationInput·AI.groupBy
+     */
+    async function buildJob(kind, now) {
+        const config = readConfig(), all = stations();
         const win = R.editionWindow(kind, now);
         const spots = spotsOf ? spotsOf() : risk.spots().spots, spotsBySt = I.assignSpots(all, spots);
         const hz = I.assignHazards(all, hazardFeatures ? hazardFeatures() : (I.readJson(path.join(I.CONFIG, 'coastal_hazard_zones.wgs84.geojson'))?.features || []));
@@ -612,13 +650,31 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
         const unit = config.batchUnit || 'office';
         const batches = AI.groupBy(items, unit).map((g) => ({
             name: unit === 'station' ? g[0].b.station.name : unit === 'region' ? (g[0].b.station.region || g[0].b.station.office) : g[0].b.station.office,
-            keys: g.map((it) => it.b.key), prompt: AI.buildPrompt(AI.batchInput(g.map((it) => it.si), k, null)),
+            keys: g.map((it) => it.b.key),
         }));
-        const job_id = 't-' + R.isoKst(now).slice(0, 16).replace(/[-T:]/g, '') + '-' + Math.random().toString(16).slice(2, 6);
-        for (const [id, j] of trials) if (now - j.at > TRIAL_TTL_MS) trials.delete(id);
-        trials.set(job_id, { at: now, kind, targetDate: win.targetDate, si: new Map(items.map((it) => [it.b.key, it.si])), batches: batches.map((b) => ({ name: b.name, keys: b.keys })) });
-        while (trials.size > TRIAL_KEEP) trials.delete(trials.keys().next().value);
-        return { job_id, kind, targetDate: win.targetDate, unit, stations: items.length, batches, build_ms: Date.now() - t0, issuedAt: R.isoKst(now) };
+        return { win, items, batches, unit, k };
+    }
+    /**
+     * 세션이 쓴 묶음별 답을 관할마다 서버 검사(polishOverview → validateOverview)로 판정한다. 시험(trialResult)과 운영(sessionResult)이 같은 판정을 쓴다.
+     * 예: judgeAnswers(Map{key→si}, [{batch, text:'{"stations":[…]}'}]) → {res:Map{key→{ok, errors, land, sea}}, passed, failed, missing, parseErrors, topErrors}
+     * @param {Map} siMap - 관할 열쇠 → stationInput @param {*} answers - [{batch, text}] @returns {object} [연계] ← trialResult·sessionResult / → AI.parseResponse·polishOverview·validateOverview
+     */
+    function judgeAnswers(siMap, answers) {
+        const list = Array.isArray(answers) ? answers.slice(0, 200) : [];
+        const got = new Map(); let parseErrors = 0;
+        for (const a of list) {
+            try { for (const [id, o] of AI.parseResponse(String((a && a.text) || '').slice(0, 400000))) if (siMap.has(id) && !got.has(id)) got.set(id, o); }
+            catch (e) { parseErrors++; console.warn('[station_briefing] 세션 답 해석 실패:', e && e.message); }
+        }
+        let passed = 0, failed = 0, missing = 0; const errCount = {}, res = new Map();
+        for (const [key, si] of siMap) {
+            const raw = got.get(key);
+            if (!raw) { missing++; res.set(key, { ok: false, missing: true, errors: ['missing:station'], land: null, sea: null }); continue; }
+            const o = AI.polishOverview(raw), v = o ? AI.validateOverview(o, si) : { ok: false, errors: ['missing:station'] };
+            res.set(key, { ok: v.ok, errors: v.ok ? [] : v.errors.slice(0, 8), land: o && o.land ? String(o.land).slice(0, 1000) : null, sea: o && o.sea ? String(o.sea).slice(0, 1000) : null });
+            if (v.ok) passed++; else { failed++; for (const er of v.errors) { const g = er.split(':').slice(0, 2).join(':'); errCount[g] = (errCount[g] || 0) + 1; } }
+        }
+        return { res, passed, failed, missing, parseErrors, topErrors: Object.entries(errCount).sort((x, y) => y[1] - x[1]).slice(0, 10) };
     }
     /**
      * 시험 결과 — 세션이 쓴 묶음별 답(지시문이 요구한 JSON 글)을 서버 검사로 판정하고 기록한다. 화면·날짜 파일·오류 기록은 건드리지 않는다.
@@ -630,26 +686,14 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
         const b = body && typeof body === 'object' ? body : {};
         const job = trials.get(String(b.job_id || ''));
         if (!job) { const e = new Error('시험 일감을 찾지 못함(서버가 다시 켜졌거나 6시간이 지남) — 다시 받아 주세요'); e.status = 404; throw e; }
-        const answers = Array.isArray(b.answers) ? b.answers.slice(0, 200) : [];
-        const got = new Map(); let parseErrors = 0;
-        for (const a of answers) {
-            try { for (const [id, o] of AI.parseResponse(String((a && a.text) || '').slice(0, 400000))) if (job.si.has(id) && !got.has(id)) got.set(id, o); }
-            catch (e) { parseErrors++; console.warn('[station_briefing] 세션 시험 답 해석 실패:', e && e.message); }
-        }
-        let passed = 0, failed = 0, missing = 0; const errCount = {}, perStation = [], texts = new Map();
-        for (const [key, si] of job.si) {
-            const raw = got.get(key);
-            if (!raw) { missing++; texts.set(key, { land: null, sea: null, ok: false, missing: true }); perStation.push({ key, ok: false, errors: ['missing:station'] }); continue; }
-            const o = AI.polishOverview(raw), v = o ? AI.validateOverview(o, si) : { ok: false, errors: ['missing:station'] };
-            texts.set(key, { land: o && o.land ? String(o.land).slice(0, 700) : null, sea: o && o.sea ? String(o.sea).slice(0, 700) : null, ok: v.ok });
-            if (v.ok) passed++; else { failed++; for (const er of v.errors) errCount[er.split(':').slice(0, 2).join(':')] = (errCount[er.split(':').slice(0, 2).join(':')] || 0) + 1; }
-            perStation.push({ key, ok: v.ok, errors: v.ok ? [] : v.errors.slice(0, 6) });
-        }
+        const { res, passed, failed, missing, parseErrors, topErrors } = judgeAnswers(job.si, b.answers);
+        const perStation = [...res].map(([key, x]) => ({ key, ok: x.ok, errors: x.errors.slice(0, 6) }));
+        const texts = new Map([...res].map(([key, x]) => [key, { land: x.land ? x.land.slice(0, 700) : null, sea: x.sea ? x.sea.slice(0, 700) : null, ok: x.ok, ...(x.missing ? { missing: true } : {}) }]));
         const now = clock();
         const t = b.timings && typeof b.timings === 'object' ? b.timings : {};
         const clean = (x) => (typeof x === 'string' ? x.slice(0, 40) : Number.isFinite(x) ? x : null);
         const rec = { job_id: String(b.job_id), kind: job.kind, targetDate: job.targetDate, issuedAt: R.isoKst(job.at), resultAt: R.isoKst(now), elapsed_ms: now - job.at,
-            stations: job.si.size, passed, failed, missing, parseErrors, topErrors: Object.entries(errCount).sort((x, y) => y[1] - x[1]).slice(0, 10),
+            stations: job.si.size, passed, failed, missing, parseErrors, topErrors,
             timings: Object.fromEntries(Object.entries(t).slice(0, 12).map(([kk, vv]) => [String(kk).slice(0, 40), clean(vv)])), note: typeof b.note === 'string' ? b.note.slice(0, 500) : '',
             // 표본 글(2026-11-17 사용자 「진행」 — 지금 AI 글과 나란히 보려고): 관할 목록에서 고르게 8곳(글자 수 상한 700).
             samples: (() => { const ks = [...texts.keys()], n = Math.min(8, ks.length), step = ks.length / Math.max(1, n); return [...Array(n)].map((_, i) => ks[Math.floor(i * step)]).map((key) => ({ key, ...texts.get(key) })); })() };
@@ -674,7 +718,117 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
     /** 세션 시험 기록(최근 20개). @returns {object[]} */
     function trialLog() { try { const l = JSON.parse(fs.readFileSync(p('session_trials.json'), 'utf8')); return Array.isArray(l) ? l : []; } catch (e) { if (e.code !== 'ENOENT') console.warn('[station_briefing] 세션 시험 기록 읽기 실패:', e.message); return []; } }
 
-    async function run({ kind, keys = null, zones = null } = {}) {
+    // ── 세션 정시 판(2026-11-19 사용자 「나까지 이어서 만들자」 — 설계서 §11.10.56) ──
+    //   정시 판의 분석 문단을 Claude Code 세션이 먼저 쓰고, 떨어지거나 늦은 관할만 지금 AI 사슬이 쓴다.
+    //   ①예약 작업(하루 3번 — 06:29·16:29·21:59 KST, 만들기 시작 21분 전)이 세션을 띄우면 세션이 GET /automation/job 으로 일감을 받는다. **판 종류는 서버가 시계로 정한다**(세션이 고르지 않는다).
+    //   ②일감은 파일(session_job.json)에 둔다 — 배포로 서버가 다시 켜져도 남는다(3차 시험에서 메모리 일감이 배포 재시작으로 사라졌다).
+    //   ③답은 일감 하나에 한 번만 받는다(POST /automation/job-result) — 2차 시험에서 세션이 시키지 않은 판을 한 번 더 냈다.
+    //   ④정시 판 실행(run)이 그 답을 쓴다 — 관할 입력이 일감 때와 같고(sessionHash) 다시 검사해도 통과한 관할만 세션 글, 나머지는 지금 AI 사슬(AI.generate drafts).
+    //   ⑤일감을 받아 놓고 답이 아직이면 1분 점검이 만들기 시작을 SESSION_WAIT_MS(10분)까지 미룬다 — 공개 시각(30분 뒤)에 AI 데드라인 20분이 그대로 들어간다.
+    const SESSION_BEFORE_MS = 30 * 60000, SESSION_WAIT_MS = 10 * 60000, SESSION_LOG_KEEP = 30;
+    const JOB_FILE = 'session_job.json', JOB_LOG = 'session_jobs.json';
+    let jobBuilding = null, jobBuildingKey = null;   // 일감을 만드는 중(그 판 열쇠) — 1분 점검은 그동안 그 판을 시작하지 않는다(독립 검토 하7)
+    /**
+     * 지금 세션 일감을 줄 정시 판 — 만들기 시작(06:50·16:50·22:20) 30분 전부터 시작 전까지만. 그 밖이면 null.
+     * 예: 06:35 → {kind:'morning', key:'2026-11-19|morning', buildAt:ms(06:50)} · 06:50 → null · 22:05 → {kind:'night', key:'2026-11-19|night', …}
+     * @param {number} now - ms @returns {object|null} [연계] ← sessionJob
+     */
+    function sessionEdition(now) {
+        const d = R.kstDate(now);
+        for (const e of R.EDITIONS) {
+            const buildAt = Date.parse(d + 'T' + String(e.h).padStart(2, '0') + ':' + String(e.m).padStart(2, '0') + ':00+09:00');
+            if (now >= buildAt - SESSION_BEFORE_MS && now < buildAt) return { kind: e.kind, key: d + '|' + e.kind, buildAt };
+        }
+        return null;
+    }
+    function readJob() { const j = I.readJson(p(JOB_FILE)); return j && typeof j === 'object' && j.job_id ? j : null; }
+    function saveJob(j) { I.writeJson(p(JOB_FILE), j); }
+    /** 일감 요약 한 줄을 기록(최근 30개)에 더한다 — 관할 입력(si)·글은 싣지 않는다. @param {object} j @param {string} event [연계] ← sessionResult·run */
+    function logJob(j, event) {
+        try {
+            const l = I.readJson(p(JOB_LOG)), rec = { at: R.isoKst(clock()), event, job_id: j.job_id, key: j.key, kind: j.kind, targetDate: j.targetDate, issuedAt: j.issuedAt, status: j.status, submittedAt: j.submittedAt || null, summary: j.summary || null, use: j.use || null, timings: j.timings || null, note: j.note || '' };
+            I.writeJson(p(JOB_LOG), (Array.isArray(l) ? l : []).concat([rec]).slice(-SESSION_LOG_KEEP));
+        } catch (e) { console.error('[station_briefing] 세션 일감 기록 실패:', e && e.message); }
+    }
+    /** 세션 일감 기록(최근 30개 — 오래된 것부터). @returns {object[]} [연계] ← routes GET /automation/jobs */
+    function jobLog() { const l = I.readJson(p(JOB_LOG)); return Array.isArray(l) ? l : []; }
+    /** 세션에 줄 일감 모양 — 묶음마다 지시문은 저장한 관할 입력으로 그때 만든다(파일에는 지시문을 두지 않는다). @param {object} j @returns {object} */
+    function jobView(j) {
+        return { job_id: j.job_id, kind: j.kind, edition: editionName(j.kind), targetDate: j.targetDate, issuedAt: j.issuedAt, deadline: j.waitUntil, stations: Object.keys(j.stations).length, unit: j.unit,
+            batches: j.batches.map((b) => ({ name: b.name, keys: b.keys, prompt: AI.buildPrompt(AI.batchInput(b.keys.map((key) => j.stations[key].si), j.kma, null)) })) };
+    }
+    /**
+     * 세션 일감을 준다(GET /automation/job). 판 종류는 서버가 시계로 정한다(sessionEdition). 같은 판 일감이 이미 있으면 그것을 다시 준다(답을 낸 뒤면 409).
+     * 예: 06:35 → {job_id:'s-202611190635-ab12', kind:'morning', edition:'07:30 판', targetDate, deadline:'…T07:00:00+09:00', batches:[{name, keys, prompt}]}
+     *     07:10 → 404(받을 일감 없음) · 같은 판 답을 낸 뒤 → 409
+     * @returns {Promise<object>} [연계] ← routes GET /api/station-briefing/automation/job / → buildJob·AI.sessionHash
+     */
+    async function sessionJob() {
+        const now = clock(), e = sessionEdition(now);
+        if (!e) throw Object.assign(new Error('지금 받을 일감 없음 — 정시 판 만들기 시작(06:50·16:50·22:20) 30분 전부터 시작 전까지만 줍니다'), { status: 404 });
+        if (state().done.includes(e.key)) throw Object.assign(new Error('이 판(' + e.key + ')은 이미 만들어졌습니다'), { status: 409 });
+        const cur = readJob();
+        if (cur && cur.key === e.key) {
+            if (cur.status !== 'open') throw Object.assign(new Error('이 판(' + e.key + ') 일감은 이미 ' + (cur.status === 'submitted' || cur.status === 'used' ? '답을 받았습니다 — 일감 하나에 답은 한 번' : '닫혔습니다(' + cur.status + ')')), { status: 409 });
+            cur.fetches = (cur.fetches || 0) + 1; saveJob(cur); return jobView(cur);
+        }
+        if (running) throw Object.assign(new Error('브리핑 실행 중 — 끝난 뒤 다시'), { status: 409 });
+        if (jobBuilding) return jobBuilding;   // 같은 때 두 번 불러도 일감은 하나
+        jobBuildingKey = e.key;
+        jobBuilding = (async () => {
+            const { win, items, batches, unit, k } = await buildJob(e.kind, now);
+            // 만드는 사이(위치 확인·소해구 받기 — 수십 초) 정시 판이 시작됐거나 끝났으면 일감을 두지 않는다 — 받아도 쓰이지 않는 답을 받지 않게(독립 검토 하7)
+            if (running || state().done.includes(e.key)) throw Object.assign(new Error('일감을 만드는 사이 이 판(' + e.key + ') 실행이 시작됐습니다'), { status: 409 });
+            const j = { job_id: 's-' + R.isoKst(now).slice(0, 16).replace(/[-T:]/g, '') + '-' + Math.random().toString(16).slice(2, 6), key: e.key, kind: e.kind, targetDate: win.targetDate,
+                buildAt: R.isoKst(e.buildAt), waitUntil: R.isoKst(e.buildAt + SESSION_WAIT_MS), issuedAt: R.isoKst(now), status: 'open', fetches: 1, unit, kma: k, batches,
+                stations: Object.fromEntries(items.map((it) => [it.b.key, { si: it.si, hash: AI.sessionHash(it.si, k) }])) };
+            saveJob(j); logJob(j, 'issued');
+            const st = state(); st.sessionSeenAt = j.issuedAt; saveState(st);
+            return jobView(j);
+        })();
+        try { return await jobBuilding; } finally { jobBuilding = null; jobBuildingKey = null; }
+    }
+    /**
+     * 세션의 답을 받는다(POST /automation/job-result) — 일감 하나에 한 번. 관할마다 서버 검사로 판정해 일감 파일에 남긴다(글은 정시 판 실행이 쓴다).
+     * 정시 판 실행이 이미 시작했거나(일감이 late — takeDrafts) 그 판이 만들어졌거나 공개 시각(시작 + 40분)이 지났으면 받지 않는다(409 — 그 판은 AI 사슬이 썼다).
+     * 마감(waitUntil)이 지났어도 실행이 아직 시작하지 않았으면 받는다 — 다른 실행(관리자 즉시 실행)이 길어져 정시 판 시작이 밀린 경우(독립 검토 중2·중3).
+     * 예: sessionResult({job_id, answers:[{batch, text}], timings, note}) → {ok:true, job_id, kind, passed:95, failed:2, missing:0, parseErrors:0, topErrors, perStation}
+     * @param {object} body @returns {object} [연계] ← routes POST /api/station-briefing/automation/job-result / → judgeAnswers
+     */
+    function sessionResult(body) {
+        const b = body && typeof body === 'object' ? body : {}, j = readJob(), now = clock();
+        if (!j || j.job_id !== String(b.job_id || '')) throw Object.assign(new Error('일감을 찾지 못함 — 지금 일감은 ' + (j ? j.job_id : '없음')), { status: 404 });
+        if (j.status !== 'open') throw Object.assign(new Error('이 일감은 이미 ' + (j.status === 'late' ? '시간이 지나 닫혔습니다(그 판은 AI 사슬이 씀)' : '답을 받았습니다 — 일감 하나에 답은 한 번')), { status: 409 });
+        if (now >= Date.parse(j.buildAt) + 40 * 60000 || state().done.includes(j.key)) { j.status = 'late'; j.lateAt = R.isoKst(now); saveJob(j); logJob(j, 'late'); throw Object.assign(new Error('시간이 지나 받지 않습니다(이 판은 이미 만들어졌거나 공개 시각이 지남) — 그 판은 AI 사슬이 씁니다'), { status: 409 }); }
+        const siMap = new Map(Object.entries(j.stations).map(([key, x]) => [key, x.si]));
+        const r = judgeAnswers(siMap, b.answers);
+        const t = b.timings && typeof b.timings === 'object' ? b.timings : {}, clean = (x) => (typeof x === 'string' ? x.slice(0, 40) : Number.isFinite(x) ? x : null);
+        j.status = 'submitted'; j.submittedAt = R.isoKst(now); j.result = Object.fromEntries(r.res);
+        j.summary = { passed: r.passed, failed: r.failed, missing: r.missing, parseErrors: r.parseErrors, topErrors: r.topErrors, elapsed_ms: now - Date.parse(j.issuedAt) };
+        j.timings = Object.fromEntries(Object.entries(t).slice(0, 12).map(([kk, vv]) => [String(kk).slice(0, 40), clean(vv)])); j.note = typeof b.note === 'string' ? b.note.slice(0, 500) : '';
+        saveJob(j); logJob(j, 'submitted');
+        return { ok: true, job_id: j.job_id, kind: j.kind, targetDate: j.targetDate, ...j.summary, perStation: [...r.res].map(([key, x]) => ({ key, ok: x.ok, errors: x.errors.slice(0, 6) })) };
+    }
+    /**
+     * 정시 판 실행이 쓸 세션 답을 꺼낸다 — 그 판의 일감만(열쇠 key 가 있으면 열쇠로, 없으면 종류·대상 날짜·3시간 안).
+     * 아직 답이 없으면(open) late 로 닫는다(실행이 시작한 뒤 온 답은 받지 않는다). 답이 있으면 상태를 바꾸지 않는다 — 실행이 끝까지 저장한 뒤 markUsed 가 used 로 바꾼다
+     * (실행이 던지거나 배포로 끊겨 다시 돌 때도 같은 답을 쓰게 — 독립 검토 중1).
+     * 예: takeDrafts('morning', '2026-11-19', '2026-11-19|morning') → {drafts:{key:{ok, errors, land, sea, hash}}, info:{job_id, status:'used', submitted}, job}
+     *     답 없음 → {drafts:null, info:{job_id, status:'late'}, job} · 일감 없음 → {drafts:null, info:null, job:null}
+     * @param {string} kind @param {string} targetDate @param {string|null} key - 판 열쇠('날짜|판' — 1분 점검이 넘김) @returns {object} [연계] ← run
+     */
+    function takeDrafts(kind, targetDate, key) {
+        const j = readJob(), now = clock();
+        const same = j && j.kind === kind && j.targetDate === targetDate && (key ? j.key === key : now - Date.parse(j.issuedAt) <= 3 * 3600000);
+        if (!same) return { drafts: null, info: null, job: null };
+        if (j.status === 'open') { j.status = 'late'; j.lateAt = R.isoKst(now); saveJob(j); logJob(j, 'late'); }
+        if (j.status === 'late') return { drafts: null, info: { job_id: j.job_id, status: 'late' }, job: j };
+        if (j.status !== 'submitted' && j.status !== 'used') return { drafts: null, info: null, job: null };
+        const drafts = Object.fromEntries(Object.entries(j.result || {}).filter(([k]) => j.stations[k]).map(([k, x]) => [k, { ...x, hash: j.stations[k].hash }]));
+        return { drafts, info: { job_id: j.job_id, status: 'used', submitted: j.summary }, job: j };
+    }
+
+    async function run({ kind, keys = null, zones = null, key = null } = {}) {
         if (running) return { ok: false, skipped: 'busy' };
         running = (async () => {
             const t0 = elapsed(), now = clock(), config = readConfig(), all = stations(), st = state();
@@ -701,6 +855,10 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
             const deadline = t0 + (untilPublish > 0 ? Math.min(runDeadlineMs, untilPublish) : runDeadlineMs);
             const results = [], rule = [], szTried = new Set();
             let szInfo = null;
+            // §11.10.56 세션 정시 판 — 같은 판 일감의 세션 답(없으면 null). 세션을 쓰기 시작한 뒤(최근 3일 안에 일감이 있었음)인데 이 판 일감이 없으면 「none」 — 관리자 푸시가 밝힌다.
+            //   「none」은 기한 없이 — 한 번이라도 세션 일감이 있었던 서버면 계속 밝힌다(3일 뒤 저절로 조용해지면 고장과 끔이 같아 보인다 — 독립 검토 중4). 규칙 분석만(template)이면 세션을 쓰지 않으니 밝히지 않는다(하5).
+            const sess = EDITION_KINDS.includes(kind) && cfg.method !== 'template' ? takeDrafts(kind, wins[0].targetDate, key) : { drafts: null, info: null, job: null };
+            if (EDITION_KINDS.includes(kind) && cfg.method !== 'template' && !sess.info && st.sessionSeenAt) sess.info = { status: 'none' };
             for (const [wi, win] of wins.entries()) {
                 stepProgress(progress, 'gather', { window: wi });
                 // 소해구 예보(§11.10.19): 저장 판을 찾기 함수로 넘겨 모으고, 저장 판이 대해구 판보다 옛것이면 필요한 대해구만 한 번 받아 다시 붙인다
@@ -714,8 +872,9 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
                 // 재사용 바탕 = 관할마다 가장 나중에 만든 판(공개 대기 포함)
                 const latest = Object.fromEntries([...new Set(Object.keys(day.stations).concat(Object.keys(day.pending)))].map((k) => { const a = day.stations[k], b = day.pending[k]; return [k, !a ? b : !b ? a : Date.parse(b.generatedAt) > Date.parse(a.generatedAt) ? b : a]; }));
                 stepProgress(progress, 'ai', { window: wi, method: cfg.method });
-                const gen = await AI.generate({ briefings, config: cfg, previous: latest, adapters: ad || (aiOn ? (ad = realAdapters()) : {}), kma: kma(), now, timer: elapsed, deadline, onProgress: (ev) => onAiProgress(progress, ev), ...aiOptions });
+                const gen = await AI.generate({ briefings, config: cfg, previous: latest, drafts: sess.drafts, adapters: ad || (aiOn ? (ad = realAdapters()) : {}), kma: kma(), now, timer: elapsed, deadline, onProgress: (ev) => onAiProgress(progress, ev), ...aiOptions });
                 for (const x of gen.skipped || []) skippedAll.set(x.id, x);
+                if (sess.job && sess.info.status === 'used') { sess.info.used = gen.stats.session || 0; sess.info.changed = gen.stats.sessionChanged || 0; }
                 stepProgress(progress, 'save', { window: wi });
                 const wNow = clock(); settle(day, wNow);
                 for (const b of briefings) {
@@ -732,12 +891,15 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
                 rule.push(briefings.filter((b) => b.overview && b.overview.source === 'template').map((b) => b.station.name));   // 관리자 푸시 글(§11.10.8)용 — 상태 파일에는 넣지 않는다
             }
             prune(now);
-            st.lastRun = { at: R.isoKst(now), kind, zones, method: cfg.method, publishAt, results, ms: elapsed() - t0, ...(cfg.chain ? { chain: cfg.chain.map((c) => c.id), skipped: [...skippedAll.values()] } : {}), ...(szInfo ? { smallZone: szInfo } : {}), ...(aiOn ? {} : { aiDisabled: '개발 환경 — 실제 AI 호출 안 함(STATION_BRIEFING_DEV_AI=1 이면 부름)' }) };
+            st.lastRun = { at: R.isoKst(now), kind, zones, method: cfg.method, publishAt, results, ms: elapsed() - t0, ...(sess.info ? { session: sess.info } : {}), ...(cfg.chain ? { chain: cfg.chain.map((c) => c.id), skipped: [...skippedAll.values()] } : {}), ...(szInfo ? { smallZone: szInfo } : {}), ...(aiOn ? {} : { aiDisabled: '개발 환경 — 실제 AI 호출 안 함(STATION_BRIEFING_DEV_AI=1 이면 부름)' }) };
             if (EDITION_KINDS.includes(kind)) st.lastEdition = st.lastRun;   // §11.10.21 마지막 정시 판(관광지 확인 불가 이름 목록)
             // §11.10.7 실행마다 오류 드롭다운 · §11.10.21 정시 판 소요 표 — 실행 기록에는 관광지 확인 불가 수만(이름 목록 없이 — state.json 크기)
             st.runs = keepRuns(st.runs.concat({ at: st.lastRun.at, kind, method: cfg.method, ms: st.lastRun.ms, publishAt, results: results.map((x) => ({ ...x, spotFail: { stations: x.spotFail.stations, spots: x.spotFail.spots } })) }), now);
+            // 세션 답은 날짜 파일까지 저장한 뒤에 used(독립 검토 중1) · 실행 시작 때 읽은 st 가 그 사이 새로 찍힌 sessionSeenAt(일감 발급)을 지우지 않게(하7)
+            if (sess.job && sess.info.status === 'used') { const jj = readJob(); if (jj && jj.job_id === sess.job.job_id) { jj.status = 'used'; jj.usedAt = R.isoKst(clock()); jj.use = { at: R.isoKst(now), used: sess.info.used, changed: sess.info.changed }; saveJob(jj); logJob(jj, 'used'); } }
+            st.sessionSeenAt = state().sessionSeenAt || st.sessionSeenAt;
             saveState(st); recordHistory();
-            return { ok: true, results, ms: elapsed() - t0, seq: ++runSeq, method: cfg.method, rule };
+            return { ok: true, results, ms: elapsed() - t0, seq: ++runSeq, method: cfg.method, rule, session: sess.info };
         })();
         try { return await running; } finally { running = null; progress = null; }
     }
@@ -771,7 +933,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
         // 같은 판(key)을 다시 만들어도 1통(§11.10.8 독립 검토 — done·warnSig 기록이 던지면 다음 점검이 같은 판을 다시 만들고 seq 는 새로 오른다 → 매분 같은 결과 푸시). 종류마다 마지막 열쇠 하나만.
         if (key && pushedKey[kind] === key) return false;
         pushedSeq = r.seq; if (key) pushedKey[kind] = key;
-        notifyAdmin(runPushText({ kind, method: r.method, results: (r.results || []).map((x, i) => ({ ...x, rule: (r.rule || [])[i] || [] })) }), { kind: 'station_briefing', run: kind, phase: 'result' });
+        notifyAdmin(runPushText({ kind, method: r.method, session: r.session, results: (r.results || []).map((x, i) => ({ ...x, rule: (r.rule || [])[i] || [] })) }), { kind: 'station_briefing', run: kind, phase: 'result' });
         return true;
     }
     /** 백오프 중인가 — 실패 뒤 10분 안이거나 같은 판을 3번 실패했으면 true. 예: ({count:1,lastAt:10:00}, 10:05) → true · 10:10 → false. @param {object} f - failures[key] @param {number} now @returns {boolean} [연계] ← tick */
@@ -793,15 +955,22 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
         if (!repoApplied) { repoApplied = true; try { applyResolved(loadLog(state(), true)); } catch (e) { console.error('[station_briefing] 처리 완료 목록 적용 실패:', e && e.message); } }
         const now = clock(), out = {};
         const st = state(), due = R.dueEdition(now, st.done);
-        if (due) {
+        // §11.10.56: 이 판 세션 일감을 받아 놓고 답이 아직이면 만들기 시작을 waitUntil(시작 + 10분)까지 미룬다 — 공개 시각까지 AI 데드라인 20분은 그대로 남는다.
+        //   일감을 만드는 중이어도 기다린다(하7). 규칙 분석만(template)이면 기다리지 않는다(하5).
+        const sj = due ? readJob() : null, useSession = due && readConfig().method !== 'template';
+        if (useSession && ((jobBuilding && jobBuildingKey === due.key) || (sj && sj.key === due.key && sj.status === 'open' && now < Date.parse(sj.waitUntil)))) out.sessionWait = due.key;
+        else if (due) {
             if (inBackoff(st.failures[due.key], now)) out.backoff = due.key;
             else {
                 let r = null;
-                try { r = await run({ kind: due.kind }); } catch (e) { const n = reportFailure(due.key, e, now); out.failed = due.key; notifyAdmin(failPushText({ kind: due.kind, error: e, count: n }), { kind: 'station_briefing', run: due.kind, phase: 'fail' }); }
+                try { r = await run({ kind: due.kind, key: due.key }); } catch (e) { const n = reportFailure(due.key, e, now); out.failed = due.key; notifyAdmin(failPushText({ kind: due.kind, error: e, count: n }), { kind: 'station_briefing', run: due.kind, phase: 'fail' }); }
                 pushResult(due.kind, r, due.key);   // 판을 다 만든 때(공개 시각 07:30·17:30·23:00 전) — done 기록보다 먼저: 기록이 실패해도 실제로 끝난 실행은 알린다
                 if (r && r.ok) { const s2 = state(); s2.done = s2.done.concat(due.key).slice(-12); delete s2.failures[due.key]; saveState(s2); out.edition = due.key; }
             }
         }
+        // 세션 답을 기다리는 동안은 특보 변경 실행도 미룬다 — 그 사이 특보 변경이 20분 돌면 정시 판이 밀려 AI 시간이 줄고 세션 답이 버려진다(독립 검토 중3).
+        //   정시 판이 지금 자료(바뀐 특보 포함)로 모든 관할을 만들고, 남은 특보 변경 대기는 그 뒤 점검이 처리한다.
+        if (out.sessionWait) return out;
         let mtime = null; try { mtime = fs.statSync(alertsFile).mtimeMs; } catch (_) { return out; }
         const s3 = state();
         if (s3.alertsMtime !== mtime) {
@@ -906,7 +1075,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
      * @returns {object} [연계] ← routes GET status?only=progress
      */
     function progressNow() { return { running: !!running, progress: running ? progress : null }; }
-    return { trialJob, trialResult, trialLog, trialCompare, run, tick, start, stop() { if (timer) clearInterval(timer); timer = null; }, _pushResult: pushResult, pick, readConfig, writeConfig, status, exportErrors, resolveExport, _log: () => loadLog(state(), true), progressNow, stationList, stationAreas, stations, _state: state, _readDay: readDay, _fileCacheSize: () => fileCache.size };
+    return { trialJob, trialResult, trialLog, trialCompare, sessionJob, sessionResult, jobLog, _readJob: readJob, run, tick, start, stop() { if (timer) clearInterval(timer); timer = null; }, _pushResult: pushResult, pick, readConfig, writeConfig, status, exportErrors, resolveExport, _log: () => loadLog(state(), true), progressNow, stationList, stationAreas, stations, _state: state, _readDay: readDay, _fileCacheSize: () => fileCache.size };
 }
 let def = null;
 /**
@@ -925,4 +1094,4 @@ function forDefault() {
     return def;
 }
 
-module.exports = { createService, forDefault, visibleOf, settle, decideExposure, normConfig, warnSignatures, changedZones, realAdapters, historyRow, keepErrors, trimRejected, REJECTED_KEEP, freshCapped, keepRuns, spotFailOf, newProgress, stepProgress, onAiProgress, editionName, shortNames, runPushText, failPushText, defaultAdminPush, RUN_LOG_CAP, ERROR_KEEP_DAYS, ERROR_HARD_CAP, HISTORY_SOURCE, HISTORY_STALE_MS, HISTORY_PARTIAL_CODE, CHOICES, DEFAULT_CONFIG, RUN_BACKOFF_MS, MAX_RUN_FAILS, WARN_DEBOUNCE_MS, WARN_MAX_WAIT_MS, RUN_DEADLINE_MS, GEMINI_CALL_MS, SMALLZONE_WAIT_MS, zoneBaseOf, smallFinder, start: () => forDefault().start() };
+module.exports = { createService, forDefault, visibleOf, settle, decideExposure, normConfig, warnSignatures, changedZones, realAdapters, historyRow, keepErrors, trimRejected, REJECTED_KEEP, freshCapped, keepRuns, spotFailOf, newProgress, stepProgress, onAiProgress, editionName, shortNames, runPushText, sessionLine, failPushText, defaultAdminPush, RUN_LOG_CAP, ERROR_KEEP_DAYS, ERROR_HARD_CAP, HISTORY_SOURCE, HISTORY_STALE_MS, HISTORY_PARTIAL_CODE, CHOICES, DEFAULT_CONFIG, RUN_BACKOFF_MS, MAX_RUN_FAILS, WARN_DEBOUNCE_MS, WARN_MAX_WAIT_MS, RUN_DEADLINE_MS, GEMINI_CALL_MS, SMALLZONE_WAIT_MS, zoneBaseOf, smallFinder, start: () => forDefault().start() };

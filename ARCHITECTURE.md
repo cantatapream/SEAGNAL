@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 131개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 132개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -62,6 +62,7 @@ client/js/
 │   │   ├── alert_history.js
 │   │   ├── alert_source_toggle.js
 │   │   ├── data.js
+│   │   ├── escalation.js
 │   │   ├── marine.js
 │   │   ├── render_coastal.js
 │   │   ├── render.js
@@ -197,6 +198,7 @@ client/js/
 │       ├── mappings.js
 │       ├── usage_keys.js
 │       ├── utils.js
+├── tutorial/
 └── typhoon/  ← ⚡ 태풍
     ├── location_alert_typhoon_runtime.js
     ├── ocean_typhoon.js
@@ -268,6 +270,7 @@ client/js/
 | `alert_history.js` | 특보 히스토리 팝업 모달 (해역별 통보문 이력 조회) |
 | `alert_source_toggle.js` | 메인 「기상정보」 글자 오른쪽의 [MMIS] [통보문] 버튼(관리자만). 누르면 메인 「해역별 특보현황」 목록만 |
 | `data.js` | 데이터 수집(fetchAllData), 부이 데이터, API 상태 관리 |
+| `escalation.js` | 「격상 가능성」 표시 — 기상청이 「풍랑경보로 변경될 가능성」「태풍특보로 변경될 가능성」이 있다고 알린 특보구역의 카드에 |
 | `marine.js` | 해구별 기상정보 모달, 해양 차트 렌더링 |
 | `render.js` | 메인 UI 렌더링 (renderApp, createAlertElement) |
 | `render_coastal.js` | 연안 구역 렌더링, 부이 데이터 표시, 로딩/시간 업데이트 |
