@@ -285,13 +285,14 @@
 .sb-wx-head-notes .sb-wx-ico { background:rgba(251,146,60,.15); color:#fdba74; } .sb-wx-head-notes .sb-wx-rule { background:rgba(253,186,116,.3); }
 .sb-wx-head-tide .sb-wx-ico { background:rgba(45,212,191,.14); color:#5eead4; } .sb-wx-head-tide .sb-wx-rule { background:rgba(94,234,212,.3); }
 /* 「○○앞바다 기상 현황」 표 — 때 | 천기 | 파고 | 풍향·풍속(2026-11-19 사용자 「차라리 표로」). 칸 폭은 em 이라 글자 크기를 키우면 같이 넓어진다.
-   천기는 어절 단위로 칸 안에서 줄바꿈(브리핑 전체 규칙 keep-all·anywhere 를 그대로 물려받는다), 수치(파고·풍속)는 흰 굵게·한 줄. 첫 줄(오전)은 옅은 바탕 */
+   천기는 어절 단위로 칸 안에서 줄바꿈(브리핑 전체 규칙 keep-all·anywhere 를 그대로 물려받는다), 수치(파고·풍속)는 흰 굵게·한 줄. 첫 줄(오전)은 옅은 바탕, 칸마다 옅은 회색 줄 */
 .sb-wx-table { width:100%; border-collapse:collapse; table-layout:fixed; margin:4px 0; font-size:.8rem; }
 .sb-wx-table thead th { padding:3px 4px; color:#94a3b8; font-size:.72rem; font-weight:500; text-align:left; }
 .sb-wx-table .sb-wx-c0 { width:3.2em; } .sb-wx-table .sb-wx-c2 { width:6em; } .sb-wx-table .sb-wx-c3 { width:6.4em; }
 .sb-wx-table tbody th, .sb-wx-table tbody td { padding:6px 5px; text-align:left; vertical-align:top; line-height:1.4; }
-.sb-wx-table tbody tr:nth-child(odd) > * { background:rgba(255,255,255,.04); }
-.sb-wx-table tbody tr:nth-child(odd) > :first-child { border-radius:8px 0 0 8px; } .sb-wx-table tbody tr:nth-child(odd) > :last-child { border-radius:0 8px 8px 0; }
+.sb-wx-table tbody tr:nth-child(odd) > * { background:rgba(255,255,255,.03); }
+/* 옅은 회색 가로·세로 줄(2026-11-19 사용자 「옅은 가로세로줄 회색 ? 으로 강한 티가 안나게」) — 머리 줄 포함 모든 칸 */
+.sb-wx-table th, .sb-wx-table td { border:1px solid rgba(148,163,184,.18); }
 .sb-wx-when { color:#f8fafc; font-weight:700; }
 .sb-wx-num { color:#f8fafc; font-weight:700; white-space:nowrap; }
 .sb-wx-none { color:#94a3b8; }
