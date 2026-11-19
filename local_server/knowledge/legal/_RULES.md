@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 152 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 153 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -339,9 +339,9 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_codex_bridge` | Codex 개발자 모드(services/codex_bridge.js)의 삼중 잠금·중계를 고정한다. |
 | `test_bulletin_ai` | 「AI 모델 설정」(종전 「AI 특보 분석」) 기능별 AI 순서(services/bulletin_ai.js — ① 특보 읽기·② 참고사항 해석·④ 연안 안전 브리핑)와 그 API·일감별 실행 위치를… |
 | `test_bulletin_ai_ui` | 관리자 「AI 모델 설정」 탭(client/js/admin/admin_bulletin_ai.js)의 기능별 AI 순서 목록을 실제 Chromium 으로 그려 본다 — |
-| `test_llm_chain` | 나리야 답변 AI 사슬(services/llm_chain.js)의 순서·자동 전환·크레딧 소진 처리를 고정한다. |
-| `test_legal_ask_stats` | 나리야 질문 수 날짜별 집계(services/legal_ask_stats.js)와 /api/legal/ask 연결을 고정한다. |
-| `test_nariya_exposure_schedule` | 나리야 챗봇 「자동 노출 시간」(08:00 노출 · 19:00 비노출, KST)을 고정한다. |
+| `test_llm_chain` | AI 챗봇 답변 AI 사슬(services/llm_chain.js)의 순서·자동 전환·크레딧 소진 처리를 고정한다. |
+| `test_legal_ask_stats` | AI 챗봇 질문 수 날짜별 집계(services/legal_ask_stats.js)와 /api/legal/ask 연결을 고정한다. |
+| `test_nariya_exposure_schedule` | AI 챗봇 「자동 노출 시간」(08:00 노출 · 19:00 비노출, KST)을 고정한다. |
 | `test_fav_tide_prefetch` | 즐겨찾기 조석 미리받기(OS.prefetchFavoriteTides)를 고정한다. |
 | `test_picture_text` | ★그림 판독문이 **모델 근거에서 빠지는지**를 고정한다. (3-75 · Q-19) |
 | `test_ordin_fresh` | ★조례(자치법규)도 주간 원문 신선도 점검에 들어가 있는지를 고정한다. (3-78) |
@@ -403,7 +403,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_risk_goto_frame` | 「연안 안전 브리핑」 카드의 [위험예측에서 보기 ›](RiskForecast.openAt)로 위험예측을 열었을 때, 고른 해상 칸·연안 관광지가 |
 | `test_usage_briefing_risk_ui` | 사용량 통계 「연안 안전 브리핑」·「위험예측」 두 묶음이 실제 클릭 한 번에 정확히 1건씩(키·건수) 서버로 가는지 실제 Chromium 으로 index2.html 전체를 띄워 눌러 본다. |
 | `test_disk_usage` | 서버 디스크(Fly 볼륨) 사용량 점검(services/disk_usage.js)과 관리자 「저장소」 탭 그리기(admin_collect.js _renderDiskCard·_setStorageBad… |
-| `test_nariya_autorun` | 나리야 자동 반영(services/nariya_autorun.js)을 고정한다 — 설계안(services/nariya_autorun.design.md) §5 |
+| `test_nariya_autorun` | AI 챗봇 자동 반영(services/nariya_autorun.js)을 고정한다 — 설계안(services/nariya_autorun.design.md) §5 |
 | `test_nariya_pr_merge` | 자동 반영 PR 의 조건부 자동 머지(services/nariya_pr_merge.js)를 고정한다 — 설계안(services/nariya_autorun.design.md) §9 |
 | `test_location_dispatch_reliability` | 위치기반 깨우기(특보·태풍) 발송 신뢰성 + 스냅샷 축약 회귀검사 |
 | `test_forecast_gear_ui` | 해양예보 탭 아코디언 ⚙ 두 개를 실제 Chromium 으로 index2.html 전체를 띄워 눌러 본다(2026-10-17 사용자 확정). |
@@ -423,6 +423,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_wheel_date_picker` | 날짜칸을 누르면 휠 선택기가 뜨고, 고른 값이 칸에 제대로 들어가는지 |
 | `test_location_alert_exposure` | 위치기반 「노출 범위」(일반 공개/관리자만/모두 비노출) 검증 |
 | `test_inapp_update_flow` | 앱 안 업데이트(유연형) 화면 흐름 검증 |
+| `test_push_device_test` | 「직접 발송」의 "이 휴대폰에만 보내기(시험)" 검증 |
 
 > 위 두 표는 **기계가 찍은 것**이다 — `verify_all.sh` 의 절 머리줄과 `SUITES` 배열,
 > 그리고 각 스위트 파일 머리 주석에서 그대로 뽑았다. 손으로 고치면 다음 실행에 사라진다.
