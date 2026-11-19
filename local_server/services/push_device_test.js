@@ -46,7 +46,9 @@ function validate(body) {
     if (!title || !content) return { ok: false, error: '제목과 내용은 필수입니다.' };
     if (title.length > MAX_TITLE) return { ok: false, error: `제목은 ${MAX_TITLE}자까지입니다.` };
     if (content.length > MAX_CONTENT) return { ok: false, error: `내용은 ${MAX_CONTENT}자까지입니다.` };
-    const raw = b.delaySec === undefined || b.delaySec === null || b.delaySec === '' ? 0 : Number(b.delaySec);
+    const d = b.delaySec;
+    const raw = d === undefined || d === null || d === '' ? 0
+        : (typeof d === 'number' ? d : (typeof d === 'string' && /^\d+$/.test(d) ? Number(d) : NaN));   // true·[5]·"1e1" 같은 값은 받지 않는다
     if (!Number.isInteger(raw) || raw < 0 || raw > MAX_DELAY_SEC) return { ok: false, error: `지연(delaySec)은 0~${MAX_DELAY_SEC} 사이 정수여야 합니다.` };
     return { ok: true, token, title, content, delaySec: raw };
 }

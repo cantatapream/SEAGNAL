@@ -794,15 +794,6 @@ window.toggleAdminAccordion = function (id) {
 };
 
 /**
- * "구독자 전원에게 발송" 체크박스 토글 처리
- *
- * [동작]
- * - 체크 시: 해역 선택 영역 비활성화 + 카운터에 "전원" 표시 + 총 구독자 수 표시
- * - 해제 시: 해역 선택 영역 활성화 + 카운터를 현재 체크된 해역 수로 복원
- *
- * [연계] "구독자 전원에게 발송" 체크박스의 onchange 이벤트로 호출됨
- */
-/**
  * "이 휴대폰에만 보내기(시험)" 체크칸을 켜고 끌 때 — 켜면 해역·「구독자 전원」 선택을 잠그고 지연 선택을 보여 준다.
  * 예: toggleSendThisDevice(true) → 해역 영역 흐림·잠금, 「구독자 전원」 체크 해제·비활성, 「10초 뒤에 보내기」 표시
  * @param {boolean} checked
@@ -828,6 +819,11 @@ function isThisDeviceMode() {
     var cb = document.getElementById('check-send-this-device');
     return !!(cb && cb.checked);
 }
+
+// 확인 창을 띄운 순간의 발송 모드('device' = 이 휴대폰 1대 · 'normal' = 해역/전원 · null = 확인 창을 거치지 않음).
+//   확인 창이 떠 있는 동안 체크칸이 바뀌면(키보드로는 닿는다) 창에는 「이 휴대폰 1대(시험)」이라고 적혀 있는데
+//   구독자에게 나갈 수 있었다(독립 검토 E). → 일반 발송은 "확인도 일반이었고 지금도 시험이 꺼져 있을 때"만 나간다.
+var _customPushConfirmedMode = null;
 
 /** 이 휴대폰의 푸시 주소(FCM 토큰 — capacitor-plugins.js 가 push_token 으로 저장). 없으면 null. */
 function thisDevicePushToken() {
@@ -858,7 +854,7 @@ async function executeThisDevicePush(title, content, btn) {
         var result = await response.json();
         if (result && result.success) {
             alert(result.scheduled
-                ? '✅ ' + result.delaySec + '초 뒤에 이 휴대폰으로 보냅니다.\n꺼진 상태를 시험하려면 지금 앱을 끄세요(최근 앱 목록에서 밀어서).'
+                ? '✅ ' + result.delaySec + '초 뒤에 이 휴대폰으로 보냅니다.\n꺼진 상태를 시험하려면 지금 앱을 끄세요(최근 앱 목록에서 밀어서).\n\n※ 예약 발송은 실패해도 여기에 표시되지 않습니다. 알림이 안 오면 「10초 뒤에 보내기」를 끄고 다시 보내 보세요 — 실패 이유가 화면에 나옵니다.'
                 : '✅ 이 휴대폰으로 보냈습니다.');
         } else {
             alert('❌ 시험 발송 실패: ' + ((result && result.error) || ('HTTP ' + response.status)));
@@ -867,6 +863,15 @@ async function executeThisDevicePush(title, content, btn) {
     restore();
 }
 
+/**
+ * "구독자 전원에게 발송" 체크박스 토글 처리
+ *
+ * [동작]
+ * - 체크 시: 해역 선택 영역 비활성화 + 카운터에 "전원" 표시 + 총 구독자 수 표시
+ * - 해제 시: 해역 선택 영역 활성화 + 카운터를 현재 체크된 해역 수로 복원
+ *
+ * [연계] "구독자 전원에게 발송" 체크박스의 onchange 이벤트로 호출됨
+ */
 window.toggleSendAllSubscribers = function (checked) {
     var zoneArea = document.getElementById('zone-selection-area');
     if (zoneArea) {
@@ -951,6 +956,7 @@ window.confirmCustomPush = function () {
     if (!title || !content) { alert('제목과 내용을 입력해주세요.'); return; }
     if (thisDevice && !thisDevicePushToken()) { alert('이 기기에는 푸시 주소가 없습니다.\n앱(안드로이드)에서 알림을 허용한 뒤 다시 시도하세요.'); return; }
     document.getElementById('confirm-target-text').textContent = thisDevice ? '이 휴대폰 1대(시험)' : (sendAllSubs ? '구독자 전원' : (allChecked ? '전체 해역' : (checked.length + '개 해역')));
+    _customPushConfirmedMode = thisDevice ? 'device' : 'normal';   // 확인 창에 적은 대상을 붙잡아 둔다
     document.getElementById('custom-push-confirm-overlay').style.display = 'flex';
 };
 
@@ -967,7 +973,17 @@ window.executeCustomPush = async function () {
     btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> 발송 중...';
 
     // [시험 발송] 이 휴대폰 한 대에만 — 여기서 끝낸다(아래 일반 발송으로 내려가지 않는다).
-    if (isThisDeviceMode()) { await executeThisDevicePush(title, content, btn); return; }
+    //   확인 창에 「이 휴대폰 1대(시험)」이라고 적었거나, 지금 시험 체크칸이 켜져 있으면 시험이다.
+    //   일반 발송은 둘 다 아닐 때만 — 확인 창을 거치지 않았거나(null) 그 사이 무엇이 바뀌었으면 보내지 않는다.
+    var confirmedMode = _customPushConfirmedMode;
+    _customPushConfirmedMode = null;
+    if (confirmedMode === 'device' || isThisDeviceMode()) { await executeThisDevicePush(title, content, btn); return; }
+    if (confirmedMode !== 'normal') {
+        alert('발송 대상을 다시 확인해 주세요. (확인 창을 다시 열어 주세요)');
+        btn.disabled = false; btn.innerHTML = '지금 발송';
+        document.getElementById('custom-push-confirm-overlay').style.display = 'none';
+        return;
+    }
 
     try {
         var response = await fetch('/api/push-custom', {

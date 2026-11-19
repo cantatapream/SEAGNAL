@@ -33,6 +33,8 @@ function check(name, cond, extra) {
     check('제목·내용 없음 → 거절', !D.validate({ token: 't', content: 'b' }).ok && !D.validate({ token: 't', title: 'a' }).ok);
     check('내용 500자는 통과, 501자는 거절', D.validate({ token: 't', title: 'a', content: 'x'.repeat(500) }).ok && !D.validate({ token: 't', title: 'a', content: 'x'.repeat(501) }).ok);
     check('지연 60초는 통과, 61초는 거절', D.validate({ token: 't', title: 'a', content: 'b', delaySec: 60 }).ok && !D.validate({ token: 't', title: 'a', content: 'b', delaySec: 61 }).ok);
+    for (const bad of [true, [5], '1e1', ' 10', { a: 1 }]) check(`지연 ${JSON.stringify(bad)}(숫자가 아닌 꼴) → 거절`, D.validate({ token: 't', title: 'a', content: 'b', delaySec: bad }).ok === false);
+    check('지연 "10"(숫자만 있는 문자열)은 받는다', D.validate({ token: 't', title: 'a', content: 'b', delaySec: '10' }).delaySec === 10);
     for (const bad of [-1, 1.5, 'abc', NaN, Infinity]) check(`지연 ${String(bad)} → 거절`, D.validate({ token: 't', title: 'a', content: 'b', delaySec: bad }).ok === false);
     check('본문이 통째로 없어도 죽지 않고 거절', D.validate(undefined).ok === false && D.validate(null).ok === false);
 
@@ -124,7 +126,7 @@ function check(name, cond, extra) {
     const endOfExec = ui.indexOf('\n};', ui.indexOf('window.executeCustomPush = async function')) + 3;
     check('화면 코드 구간을 찾았다', a > 0 && endOfExec > a, [a, endOfExec]);
     const code = ui.slice(a, endOfExec);
-    const runUi = async ({ thisDevice, delay = true, pushToken = 'PT-1', zonesChecked = 2, allSubs = false, title = '시험', content = '내용', reply }) => {
+    const runUi = async ({ thisDevice, delay = true, pushToken = 'PT-1', zonesChecked = 2, allSubs = false, title = '시험', content = '내용', reply, between, forceExecute = false, skipExecute = false }) => {
         const els = {
             'check-send-this-device': { checked: thisDevice }, 'check-this-device-delay': { checked: delay },
             'check-send-all-subscribers': { checked: allSubs, disabled: false }, 'check-all-zones': { checked: false },
@@ -147,7 +149,8 @@ function check(name, cond, extra) {
         vm.runInContext(code + '\n;window.__f = { isThisDeviceMode, thisDevicePushToken };', ctx);
         ctx.window.confirmCustomPush();
         const shown = els['custom-push-confirm-overlay'].style.display === 'flex';
-        if (shown) await ctx.window.executeCustomPush();
+        if (shown && between) between(els);   // 확인 창이 떠 있는 동안 일어나는 일(체크칸이 바뀜 등)
+        if ((shown || forceExecute) && !skipExecute) await ctx.window.executeCustomPush();
         return { calls, alerts, shown, target: els['confirm-target-text'].textContent, els, ctx };
     };
     let u = await runUi({ thisDevice: true });
@@ -174,6 +177,23 @@ function check(name, cond, extra) {
     check('일반 발송 본문에 token·delaySec 이 섞이지 않는다', !('token' in u.calls[0].body) && !('delaySec' in u.calls[0].body) && !('adminToken' in u.calls[0].body), u.calls[0].body);
     u = await runUi({ thisDevice: false, zonesChecked: 0 });
     check('체크칸을 끄고 해역도 없으면 종전대로 막는다', !u.shown && u.calls.length === 0);
+    // 독립 검토 E-A: 확인 창이 떠 있는 동안 체크칸이 바뀌어도, 창에 적힌 대상과 다른 곳으로 나가지 않는다.
+    u = await runUi({ thisDevice: true, zonesChecked: 3, between: (els) => { els['check-send-this-device'].checked = false; } });
+    check('★「이 휴대폰 1대(시험)」으로 확인한 뒤 체크칸이 꺼져도 시험으로만 나간다(일반 발송 0번)', u.target === '이 휴대폰 1대(시험)' && u.calls.length === 1 && u.calls[0].url === '/api/admin/push-test-device', [u.target, u.calls.map((c) => c.url)]);
+    u = await runUi({ thisDevice: false, zonesChecked: 3, between: (els) => { els['check-send-this-device'].checked = true; }, reply: { status: 200, body: { success: true, scheduled: true, delaySec: 10 } } });
+    check('★일반으로 확인한 뒤 시험 체크칸이 켜지면 시험으로만 나간다(일반 발송 0번)', u.calls.length === 1 && u.calls[0].url === '/api/admin/push-test-device', u.calls.map((c) => c.url));
+    u = await runUi({ thisDevice: false, zonesChecked: 3, forceExecute: true, skipExecute: false, between: null, title: '시험', content: '내용', reply: { status: 200, body: { success: true, successCount: 1, failCount: 0 } } });
+    check('일반으로 확인하고 그대로 누르면 종전대로 일반 발송 1번', u.calls.length === 1 && u.calls[0].url === '/api/push-custom');
+    {   // 확인 창을 거치지 않고 발송 함수가 불리면(상태 null) 아무것도 보내지 않는다
+        const r0 = await runUi({ thisDevice: false, zonesChecked: 3, skipExecute: true });
+        r0.calls.length = 0; r0.alerts.length = 0;
+        await r0.ctx.window.executeCustomPush();   // 1번째: 방금 확인한 것 → 일반 발송
+        await r0.ctx.window.executeCustomPush();   // 2번째: 확인 없이 다시 → 보내지 않는다
+        check('★확인 한 번에 발송은 한 번 — 확인 없이 다시 불리면 보내지 않는다', r0.calls.length === 1 && r0.alerts.some((m) => /발송 대상을 다시 확인/.test(m)), [r0.calls.map((c) => c.url), r0.alerts]);
+    }
+    u = await runUi({ thisDevice: true });
+    check('예약 안내에 "실패해도 여기에 표시되지 않는다"는 말이 있다', u.alerts.some((m) => /예약 발송은 실패해도 여기에 표시되지 않습니다/.test(m)), u.alerts);
+
     // 토글: 켜면 「구독자 전원」을 풀고 잠근다
     u = await runUi({ thisDevice: false, zonesChecked: 0 });
     u.els['check-send-all-subscribers'].checked = true;
