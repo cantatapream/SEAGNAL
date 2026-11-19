@@ -1738,7 +1738,7 @@ function makeBriefings() {
             assert.equal(r.land.badges.reduce((a, [, t]) => a + Number(t.split(' ')[1]), 0), bb.land.attentionSpots, '연안 배지 합 = 관심 이상 전체 수');
             await page.evaluate(() => window.StationBriefingRender.render(document.getElementById('station-briefing-content'), JSON.parse(JSON.stringify(window.StationBriefing._state.resp)), { showSea: true, showLand: true, onLink: () => {} }));   // 되돌려 놓기(지금 밀집 now 포함 실제 응답)
         });
-        await check('[§11.10.16-C] 처음 상태 — 「총평과 권고」만 펼침(aria-expanded true), 해상 분석·연안 분석은 접힘(aria-expanded false·본문 높이 0 — 「조석」 칸은 §11.10.34 에 뺌) · 머리를 누르면 펼침 · 다시 그리면 다시 처음 상태(펼친 것을 기억하지 않음 — 종전과 같음)', async () => {
+        await check('[§11.10.16-C] 처음 상태 — 「총평과 권고」만 펼침(aria-expanded true), 해상 분석·연안 분석은 접힘(aria-expanded false·본문 높이 0 — 「조석」 칸은 §11.10.34 에 뺌) · 머리를 누르면 펼침 · 한 번에 한 칸만(2026-11-19) · 다시 그리면 다시 처음 상태(펼친 것을 기억하지 않음 — 종전과 같음)', async () => {
             const r = await page.evaluate(async ({ b, now }) => {
                 window.__sbKeepDefault = true;
                 const R = window.StationBriefingRender, box = document.getElementById('station-briefing-content');
@@ -1746,6 +1746,9 @@ function makeBriefings() {
                 R.render(box, { ok: true, briefing: b }, { now, showSea: true, showLand: true, onLink: () => {} }); await new Promise((res) => setTimeout(res, 500));
                 const out = { first: st() };
                 box.querySelector('[data-sb-sec="sea"] .marine-forecast-sub-header').click(); await new Promise((res) => setTimeout(res, 500)); out.clicked = st();
+                // 한 번에 한 칸만(2026-11-19 사용자 「한개씩만 열릴 수 있도록」) — 연안을 누르면 해상이 접히고, 펼친 칸을 다시 누르면 모두 접힘
+                box.querySelector('[data-sb-sec="land"] .marine-forecast-sub-header').click(); await new Promise((res) => setTimeout(res, 500)); out.land = st();
+                box.querySelector('[data-sb-sec="land"] .marine-forecast-sub-header').click(); await new Promise((res) => setTimeout(res, 500)); out.none = st();
                 R.render(box, { ok: true, briefing: b }, { now, showSea: true, showLand: true, onLink: () => {} }); await new Promise((res) => setTimeout(res, 500)); out.again = st();
                 window.__sbKeepDefault = false;
                 return out;
@@ -1753,6 +1756,9 @@ function makeBriefings() {
             const first = [['overview', true, 'true', true], ['land', false, 'false', false], ['sea', false, 'false', false]];   // 「조석」 칸은 §11.10.34 에 뺐다 · 연안 → 해상(§11.10.39)
             assert.deepEqual(r.first, first, JSON.stringify(r.first));
             assert.deepEqual(r.clicked[2], ['sea', true, 'true', true], '머리를 누르면 펼침');
+            assert.deepEqual(r.clicked.map((x) => x[1]), [false, false, true], '해상을 펼치면 총평과 권고는 접힌다(한 칸만): ' + JSON.stringify(r.clicked));
+            assert.deepEqual(r.land, [['overview', false, 'false', false], ['land', true, 'true', true], ['sea', false, 'false', false]], '연안을 펼치면 해상이 접힌다: ' + JSON.stringify(r.land));
+            assert.deepEqual(r.none.map((x) => x[1]), [false, false, false], '펼친 칸을 다시 누르면 그 칸만 접힌다');
             assert.deepEqual(r.again, first, '다시 그리면 처음 상태');
             await page.evaluate(() => window.StationBriefingRender.render(document.getElementById('station-briefing-content'), JSON.parse(JSON.stringify(window.StationBriefing._state.resp)), { showSea: true, showLand: true, onLink: () => {} }));   // 되돌려 놓기(지금 밀집 now 포함 실제 응답)
         });

@@ -244,7 +244,7 @@
     /**
      * 접히는 칸 하나(종합 예보의 하위 아코디언과 같은 모양 .marine-forecast-sub-accordion). 머리를 누르면 펼침/접힘.
      * 처음 상태(2026-10-17 사용자 *"기본적으로 총평과 권고만 아코디언이 펼쳐진 상태로 시작하고, 나머지는 접힌 상태로 시작하도록 해."* — 설계서 §11.10.16 소절):
-     *   「총평과 권고」만 펼침(open true), 해상 분석·연안 분석은 접힘(「조석」 칸은 §11.10.34 에 뺐다). 펼친 상태를 기억하는 곳은 없다 — 본문을 다시 그리면(판이 바뀌면) 다시 이 처음 상태다(종전에도 다시 그리면 모두 펼침으로 돌아왔다).
+     *   「총평과 권고」만 펼침(open true), 해상 분석·연안 분석은 접힘(「조석」 칸은 §11.10.34 에 뺐다). 머리를 누르면 그 칸만 펼치고 다른 칸은 접는다(2026-11-19 사용자 「한개씩만」). 펼친 상태를 기억하는 곳은 없다 — 본문을 다시 그리면(판이 바뀌면) 다시 이 처음 상태다(종전에도 다시 그리면 모두 펼침으로 돌아왔다).
      * 예: section('총평과 권고', 'overview', true) → {root, body} — body 에 내용을 붙인다 · section('해상 분석', 'sea') → 접힌 칸(aria-expanded="false")
      * @param {string} title @param {string} key - data-sb-sec(시험·스크린샷이 찾는 이름) @param {boolean} [open] - 처음 펼침(없으면 접힘)
      * @returns {{root:HTMLElement, body:HTMLElement, head:HTMLElement}}
@@ -256,7 +256,17 @@
         head.setAttribute('role', 'button'); head.tabIndex = 0;
         head.appendChild(el('span', 'marine-forecast-sub-title', title));
         var icon = el('i', 'fa-solid fa-chevron-down marine-forecast-sub-icon'); icon.setAttribute('aria-hidden', 'true'); head.appendChild(icon);
-        var flip = function () { root.classList.toggle('open'); head.setAttribute('aria-expanded', String(root.classList.contains('open'))); };
+        // 한 번에 한 칸만 펼친다 — 펼칠 때 같은 브리핑의 다른 칸(총평과 권고·연안 분석·해상 분석)을 접는다.
+        //   [2026-11-19 사용자] 「브리핑에 총평, 연안, 해상이 있는데 각각 아코디언 모두 다 펼쳐볼 수 있는 상태인데, 한개씩만 열릴 수 있도록」
+        var flip = function () {
+            var willOpen = !root.classList.contains('open');
+            if (willOpen && root.parentElement) Array.prototype.forEach.call(root.parentElement.children, function (sib) {
+                if (sib === root || !sib.classList.contains('sb-sec') || !sib.classList.contains('open')) return;
+                sib.classList.remove('open');
+                var h = sib.querySelector('.marine-forecast-sub-header'); if (h) h.setAttribute('aria-expanded', 'false');
+            });
+            root.classList.toggle('open', willOpen); head.setAttribute('aria-expanded', String(willOpen));
+        };
         head.setAttribute('aria-expanded', String(!!open));
         head.addEventListener('click', flip);
         head.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } });

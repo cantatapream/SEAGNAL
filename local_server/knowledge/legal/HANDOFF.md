@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-19 23:19 KST] ✅완료 — AI 연안 안전 브리핑 — 총평과 권고·연안 분석·해상 분석 한 번에 한 칸만 (브랜치 claude/festive-tesla-k7ie2s, PR #1531 머지 뒤 새로)
+사용자 2026-11-19 「한개씩만 열릴 수 있도록」. station_briefing_render.js section() 의 flip — 펼칠 때 같은 상자의 다른 .sb-sec 를 접고 aria-expanded 맞춤. 버전표 갱신. test_station_briefing_ui [§11.10.16-C] 에 확인 추가(해상 펼치면 총평 접힘 · 연안 펼치면 해상 접힘 · 다시 누르면 모두 접힘) 101/0.
+
+
 ### [2026-11-19 22:57 KST] ✅완료 — 댓글 입력창 — 글이 칸을 넘으면 줄바꿈·입력창이 줄 수만큼 높아짐 (브랜치 claude/festive-tesla-k7ie2s)
 사용자 2026-11-19 「글자수가 칸을 벗어나면 줄바꿈 자동으로 되고 그 댓글을 입력하는 창이 동적으로 높아지는 기능도 넣어줘」. promo_comment3.js autoGrowCommentTextarea 신설 — 입력할 때마다 높이를 scrollHeight 에 맞춤(빈 칸은 처음 높이로 — 빈 칸 scrollHeight 는 안내 글 줄 수까지 쳐서 높게 나옴), style.css 게시글 팝업 아래 칸 입력창 min 42px·max 132px(약 6줄, 넘으면 안에서 스크롤)·어절 단위 줄바꿈(keep-all), 등록 단추는 입력창 아래쪽에 붙음. 버전표 갱신. test_promo_detail_ui 10/0(줄바꿈·높아짐·최대에서 스크롤·지우면 낮아짐·입력칸 맨 아래·등록 아래쪽 정렬 시험 추가).
 
