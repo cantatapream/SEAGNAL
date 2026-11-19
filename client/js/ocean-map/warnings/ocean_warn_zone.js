@@ -546,6 +546,8 @@
             _pendingVisible = null;
             if (_visible !== want) btn.click();
         }
+        // 해양안전 화면에서 지도가 처음 만들어졌으면 되살린 켜짐을 잠시 끈다(life_safety.js _lsSuspendLateOverlay)
+        if (typeof window._lsSuspendLateOverlay === 'function') window._lsSuspendLateOverlay(btn);
     }
 
     /** oceanMap 이 만들어질 때까지 시간 제한 없이 폴링 */

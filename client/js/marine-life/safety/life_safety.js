@@ -267,6 +267,24 @@
     }
 
     /**
+     * 지도보다 늦게 묶인 오버레이 버튼이 해양안전 화면에서 저장값(localStorage)으로 켜졌으면 잠시 끈다.
+     * 앱을 켜고 처음 지도를 여는 곳이 해양안전이면, 진입 때(_suspendOceanOverlays) 버튼들은 아직 안 묶여
+     * 꺼진 채라 걸러지지 않고, 지도가 만들어진 뒤에야 각 버튼이 지난번 저장값(켜짐)을 되살려 해구기상 격자·
+     * 특보구역·부이가 해양안전 지도에 나타났다(격자를 누르면 해구기상까지 떴다 — 재현 확인 2026-11-19).
+     * 진입 때 끈 버튼과 똑같이 _suspended 에 넣으므로 진짜 해양종합정보 탭에 가면 다시 켜진다.
+     * 예: 저장값 해구기상=켜짐 → 앱 시작 후 바로 해양안전생활 → 격자 안 보임 → 해양종합정보 → 격자 켜짐
+     * @param {HTMLElement} btn - 방금 저장값을 되살린 #ocean-overlay-controls 안의 버튼
+     * [연계] ← ocean_map.js bindMarineZoneGridToggle · ocean_warn_zone.js _bindToggle · ocean_buoy.js bindBuoyToggle
+     *          → _restoreOceanOverlays() 가 되살린다
+     */
+    window._lsSuspendLateOverlay = function (btn) {
+        if (!btn || !btn.classList.contains('active')) return;
+        if (!document.body.classList.contains('ls-safety')) return;
+        if (_suspended.indexOf(btn) < 0) _suspended.push(btn);
+        _silently(function () { btn.click(); });
+    };
+
+    /**
      * 진짜 해양종합정보 탭으로 갈 때, 해양안전 때문에 꺼뒀던 오버레이를 되살린다.
      * 예: 특보구역을 켠 채로 해양안전에 들렀다 돌아오면 그대로 다시 켜져 있음
      * [연계] ← _wrapTabSwitchers() 의 switchMainTab 래퍼(targetId==='ocean-map-section')
