@@ -886,7 +886,9 @@ function renderRegionalForecast(data) {
         //   기본 상태: 닫힘. 데이터 속성 data-office-code 로 토글 대상 식별.
         const openClass = openCodes.has(item.officeCode) ? ' open' : '';
         html += `<div class="regional-forecast-office${openClass}" data-office-code="${escapeHtml(item.officeCode || '')}">`;
-        html += `<div class="regional-forecast-office-header" onclick="toggleRegionalOffice('${escapeHtml(item.officeCode || '')}')">`;
+        // 머리줄 누르기는 아래에서 리스너로 건다(2026-11-19) — 종전에는 관서 번호를 onclick="toggleRegionalOffice('…')" 글자 속에 끼워 넣었다.
+        //   그 자리는 HTML 이스케이프가 온전히 듣지 않는다(속성 값이 풀린 뒤 스크립트로 읽힌다 — 번호에 따옴표가 들면 명령이 끊긴다). 번호는 서버가 정한 값이라 실제 위험은 낮았다.
+        html += `<div class="regional-forecast-office-header">`;
         // [머리줄 — 2026-11-19 사용자 「제주지방기상청 단기 전망을 한줄로 표현하고 그 아래줄에 발표정보를 줄바꿈하여 기록. 통보문 버튼을 그 오른쪽(… 헤더 박스의 중앙 오른쪽에 배치」]
         //   왼쪽 = 이름 한 줄 + 그 아래 발표 정보 / 오른쪽 가운데 = 📋(원문을 받아 둔 관서만) · 접기 화살표
         // [헤더 라벨] "단기예보" → "단기 전망" — list.do [해설] 통보문 본문 기반으로 변경되었음을 반영
@@ -986,6 +988,10 @@ function renderRegionalForecast(data) {
     if (window.textFit) bodyEl.querySelectorAll('.regional-forecast-summary').forEach(s => window.textFit(s, '.regional-forecast-line:not(.tf-hang), .tf-text'));
     //   「해상 기상 요약」 상자도 같은 규칙(어절 단위·자간 줄이기) — 해역 이름 줄·딱지 줄·원문 줄
     if (window.textFit) bodyEl.querySelectorAll('.regional-forecast-sea').forEach(s => window.textFit(s, '.rf-sea-zn, .rf-sea-ln, .regional-forecast-line:not(.tf-hang), .tf-text'));
+    // 머리줄 — 누르면 그 카드를 접고 편다(번호를 글자로 끼우지 않고 눌린 머리줄이 든 카드를 바로 찾는다). 📋 는 따로 막는다(stopPropagation).
+    bodyEl.querySelectorAll('.regional-forecast-office-header').forEach(h => h.addEventListener('click', () => {
+        const card = h.closest('.regional-forecast-office'); if (card) card.classList.toggle('open');
+    }));
     // 「전문 보기」 줄 — 누르면 바로 아래 본문을 펼치고 접는다(글자도 「보기」↔「접기」). 펼친 지방청을 기억해 두어 다시 그려도 그대로.
     bodyEl.querySelectorAll('.regional-forecast-full-btn').forEach(btn => btn.addEventListener('click', () => {
         const open = btn.classList.toggle('open'), code = btn.getAttribute('data-full-office');

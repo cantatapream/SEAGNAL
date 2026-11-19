@@ -185,6 +185,17 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             assert.equal(await jeju.$eval('.regional-forecast-summary', (f) => getComputedStyle(f).display), 'none');
             assert.equal(T(await jeju.textContent('.regional-forecast-full-btn .rf-full-verb')), '보기');
         });
+        await check('머리줄: 누르면 카드가 접히고 다시 누르면 펴진다 — 명령 글자(onclick)를 달지 않고 리스너로(관서 번호를 글자에 끼우지 않는다) · 📋 를 눌러도 접히지 않는다', async () => {
+            assert.equal(await jeju.$$eval('.regional-forecast-office-header', (hs) => hs.filter((h) => h.hasAttribute('onclick')).length), 0);
+            const open = () => jeju.$eval('.regional-forecast-office', (c) => c.classList.contains('open'));
+            const hit = () => jeju.$eval('.regional-forecast-office-name', (e) => e.click());   // 머리줄 안의 이름을 누른다(위에 붙은 머리띠에 가리지 않게 DOM 으로)
+            assert.equal(await open(), true);
+            await hit(); assert.equal(await open(), false);
+            assert.equal(await jeju.$eval('.regional-forecast-office-body', (b) => getComputedStyle(b).display), 'none');
+            await hit(); assert.equal(await open(), true);
+            await jeju.$eval('.regional-forecast-doc', (b) => b.click()); assert.equal(await open(), true);
+            await jeju.evaluate(() => { const m = document.querySelector('.kma-iframe-modal, #kma-iframe-modal'); if (m) m.remove(); });
+        });
         await (await jeju.$('.regional-forecast-office')).screenshot({ path: path.join(SHOT, 'sea_412_ok.png') });
 
         const narrow = await device('184', 360);
