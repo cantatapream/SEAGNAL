@@ -1258,6 +1258,8 @@ const WIN = R.editionWindow('morning', T0);
         const mk = (win, gen) => R.buildBriefing({ ...hallim(), zoneWeather: I.collectZoneWeather({ lat: 33.41, lon: 126.26 }, REGIONAL()) }, win, { generatedAt: gen }).summary.weather;
         const m = mk(WIN, R.isoKst(T0));
         assert.deepStrictEqual(m.rows.map((r) => r.label + ' | ' + r.text), ['오늘 오전 | 구름많음 · 파고 0.5~1.5m · 풍속 7~11m/s · 풍향 동→남동', '오늘 오후 | 구름많음 · 파고 0.5~1.5m · 풍속 7~11m/s · 풍향 남동']);
+        // 표 칸(2026-11-19 사용자 「차라리 표로 — 천기 | 파고 | 풍향·속」) — 한 줄 글과 같은 값을 칸별로
+        assert.deepStrictEqual(m.rows.map((r) => r.cells), [{ sky: '구름많음', wave: '0.5~1.5m', dir: '동→남동', speed: '7~11m/s' }, { sky: '구름많음', wave: '0.5~1.5m', dir: '남동', speed: '7~11m/s' }]);
         assert.deepStrictEqual([m.zone, m.source, m.missing], ['제주도서부앞바다', '제주지방기상청 단기 해상예보 (10.17 05:00 발표)', false]);
         const e = mk(R.editionWindow('evening', Date.parse('2026-10-17T17:30:00+09:00')), '2026-10-17T17:30:00+09:00');
         assert.deepStrictEqual(e.rows.map((r) => r.label), ['오늘 오후', '내일 오전']); assert.ok(e.rows[1].text.startsWith('흐리고 비 · 파고 1.5~2.5m'));
