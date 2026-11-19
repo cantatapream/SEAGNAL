@@ -605,12 +605,17 @@ function undoWikiPages(targetPages, reviewId) {
   return { changed, demoted };
 }
 
-function applyToWikiPages(targetPages, correctedValue, reviewId, by, dateStr) {
-  const changed = [];
+/**
+ * 리뷰의 「대상 페이지」 표기를 실제 위키 파일로 바꾼다(있는 파일만).
+ * 예: ['wiki/concepts/선박평형수(船舶平衡水)관리법__항만국통제.md (사유가 적힌 자리: …)'] → [{base:'선박평형수(船舶平衡水)관리법__항만국통제', fp:'…/wiki/concepts/….md'}]
+ * @param {string[]} targetPages @returns {Array<{base:string, fp:string}>}
+ * [연계] ← applyToWikiPages · targetFingerprints(2026-11-19 — 두 곳이 같은 파일을 가리키도록 한 곳에서)
+ */
+function wikiTargets(targetPages) {
+  const out = [];
   let lastLawSlug = '';
   const root = path.resolve(CONCEPTS_DIR) + path.sep;
-  const escId = reviewId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  for (const rawTp of targetPages) {
+  for (const rawTp of targetPages || []) {
     // 파일 경로만 추출: "wiki/concepts/" 접두 제거 + ".md" 이후 주석("(신규)"·설명) 절단
     let base = String(rawTp).replace(/^wiki\/concepts\//, '').trim();
     base = base.replace(/\.md\b[\s\S]*$/, '').trim();
@@ -621,6 +626,38 @@ function applyToWikiPages(targetPages, correctedValue, reviewId, by, dateStr) {
     const fp = path.join(CONCEPTS_DIR, base + '.md');
     if (!path.resolve(fp).startsWith(root)) continue;        // 경로 봉쇄(../ 상위 탈출 차단)
     if (!fs.existsSync(fp)) continue;
+    out.push({ base, fp });
+  }
+  return out;
+}
+
+/**
+ * 위키 페이지의 「내용 지문」 — 승인이 바꾸는 두 군데(머리말 status 줄 · 「> ✅ 사람검증 확정」 각인 줄)를 뺀 글의 짧은 확인값.
+ * 같은 글이면 승인 전·후·배포 뒤 어디서 재도 같다. 글이 한 글자라도 바뀌면 달라진다.
+ * [왜 — 2026-11-19 사용자 결정 「다」] 배포 뒤 승인을 다시 맞출 때(replayApprovalsLog), 사람이 승인한 그 글이 **지금도 같을 때만** 확정한다.
+ *   그사이 재수집·수정으로 글이 바뀌었으면 사람이 본 적 없는 글을 「사람검증 확정」으로 올리게 되므로 카드를 대기로 둔다.
+ * 예: pageFingerprint('---\nstatus: draft\n---\n본문') === pageFingerprint('---\nstatus: canonical\n---\n본문\n> ✅ 사람검증 확정(…) · REVIEW-x\n')
+ * @param {string} md @returns {string} 16자리 hex
+ */
+function pageFingerprint(md) {
+  const norm = String(md || '').replace(/\r\n/g, '\n')
+    .replace(/^status:[^\n]*\n?/m, '')
+    .replace(/^> ✅ 사람검증 확정[^\n]*\n?/gm, '')
+    .split('\n').map((l) => l.replace(/\s+$/, '')).join('\n').replace(/\s+$/, '');
+  return require('crypto').createHash('sha256').update(norm, 'utf8').digest('hex').slice(0, 16);
+}
+
+/** 대상 페이지마다 지금 내용 지문. 예: {'선박평형수…__항만국통제.md':'3fa9…'} @param {string[]} targetPages @returns {Object<string,string>} [연계] ← finalizeApproval(승인 기록) · replayApprovalsLog(비교) */
+function targetFingerprints(targetPages) {
+  const out = {};
+  for (const t of wikiTargets(targetPages)) out[t.base + '.md'] = pageFingerprint(fs.readFileSync(t.fp, 'utf8'));
+  return out;
+}
+
+function applyToWikiPages(targetPages, correctedValue, reviewId, by, dateStr) {
+  const changed = [];
+  const escId = reviewId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  for (const { base, fp } of wikiTargets(targetPages)) {
     let md = fs.readFileSync(fp, 'utf8');
     // frontmatter status 승격(review-pending/draft → canonical)
     md = md.replace(/^(status:\s*)(review-pending|draft)\s*$/m, '$1canonical');
@@ -640,9 +677,12 @@ function applyToWikiPages(targetPages, correctedValue, reviewId, by, dateStr) {
  * **반드시 withLock(...) 콜백 안에서만 호출할 것** — review_queue.md 직렬쓰기 보장.
  * @returns {{httpStatus:number, body:object}}
  */
-function finalizeApproval(entry, decision, correctedValue, by) {
+function finalizeApproval(entry, decision, correctedValue, by, opts) {
   const id = entry.id;
-  const now = new Date();
+  // opts.at — 서버를 켤 때 승인 이력을 다시 맞출 때(replayApprovalsLog)는 **사람이 누른 그날** 날짜로 찍는다.
+  // opts.log === false — 그때는 이력에 한 줄 더 쌓지 않는다(이미 있는 기록을 옮겨 적는 것뿐이다).
+  const o = opts || {};
+  const now = o.at && !isNaN(Date.parse(o.at)) ? new Date(o.at) : new Date();
   const dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
 
   // 1) review_queue.md 승인/반려 마킹(원자적)
@@ -668,8 +708,9 @@ function finalizeApproval(entry, decision, correctedValue, by) {
   }
   writeFileAtomic(REVIEW_QUEUE, txt);
 
-  // 2) 승인이면 대상 위키 페이지 canonical 승격 + 확정값 각인
+  // 2) 승인이면 대상 위키 페이지 canonical 승격 + 확정값 각인 — 그 전에 사람이 승인한 글의 「내용 지문」을 잰다(이력에 남겨 배포 뒤 다시 맞출 때 비교)
   let changedFiles = [];
+  const pageHashes = decision === 'approve' ? targetFingerprints(entry.targetPages) : null;
   if (decision === 'approve') changedFiles = applyToWikiPages(entry.targetPages, correctedValue, id, by, dateStr);
   let undoDemoted = [];
   if (decision === 'undo') {
@@ -678,10 +719,13 @@ function finalizeApproval(entry, decision, correctedValue, by) {
     undoDemoted = r.demoted;
   }
 
-  // 3) 승인 이력 로그(감사 추적)
-  const { log, brokenMovedTo } = readApprovalsLog();
-  log.push({ id, decision, correctedValue, by, at: now.toISOString(), targetPages: entry.targetPages, changedFiles });
-  writeApprovalsLog(log);
+  // 3) 승인 이력 로그(감사 추적) — 다시 맞추기(opts.log === false)는 쌓지 않는다
+  let brokenMovedTo = '';
+  if (o.log !== false) {
+    const r = readApprovalsLog(); brokenMovedTo = r.brokenMovedTo;
+    r.log.push({ id, decision, correctedValue, by, at: now.toISOString(), targetPages: entry.targetPages, changedFiles, ...(pageHashes ? { pageHashes } : {}) });
+    writeApprovalsLog(r.log);
+  }
 
   // 정직한 note: 실제 승격 페이지 수 기준(무음 성공 금지)
   // 정직한 note: **실제로 일어난 것만** 적는다. 각인만 지운 것과 draft 로 내린 것은 다르다.
@@ -699,6 +743,61 @@ function finalizeApproval(entry, decision, correctedValue, by) {
     promotedCount: changedFiles.length,
     note: note + (brokenMovedTo ? ' ⚠승인 이력 파일이 깨져 있어 ' + path.basename(brokenMovedTo)
       + ' 로 옮기고 새로 시작했습니다 — 옛 기록을 사람이 확인해야 합니다.' : '') } };
+}
+
+/**
+ * 영구 칸(볼륨)의 승인 이력으로 대기 목록(review_queue.md)의 승인 줄과 위키 「확정」을 다시 맞춘다 — 서버를 켤 때 한 번.
+ * [왜] review_queue.md 와 위키 페이지는 **앱 이미지 안**이라 배포할 때마다 저장소의 옛 내용으로 돌아간다.
+ *   승인 이력(APPROVALS_LOG)만 볼륨에 남는다(2026-08-28). 그래서 배포 뒤엔 사람이 누른 승인이 화면에서 사라지고
+ *   「다시 승인하라」고 나왔다 — 2026-11-19 사용자 「아무리 승인을 눌러도 그때뿐이고 나갔다 들어오면 다시 승인하라고 나오는데」
+ *   (최근 3일 main 머지 58건 = 배포 58번). 종전 해법(apply_approvals.py — 이력을 받아 저장소에 손으로 반영)은 아무도 안 돌리면 소용이 없었다.
+ * [무엇을] 항목마다 **마지막 결정**만 본다(누른 순서대로 쌓인 이력의 맨 뒤):
+ *   - 승인인데 파일은 아직 대기 → 승인 줄 [x] + 대상 위키 canonical·확정 각인(사람이 누른 날짜·이름·확정값 그대로)
+ *   - 되돌림·반려인데 파일은 승인 → 그 결정대로(되돌림은 위키도 원래대로 — finalizeApproval 과 같은 동작)
+ *   - 파일이 이미 같은 상태면(저장소에 반영돼 있으면) 손대지 않는다 — 여러 번 돌려도 결과가 같다
+ *   이력에 한 줄도 더 쌓지 않는다. 대기열에 없는 항목(이름이 바뀌었거나 빠진 것)은 건너뛰고 수만 적는다.
+ * 예: 이력 [{id:'REVIEW-선박평형수…-806', decision:'approve', by:'관리자', at:'2026-11-19T…'}] · 파일은 [ ] 대기 → 그 항목을 [x] 승인(관리자, 2026-11-19)으로
+ *   ★승인은 **그때 잰 「내용 지문」(pageHashes)이 지금 글과 모두 같을 때만** 다시 맞춘다(2026-11-19 사용자 결정 「다」).
+ *     지문이 없는 옛 승인(이 기능 전)은 손대지 않는다 → old. 글이 바뀌었으면 → changed(대기로 남아 사람이 새 글을 보고 다시 판단).
+ * @returns {{approved:string[], reverted:string[], missing:string[], skipped:string[], old:string[], changed:string[]}}
+ *   skipped = 대상 페이지 표기가 승인 때와 달라 건너뜀 · old = 지문 없는 옛 승인 · changed = 승인 뒤 글이 바뀜
+ * [연계] ← replayApprovalsOnStart(server.js 가 listen 뒤에 — withLock 안에서) / → readApprovalsLog · parseReviewQueue · finalizeApproval(opts.log:false)
+ *        같은 일을 저장소에 하는 도구: _dashboard/loop/apply_approvals.py
+ */
+function replayApprovalsLog() {
+  const out = { approved: [], reverted: [], missing: [], skipped: [], old: [], changed: [] };
+  const { log } = readApprovalsLog();
+  if (!log.length || !fs.existsSync(REVIEW_QUEUE)) return out;
+  const last = new Map();
+  log.forEach((a) => { if (a && a.id) last.set(a.id, a); });   // 뒤에 쌓인 것이 마지막 결정
+  const list = parseReviewQueue();
+  const pagesKey = (arr) => JSON.stringify((Array.isArray(arr) ? arr : []).map((x) => String(x).trim()).sort());
+  for (const [id, a] of last) {
+    const same = list.filter((e) => e.id === id);
+    if (!same.length) { out.missing.push(id); continue; }
+    // ⚠같은 번호가 다른 항목을 가리키면 남의 항목을 승인하게 된다 — 승인할 때 적어 둔 대상 페이지(a.targetPages)가 지금과 같을 때만 맞춘다.
+    //   대기열에 같은 번호가 둘 이상인 항목(2026-11-19 현재 3개)도 있다: 승인 쓰기(replaceApprovalLine)는 번호로만 찾으므로
+    //   **맨 앞 항목**이 그 승인의 대상일 때만 맞춘다. 아니면 건너뛰고 수만 적는다(사람이 다시 누르면 된다).
+    const e = same[0];
+    if (Array.isArray(a.targetPages) && pagesKey(a.targetPages) !== pagesKey(e.targetPages)) { out.skipped.push(id); continue; }
+    if (e.excluded) continue;
+    const d = a.decision === 'undo' || a.decision === 'reject' ? a.decision : 'approve';
+    if (d === 'approve' && !e.approved) {
+      // 「내용 지문」 비교(2026-11-19 사용자 결정 「다」 — 「옛 승인은 손대지 않음 … 가장 안전함」):
+      //   지문 없는 옛 승인 → 손대지 않는다(카드는 대기 — 한 번 다시 누르면 그 뒤로는 지문이 남는다).
+      //   지문이 지금 글과 하나라도 다르거나 그 페이지가 없어졌으면 → 사람이 본 글이 아니므로 대기로 둔다.
+      if (!a.pageHashes || typeof a.pageHashes !== 'object') { out.old.push(id); continue; }
+      const now = targetFingerprints(e.targetPages);
+      const keys = Object.keys(a.pageHashes);
+      if (keys.length !== Object.keys(now).length || keys.some((k) => now[k] !== a.pageHashes[k])) { out.changed.push(id); continue; }
+      finalizeApproval(e, 'approve', a.correctedValue != null ? a.correctedValue : null, a.by || '관리자', { at: a.at, log: false });
+      out.approved.push(id);
+    } else if (d !== 'approve' && e.approved) {
+      finalizeApproval(e, d, null, a.by || '관리자', { at: a.at, log: false });
+      out.reverted.push(id);
+    }
+  }
+  return out;
 }
 
 // POST /api/legal/reviews/:id/approve — 승인(+교정값 확정) 또는 반려 → 서버 반영
@@ -2911,4 +3010,18 @@ router.get('/api/legal/rooms/law', adminAuth.requireAdminToken, (req, res) => {
 
 // 시험용 손잡이(test_review_card_view.js) — 파일을 읽지 않는 순수 함수만 내놓는다.
 router.__test = { parseReviewQueueText, replaceApprovalLine, findAiDone };
+// 서버를 켤 때 승인 이력으로 대기 목록·위키 확정을 다시 맞춘다(replayApprovalsLog — 배포 때마다 사람이 누른 승인이 사라지던 것, 2026-11-19).
+//   승인 쓰기와 같은 줄(withLock)에 세워 동시에 쓰지 않게 한다. 실패해도 서버는 뜬다(대신 크게 적는다).
+//   모듈을 불러오기만 해서는 돌지 않는다 — server.js 가 listen 뒤에 부른다(시험이 이 모듈을 불러와도 실제 파일을 건드리지 않게).
+//   끄려면 LEGAL_REPLAY_APPROVALS=off.
+function replayApprovalsOnStart() {
+  if (process.env.LEGAL_REPLAY_APPROVALS === 'off') return Promise.resolve(null);
+  return withLock(async () => replayApprovalsLog())
+    .then((r) => { if (r.approved.length || r.reverted.length || r.missing.length || r.skipped.length || r.changed.length) console.log('[legal] 승인 이력 다시 맞춤 — 승인 ' + r.approved.length + '건 · 되돌림/반려 ' + r.reverted.length + '건 · 승인 뒤 글이 바뀌어 대기로 둠 ' + r.changed.length + '건 · 지문 없는 옛 승인(손대지 않음) ' + r.old.length + '건 · 대기열에 없음 ' + r.missing.length + '건 · 대상 페이지가 달라 건너뜀 ' + r.skipped.length + '건' + (r.changed.length + r.missing.length + r.skipped.length ? ' (' + r.changed.concat(r.missing, r.skipped).slice(0, 5).join(', ') + ')' : '')); return r; })
+    .catch((e) => { console.error('[legal] ⚠승인 이력 다시 맞추기 실패 — 배포 전 승인이 화면에 다시 「대기」로 보일 수 있다:', e && e.message); return null; });
+}
+
 module.exports = router;
+module.exports._replayApprovalsLog = replayApprovalsLog;   // 시험용(test_review_replay)
+module.exports._pageFingerprint = pageFingerprint;         // 시험용
+module.exports.replayApprovalsOnStart = replayApprovalsOnStart;   // ← server.js listen 뒤
