@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 132개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 133개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -67,6 +67,8 @@ client/js/
 │   │   ├── render_coastal.js
 │   │   ├── render.js
 │   │   ├── zone_avg.js
+│   ├── main-accordion/
+│   │   ├── main_accordion_solo.js
 │   ├── marine-chart/
 │   │   ├── marine_chart1.js
 │   │   ├── marine_chart2.js
@@ -198,7 +200,6 @@ client/js/
 │       ├── mappings.js
 │       ├── usage_keys.js
 │       ├── utils.js
-├── tutorial/
 └── typhoon/  ← ⚡ 태풍
     ├── location_alert_typhoon_runtime.js
     ├── ocean_typhoon.js
@@ -275,6 +276,12 @@ client/js/
 | `render.js` | 메인 UI 렌더링 (renderApp, createAlertElement) |
 | `render_coastal.js` | 연안 구역 렌더링, 부이 데이터 표시, 로딩/시간 업데이트 |
 | `zone_avg.js` | 특보구역별로 매핑된 대해구의 3시간 예보 wh/ws 평균을 계산해 노란 점선 박스 생성 |
+
+### `client/js/forecast/main-accordion/`
+
+| 파일 | 역할 |
+|------|------|
+| `main_accordion_solo.js` | 특보정보 탭의 큰 아코디언 4개(기상청 해상 기상 전망 · AI 연안 안전 브리핑 · 해역별 특보현황 · 해역별 기상현황)가 |
 
 ### `client/js/forecast/marine-chart/`
 

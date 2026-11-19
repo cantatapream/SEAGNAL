@@ -5,7 +5,7 @@
  * [연계]
  *  - 사용하는 파일 : promo_comment1~4.js (댓글 유틸·렌더·액션·답글)
  *  - 서버 API      : 없음 (하위 모듈이 호출)
- *  - 마크업        : 게시글 상세의 댓글 섹션 컨테이너
+ *  - 마크업        : index2.html #promo-detail-comments(댓글 섹션) · #comment-guideline-slot(반응 줄 오른쪽 끝) · #comment-input-area(팝업 아래 고정 입력칸)
  *  - 나를 쓰는 곳  : promo.js 가 게시글 열 때 댓글 섹션 초기화 호출
  * ============================================================================
  *
@@ -16,13 +16,14 @@
  * - 토글 슬라이더 인터랙션 (댓글 허용 에디터 토글)
  *
  * [전체 댓글 섹션 구조 (텍스트 설명)]
+ * [2026-11-19 사용자 확정 시안] 「댓글 N개」 줄은 없앴다. 반응 줄과 입력칸은 index2.html 에 고정으로 있다.
  * ┌─────────────────────────────────────┐
- * │ 💬 댓글 3개                         │  ← 헤더 (댓글 수 표시)
+ * │ [❤️][👍][😮]        ⓘ 작성 가이드라인 │  ← 반응 줄(index2.html — 반응은 promo.js, 가이드라인 단추는 여기서)
  * ├─────────────────────────────────────┤
+ * │ [가이드라인 내용(펼침)]             │
  * │ [댓글 목록 영역]                    │  ← promo_comment2.js 렌더링
- * ├─────────────────────────────────────┤
- * │ [댓글 입력창]  [등록]               │  ← promo_comment3.js 렌더링
  * └─────────────────────────────────────┘
+ *   팝업 맨 아래 고정 칸(#comment-input-area): [관리자 ……… ☐🔒비밀댓글] / [입력창 ……… 등록]  ← promo_comment3.js 렌더링
  * ============================================================================
  */
 
@@ -54,23 +55,32 @@ async function loadPromoComments(postId, allowComments) {
 
     var isAdmin = isAdminMode();
 
-    // 댓글 기능이 꺼져있고 일반 사용자인 경우: 섹션 자체를 숨김
+    // 댓글 입력칸(팝업 아래 고정 칸)과 「작성 가이드라인」 자리(반응 줄 오른쪽 끝)는 index2.html 에 고정으로 있다 — 2026-11-19
+    var inputArea = document.getElementById('comment-input-area');
+    var guideSlot = document.getElementById('comment-guideline-slot');
+
+    // 댓글 기능이 꺼져있고 일반 사용자인 경우: 섹션 자체를 숨김(입력칸·가이드라인도 비운다 — 비면 CSS 가 숨긴다)
     if (!allowComments && !isAdmin) {
         container.innerHTML = '';
+        if (inputArea) inputArea.innerHTML = '';
+        if (guideSlot) guideSlot.innerHTML = '';
         return;
     }
 
-    // 댓글 섹션 골격 생성
+    // 「작성 가이드라인」 단추 — 반응 줄(❤️👍😮) 오른쪽 끝에 작게.
+    //   [2026-11-19 사용자] 「댓글작성 가이드라인은 댓글 0개 오른쪽 끝에 작게 붙여줘. 텍스트도 작성 가이드라인 이라고만 표현.
+    //   그리고 댓글 0개 부분은 삭제하고, 그 댓글 0개 부분에는 … 하트 따봉, 놀라는 이모지 선택버튼 배치」 → 「댓글 N개」 줄은 없앴다.
+    if (guideSlot) {
+        guideSlot.innerHTML = '<button type="button" class="comment-guideline-mini" onclick="toggleCommentGuideline()" aria-expanded="false" aria-controls="comment-guideline-body">'
+            + '<i class="fa-solid fa-circle-info"></i> 작성 가이드라인'
+            + '<i class="fa-solid fa-chevron-down comment-guideline-arrow" id="comment-guideline-arrow"></i>'
+            + '</button>';
+    }
+
+    // 댓글 섹션 골격 생성 — 가이드라인 내용(펼침) · 댓글 목록. 입력칸은 팝업 아래 고정 칸(#comment-input-area)
     container.innerHTML = '<div class="comment-section">'
-        + '<div class="comment-section-header">'
-        + '<i class="fa-solid fa-comment-dots"></i> <span id="comment-count-label">댓글 로딩 중...</span>'
-        + '</div>'
-        // ── 댓글 가이드라인 (접이식)
+        // ── 댓글 가이드라인 (접이식 — 단추는 위 반응 줄에)
         + '<div class="comment-guideline-wrap" id="comment-guideline-wrap">'
-        + '<button class="comment-guideline-toggle" onclick="toggleCommentGuideline()">'
-        + '<i class="fa-solid fa-circle-info"></i> 댓글 작성 가이드라인'
-        + '<i class="fa-solid fa-chevron-down comment-guideline-arrow" id="comment-guideline-arrow"></i>'
-        + '</button>'
         + '<div class="comment-guideline-body" id="comment-guideline-body">'
         + '<ul class="comment-guideline-list">'
         + '<li><i class="fa-solid fa-circle-xmark" style="color:#f87171;"></i> <b>욕설/비방</b>: 타인을 모욕하거나 비하하는 표현</li>'
@@ -87,7 +97,6 @@ async function loadPromoComments(postId, allowComments) {
         + '<div id="comment-list-area" class="comment-list-area">'
         + '<div class="comment-loading"><i class="fa-solid fa-circle-notch fa-spin"></i></div>'
         + '</div>'
-        + '<div id="comment-input-area"></div>'
         + '</div>';
 
     // 서버에서 댓글 목록 로드
@@ -212,4 +221,6 @@ window.toggleCommentGuideline = function() {
         body.classList.add('open');
         if (arrow) arrow.style.transform = 'rotate(180deg)';
     }
+    var btn = arrow && arrow.closest('button');
+    if (btn) btn.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
 };
