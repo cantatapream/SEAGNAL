@@ -86,5 +86,11 @@ f.handlers.link.call({}, true); f.tooltip.linkRange = { index: 0, length: 2 }; f
 ok('기존 링크를 고칠 때(linkRange)는 원본 저장', f.log.at(-1)[0] === 'originalSave', f.log);
 ok('편집기를 만든 뒤 enablePromoLinkWithoutSelection(promoQuillEditor) 를 부른다', /enablePromoLinkWithoutSelection\(promoQuillEditor\);/.test(src));
 
+console.log('\n[게시글 화면의 영상 크기] (2026-11-19)');
+const css = fs.readFileSync(path.join(__dirname, '..', '..', 'client', 'style.css'), 'utf8');
+const rule = (css.match(/\.promo-content-view iframe\.ql-video \{[^}]*\}/) || [''])[0];
+ok('본문 너비를 꽉 채운다(width:100%)', /width: 100%;/.test(rule), rule);
+ok('16:9 비율로 높이를 정한다', /aspect-ratio: 16 \/ 9;/.test(rule) && /height: auto;/.test(rule), rule);
+
 console.log(`\n${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);
