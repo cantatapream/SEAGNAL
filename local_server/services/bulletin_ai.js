@@ -3,7 +3,7 @@
  * ============================================================================
  * 파일명: local_server/services/bulletin_ai.js
  * 역할  : 「AI 모델 설정」(종전 「AI 특보 분석」) — 기능마다(① read = 특보 통보문 읽기, ② interpret = 참고사항 해석, ③ forecast = 해상 기상 전망 색칠, ④ briefing = 연안 안전 브리핑,
- *         ⑤ escalation = 격상 가능성 읽기) AI 우선순위를 두고
+ *         ⑤ escalation = 격상 가능성 읽기, ⑥ seasummary = 지방청 전망의 해상 기상 요약) AI 우선순위를 두고
  *         그 순서대로 시도한다(1순위가 실패하면 2순위 …). 칸마다 모델·노력, ChatGPT 칸은 실행 위치(Fly 서버|VM)까지 고른다.
  * 사용자 확정(2026-11-15):
  *   「ai 탭에서 ai 브리핑오른쪽에 특보분석 탭을만들고 기상청 통보문도 읽는 모델을 선택, gpt(vm 또는 fly)를 선택하는 모델을 선택, 통보문을 해석하는 모델 각각을 선택」
@@ -29,6 +29,10 @@
  *   칸마다 시도 횟수(attempts 1~3)와 Gemini 모델(브리핑만 고름 — 종전 브리핑 설정 geminiModel 두 가지)도 둔다. 부르는 일은 station_briefing_ai.generate 가 한다(briefingChain).
  * ⑤ escalation(2026-11-19 사용자 「관리자페이지에서 어떤 ai 쓸건지 결정하는 부분도 ui 만들어야」): 「풍랑경보로 변경될 가능성」「태풍특보로 변경될 가능성」 문장 가운데
  *   규칙이 해역·시점을 못 읽은 것만 묻는다(services/bulletin_escalation — AI 답은 그 문장에 글자 그대로 있고 규칙이 풀 수 있는 해역일 때만 쓴다). 기본 = Gemini 만(①③ 과 같은 까닭).
+ * ⑥ seasummary(2026-11-19 사용자 「기온 박스 아래에 해상 기상 요약이라고 해서 해상과 관련된 내용만 요약해서 표출하는 기능 … 이 작업은 젬마가 진행하도록 하고 젬마가 안되면 … 순서로서 ai api 호출」
+ *   · 순서는 「전용칸 6」): 지방청 단기 전망의 바다 항목(○ (해상)·(너울)·(조고)…)을 해역별 줄 + 종류별 한 줄로 줄인다(services/regional_sea_summary).
+ *   「먼저 Gemma」가 처음부터 켜져 있다(gemma-4-26b-a4b-it — 저장한 적이 없을 때만. 「쓰지 않음」으로 저장하면 그대로 꺼진다). 안 되면 ⑥ 에 정해 둔 순서(기본 Gemini 만).
+ *   어느 AI 의 답이든 부르는 쪽 검사(accept — 답의 숫자·해역 이름이 원문에 있는가)에 걸리면 못 쓰는 답으로 쳐 다음 AI 로 넘긴다.
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : services/llm_chain(검사·선택지·callDirect) · services/codex_bridge(ChatGPT 줄, runner 지정) ·
@@ -36,7 +40,7 @@
  *  - 저장          : data/bulletin_ai_config.json (볼륨)
  *  - 나를 쓰는 곳  : ai_report_parser.js(① read) · services/bulletin_ai_trial.js(② interpret — 「설정한 순서로」 시험) ·
  *                   marine_forecast_processor.js·regional_bulletin_collector.js(③ forecast — 해상 기상 전망·지방청 전망 색칠) · services/station_briefing.js(④ briefing — briefingChain) ·
- *                   services/bulletin_escalation.js(⑤ escalation — 규칙이 못 읽은 격상 가능성 문장) ·
+ *                   services/bulletin_escalation.js(⑤ escalation — 규칙이 못 읽은 격상 가능성 문장) · services/regional_sea_summary.js(⑥ seasummary — 지방청 전망 해상 기상 요약) ·
  *                   routes/bulletin_watch.js(GET/POST /api/admin/bulletin-ai/config) · client/js/admin/admin_bulletin_ai.js(화면)
  * [로드 순서] 없음(서버 모듈)
  * ============================================================================
@@ -55,6 +59,8 @@ const FEATURES = {
     briefing: { name: '연안 안전 브리핑', order: ['claude2', 'claude1', 'upstage', 'chatgpt', 'gemini'], removed: [] },       // 사용자 확정 2026-11-16
     // ⑤ 도 기본은 Gemini 만(①③ 과 같은 까닭 — 다른 AI 는 관리자가 「다시 추가」 해야 쓰인다). 규칙이 못 읽은 문장만 묻는다 — 지난 31일치 날씨해설에서는 0번.
     escalation: { name: '격상 가능성 읽기', order: ['gemini', 'claude2', 'claude1', 'upstage', 'chatgpt'], removed: ['claude2', 'claude1', 'upstage', 'chatgpt'] },
+    // ⑥ 도 순서 기본은 Gemini 만(①③⑤ 와 같은 까닭). 「먼저 Gemma」는 처음부터 켜 둔다(GEMMA_DEFAULT — 사용자 「이 작업은 젬마가 진행하도록」).
+    seasummary: { name: '해상 기상 요약', order: ['gemini', 'claude2', 'claude1', 'upstage', 'chatgpt'], removed: ['claude2', 'claude1', 'upstage', 'chatgpt'] },
 };
 // ④ 브리핑 칸별 시도 횟수(같은 묶음을 그 AI 로 몇 번까지 — 떨어진 관할만 다시). 기본: ChatGPT 3번(종전 브리핑 「VM 최대 3번」 그대로) · 나머지 1번.
 const ATTEMPT_CHOICES = [1, 2, 3];
@@ -65,7 +71,9 @@ const GEMINI_MODEL = 'gemini-2.5-flash-lite';   // ai_report_parser 가 쓰던 �
 // Gemma — Gemini API 가 제공하는 두 모델(2026-11 gemma.ai/deployment/gemini-api: 「hosts the two largest Gemma 4 models」). ③ 색칠에서만, 순서 맨 앞에 둔다.
 //   26b 를 앞에 둔다 — 실제로 불러 본 날 31b 는 「수요 과다」와 38~45초 지연이 잦았다.
 const GEMMA_MODELS = ['gemma-4-26b-a4b-it', 'gemma-4-31b-it'];
-const GEMMA_FEATURES = ['forecast'];
+const GEMMA_FEATURES = ['forecast', 'seasummary'];
+// 저장한 적이 없을 때의 「먼저 Gemma」 — ③ 은 쓰지 않음(종전 그대로), ⑥ 은 26b(사용자 「이 작업은 젬마가 진행하도록」). 「쓰지 않음」('')으로 저장하면 그 값이 남는다.
+const GEMMA_DEFAULT = { forecast: '', seasummary: GEMMA_MODELS[0] };
 const gemmaLast = {};   // 기능 → 마지막 Gemma 호출 결과 { at, model, ok, error, okCount, failCount } — 서버가 켜져 있는 동안만(관리자 화면 표시용)
 const GEMMA_CONFIG = { thinkingConfig: { thinkingLevel: 'minimal' } };   // 생각 최소 — 기본(생각 켬)은 글 한 편에 2~3분이 걸렸다(실측)
 /** 색 표시 꼴이 온전한가 — `{{loc|num|warn:…}}` 를 다 걷어 낸 뒤에 `{{`·`}}` 가 남으면 깨진 것(실제 Gemma 답: `{{num:30~60km/h(8~16m/s)}for}로`). */
@@ -80,6 +88,9 @@ function markupOk(p) {
 const GEMMA_OK = (p) => !!p && typeof p === 'object' && !Array.isArray(p)
     && ((!!p.categories && typeof p.categories === 'object' && !Array.isArray(p.categories) && Object.keys(p.categories).length > 0) || (typeof p.summary === 'string' && !!p.summary.trim()))
     && markupOk(p);
+// 기능별 「쓸 수 있는 Gemma 답」의 바탕 모양 — ③ 은 색칠 칸, ⑥ 은 객체이기만 하면 된다(칸·색 표시·원문 대조는 부르는 쪽 accept 가 본다).
+//   ⑥ 은 색 표시도 여기서 보지 않는다 — 실제 Gemma 답에 없는 이름의 표시(`{{period:…}}`)가 섞여 오는데, 부르는 쪽이 그런 표시를 벗겨 낸 뒤 꼴을 본다(regional_sea_summary.normalize·check). 여기서 걸면 고쳐 쓸 수 있는 답이 버려진다.
+const GEMMA_SHAPE = { forecast: GEMMA_OK, seasummary: (p) => !!p && typeof p === 'object' && !Array.isArray(p) };
 /**
  * 답 글에서 JSON 덩어리를 꺼낸다 — ```json 울타리, 뒤에 덧붙인 설명(「*(참고: …)」), 한 겹 배열(`[{…}]`)을 벗긴다. 못 꺼내면 undefined.
  * 예: '```json\n{"항목":[]}\n```\n*(참고: …)*' → {항목:[]} · '[{"항목":[]}]' → {항목:[]}
@@ -99,7 +110,7 @@ const RUNNERS = () => require('./codex_bridge').RUNNERS;
 /**
  * 저장값 한 기능을 정리한다(틀린 칸은 기본값). ChatGPT 칸은 {model, effort:null, runner}.
  * 예: normFeature('read', undefined) → { order:[gemini,…], removed:[], models:{…, chatgpt:{model:'gpt-6-luna', effort:null, runner:'fly'}} }
- * @param {'read'|'interpret'|'forecast'|'briefing'|'escalation'} f @param {any} v @returns {{order:string[], removed:string[], models:object}}
+ * @param {'read'|'interpret'|'forecast'|'briefing'|'escalation'|'seasummary'} f @param {any} v @returns {{order:string[], removed:string[], models:object}}
  * [연계] ← getConfig·setConfig
  */
 function normFeature(f, v) {
@@ -110,7 +121,7 @@ function normFeature(f, v) {
     const models = L.normModels(src.models);
     const r = src.models && src.models.chatgpt && src.models.chatgpt.runner;
     models.chatgpt.runner = RUNNERS().includes(r) ? r : f === 'briefing' && RUNNERS().includes('vm') ? 'vm' : require('./codex_bridge').DEFAULT_RUNNER;   // ④ 기본은 VM — 종전 브리핑 ChatGPT 가 VM 작업자였다(바뀌는 것 최소화)
-    if (GEMMA_FEATURES.includes(f)) return { order, removed, models, gemma: GEMMA_MODELS.includes(src.gemma) ? src.gemma : '' };   // ③: 먼저 부를 Gemma 모델('' = 쓰지 않음 = 종전 그대로)
+    if (GEMMA_FEATURES.includes(f)) return { order, removed, models, gemma: GEMMA_MODELS.includes(src.gemma) ? src.gemma : src.gemma === '' ? '' : GEMMA_DEFAULT[f] };   // ③⑥: 먼저 부를 Gemma 모델('' = 쓰지 않음)
     if (f !== 'briefing') return { order, removed, models };
     // ④ 브리핑만: Gemini 모델 고름 · 칸별 시도 횟수
     const gm = src.models && src.models.gemini && src.models.gemini.model;
@@ -120,23 +131,23 @@ function normFeature(f, v) {
     return { order, removed, models, attempts };
 }
 
-/** 저장된 설정 전체. 파일이 없거나 깨지면 기본값. @returns {{read:object, interpret:object, forecast:object, briefing:object, escalation:object}} */
+/** 저장된 설정 전체. 파일이 없거나 깨지면 기본값. @returns {{read:object, interpret:object, forecast:object, briefing:object, escalation:object, seasummary:object}} */
 function getConfig() {
     let raw = {};
     try { raw = JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch (e) { if (e.code !== 'ENOENT') console.warn('[AI 특보 분석] 설정 파일을 못 읽어 기본값을 씀:', e.message); }
     if (!raw || typeof raw !== 'object') raw = {};   // 파일 내용이 null·숫자 등이면 기본값(독립 검토 7 — AI 브리핑 실행이 이 설정을 읽으므로 던지면 실행이 통째로 실패)
-    return { read: normFeature('read', raw.read), interpret: normFeature('interpret', raw.interpret), forecast: normFeature('forecast', raw.forecast), briefing: normFeature('briefing', raw.briefing), escalation: normFeature('escalation', raw.escalation) };
+    return { read: normFeature('read', raw.read), interpret: normFeature('interpret', raw.interpret), forecast: normFeature('forecast', raw.forecast), briefing: normFeature('briefing', raw.briefing), escalation: normFeature('escalation', raw.escalation), seasummary: normFeature('seasummary', raw.seasummary) };
 }
 
 /**
  * 한 기능의 바꿀 칸만 받아 검사하고 저장한다. 틀리면 저장하지 않고 { error }.
  * 예: setConfig('read', { order:[…5개], models:{ chatgpt:{ model:'gpt-6-sol', runner:'vm' } } })
- * @param {string} f @param {{order?:string[], removed?:string[], models?:object, attempts?:object, gemma?:string}} patch  gemma = ③ 에서만: 먼저 부를 Gemma 모델 | ''(쓰지 않음)
+ * @param {string} f @param {{order?:string[], removed?:string[], models?:object, attempts?:object, gemma?:string}} patch  gemma = ③⑥ 에서만: 먼저 부를 Gemma 모델 | ''(쓰지 않음)
  * @returns {{ok:true, config:object}|{ok:false, error:string}}
  * [연계] ← routes/bulletin_watch.js POST /api/admin/bulletin-ai/config
  */
 function setConfig(f, patch) {
-    if (!Object.prototype.hasOwnProperty.call(FEATURES, f)) return { ok: false, error: 'feature 는 read|interpret|forecast|briefing|escalation' };   // __proto__·constructor 막기(독립 검토)
+    if (!Object.prototype.hasOwnProperty.call(FEATURES, f)) return { ok: false, error: 'feature 는 ' + Object.keys(FEATURES).join('|') };   // __proto__·constructor 막기(독립 검토)
     const L = llm(), p = patch || {};
     if (p.order !== undefined && !L.isValidOrder(p.order)) return { ok: false, error: `order 는 ${L.PROVIDERS.join(',')} 다섯 개를 한 번씩` };
     if (p.removed !== undefined && !L.isValidRemoved(p.removed)) return { ok: false, error: 'removed 는 gemini 를 뺀 AI 중 겹치지 않게(gemini 는 뺄 수 없음)' };
@@ -145,7 +156,7 @@ function setConfig(f, patch) {
         if (f !== 'briefing') return { ok: false, error: 'attempts 는 briefing 만' };
         if (!p.attempts || typeof p.attempts !== 'object' || Array.isArray(p.attempts) || !Object.keys(p.attempts).every((id) => L.PROVIDERS.includes(id) && ATTEMPT_CHOICES.includes(p.attempts[id]))) return { ok: false, error: 'attempts 는 {AI: 1|2|3}' };
     }
-    if (p.gemma !== undefined && (!GEMMA_FEATURES.includes(f) || (p.gemma !== '' && !GEMMA_MODELS.includes(p.gemma)))) return { ok: false, error: 'gemma 는 forecast 에서 ' + GEMMA_MODELS.join('|') + ' 또는 빈 글(쓰지 않음)만' };
+    if (p.gemma !== undefined && (!GEMMA_FEATURES.includes(f) || (p.gemma !== '' && !GEMMA_MODELS.includes(p.gemma)))) return { ok: false, error: 'gemma 는 ' + GEMMA_FEATURES.join('·') + ' 에서 ' + GEMMA_MODELS.join('|') + ' 또는 빈 글(쓰지 않음)만' };
     if (p.models !== undefined) {
         if (!p.models || typeof p.models !== 'object' || Array.isArray(p.models)) return { ok: false, error: 'models 는 객체' };
         const m = Object.assign({}, p.models);
@@ -182,7 +193,7 @@ function choices() {
     const c = llm().choices(GEMINI_MODEL);
     c.chatgpt.runners = RUNNERS().slice();
     c.briefing = { geminiModels: BRIEFING_GEMINI_MODELS.slice(), attempts: ATTEMPT_CHOICES.slice() };   // ④ 브리핑 칸 — Gemini 모델·시도 횟수
-    c.gemma = { features: GEMMA_FEATURES.slice(), models: GEMMA_MODELS.slice(), tryModels: [GEMINI_MODEL].concat(GEMMA_MODELS) };   // ③ 「먼저 Gemma」 선택지 · 「시험 호출」로 부를 수 있는 모델
+    c.gemma = { features: GEMMA_FEATURES.slice(), models: GEMMA_MODELS.slice(), tryModels: [GEMINI_MODEL].concat(GEMMA_MODELS) };   // ③⑥ 「먼저 Gemma」 선택지 · 「시험 호출」로 부를 수 있는 모델
     return c;
 }
 
@@ -243,8 +254,10 @@ function briefingChain() {
  * 그 기능의 순서대로 AI 를 불러 첫 성공을 돌려준다. 전부 실패하면 마지막 오류.
  * 반환 모양은 gemini_client.callGemini 와 같다 + provider(누가 답했나)·tried(시도 기록).
  * 예: await call('read', '통보문…', { caller: 'AI Parser' }) → { success:true, text:'{…}', keyLabel:'claude2', provider:'claude2', tried:[…] }
- * @param {'read'|'interpret'|'forecast'|'escalation'} f @param {string} prompt @param {{caller?:string, json?:boolean, gemmaAccept?:function(object): boolean}} [opt]
+ * @param {'read'|'interpret'|'forecast'|'escalation'|'seasummary'} f @param {string} prompt @param {{caller?:string, json?:boolean, gemmaAccept?:function(object): boolean, accept?:function(object): boolean}} [opt]
  *   gemmaAccept = ③ 에서 Gemma 답(꺼낸 JSON)을 받아 쓸 만한지 더 본다(부르는 쪽이 원문과 견줘 줄이 빠졌는지 등). false 면 순서의 다음 AI 로 넘긴다. Gemma 를 안 쓰면 불리지 않는다.
+ *   accept = 어느 AI 의 답이든(Gemma 포함) 꺼낸 JSON 을 받아 쓸 만한지 본다(⑥ — 숫자·해역 이름이 원문에 있는가). false 면 그 AI 는 실패로 치고 다음 AI 로 넘긴다.
+ *     없으면: 지어낸 숫자가 든 답이 「성공」으로 굳어 화면에 나간다.
  * @returns {Promise<{success:boolean, text?:string, error?:string, isRateLimited?:boolean, keyLabel?:string, provider?:string, tried:Array}>}
  * [연계] ← ai_report_parser.js · bulletin_ai_trial.js · marine_forecast_processor.js · regional_bulletin_collector.js · bulletin_escalation.js / → llm_chain.callDirect · codex_bridge.callRaw · gemini_client.callGemini
  */
@@ -258,14 +271,14 @@ async function call(f, prompt, opt) {
     //   사용자 2026-11-19: 「젬마가 색칠할 수 없는 문제, 한도 초과, 서버 붐빔 등 문제가 있다면 그때 내가 선택한 api가 호출하여 색칠하도록 하자.」
     if (GEMMA_FEATURES.includes(f) && cfg.gemma) {
         let g;
-        try { g = await callGemma(cfg.gemma, prompt, { caller: caller + '-Gemma', json: o.json, shape: o.json === false ? null : (p) => GEMMA_OK(p) && (!o.gemmaAccept || o.gemmaAccept(p)) }); }
+        try { g = await callGemma(cfg.gemma, prompt, { caller: caller + '-Gemma', json: o.json, shape: o.json === false ? null : (p) => GEMMA_SHAPE[f](p) && (!o.gemmaAccept || o.gemmaAccept(p)) && (!o.accept || o.accept(p)) }); }
         catch (e) { console.warn('[AI 특보 분석] Gemma 호출 중 예외:', e && e.message); g = { success: false, error: String((e && e.message) || e) }; }
         const prev = gemmaLast[f] || {};
         gemmaLast[f] = { at: Date.now(), model: cfg.gemma, ok: !!g.success, error: g.success ? null : String(g.error || '').slice(0, 200),
             okCount: (prev.okCount || 0) + (g.success ? 1 : 0), failCount: (prev.failCount || 0) + (g.success ? 0 : 1) };
         tried.push({ id: 'gemma', ok: !!g.success, error: gemmaLast[f].error });
         if (g.success) return { success: true, text: g.text, keyLabel: 'gemma:' + cfg.gemma, provider: 'gemma', tried };
-        console.warn(`[AI 특보 분석] ${FEATURES[f].name}: Gemma(${cfg.gemma}) 가 색칠하지 못함 — 정해 둔 순서대로 이어서 부른다:`, gemmaLast[f].error);
+        console.warn(`[AI 특보 분석] ${FEATURES[f].name}: Gemma(${cfg.gemma}) 가 해내지 못함 — 정해 둔 순서대로 이어서 부른다:`, gemmaLast[f].error);
     }
     for (const id of cfg.order) {
         if (cfg.removed.includes(id)) continue;
@@ -283,6 +296,12 @@ async function call(f, prompt, opt) {
             }
         } catch (e) { console.warn(`[AI 특보 분석] ${id} 호출 중 예외 — 다음 순위로:`, e && e.message); r = { success: false, error: String(e && e.message || e) }; }
         if (r.isRateLimited) limited = true;
+        // 부르는 쪽 검사(accept)에 걸린 답은 실패로 친다 — 다음 순위로
+        if (r.success && o.accept && o.json !== false) {
+            let fine = false;
+            try { fine = !!o.accept(looseJson(r.text)); } catch (e) { console.warn(`[AI 특보 분석] ${id} 답 검사 중 예외 — 못 쓰는 답으로 친다:`, e && e.message); }   // 검사가 던져도 순서의 다음 AI 는 해 본다
+            if (!fine) r = { success: false, error: '답을 쓸 수 없다(부르는 쪽 검사에 걸림): ' + String(r.text).replace(/\s+/g, ' ').slice(0, 120) };
+        }
         tried.push({ id, ok: !!r.success, error: r.success ? null : String(r.error || '').slice(0, 200) });
         if (r.success && r.text && String(r.text).trim()) {
             const text = id === 'gemini' || o.json === false ? r.text : require('./codex_bridge').stripFence(r.text);
@@ -295,4 +314,4 @@ async function call(f, prompt, opt) {
     return { success: false, error: last.error || '모든 AI 실패', isRateLimited: limited, tried };
 }
 
-module.exports = { FEATURES, GEMINI_MODEL, GEMMA_MODELS, GEMMA_FEATURES, GEMMA_OK, ATTEMPT_CHOICES, BRIEFING_ATTEMPTS, BRIEFING_GEMINI_MODELS, getConfig, setConfig, choices, call, callGemma, looseJson, gemmaStatus, tryModel, normFeature, briefingChain, FILE };
+module.exports = { FEATURES, GEMINI_MODEL, GEMMA_MODELS, GEMMA_FEATURES, GEMMA_DEFAULT, GEMMA_OK, ATTEMPT_CHOICES, BRIEFING_ATTEMPTS, BRIEFING_GEMINI_MODELS, getConfig, setConfig, choices, call, callGemma, looseJson, gemmaStatus, tryModel, normFeature, briefingChain, FILE };

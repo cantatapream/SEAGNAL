@@ -2526,6 +2526,8 @@ async function init() {
     try {
         await regionalBulletinCollector.collectAllRegionalBulletins();
         log('✅ 지방청 단기 전망(통보문) 수집 완료');
+        // 지방청 날씨해설 원문(PDF)을 받아 쪽 그림으로 — 카드 머리줄 📋 가 연다(2026-11-19). 기다리지 않는다(받기·변환이 부팅을 늦추지 않게).
+        regionalBulletinCollector.syncDocs().catch(err => log(`⚠️ 지방청 날씨해설 원문 받기 오류: ${err.message}`));
     } catch (err) {
         log(`⚠️ 지방청 단기 전망 수집 오류: ${err.message}`);
     }
@@ -2687,6 +2689,7 @@ async function init() {
         if ([4, 5, 16, 17].includes(kstDate.getHours()) && (min % 5 === 1)) {
             regionalBulletinCollector.collectAllRegionalBulletins()
                 .then(() => log('✅ 지방청 단기 전망(통보문) 수집 사이클 완료'))
+                .then(() => regionalBulletinCollector.syncDocs())   // 새 발표분의 원문(PDF)을 받아 둔다 — 아직 안 올라왔으면 다음 5분에 다시
                 .catch(err => log(`⚠️ 지방청 단기 전망 수집 오류: ${err.message}`));
         }
 

@@ -951,14 +951,28 @@ router.get('/api/marine-forecast', (req, res) => {
 //      통보문 발표(04:30, 16:20~16:30) 직후 1분 안에 사용자 화면에 반영되도록 단축.
 //      이전엔 600초(10분)라 04:31 갱신 데이터가 최대 04:35~04:39 까지 옛 값으로
 //      보이는 문제가 있었음. JSON 정적 송출이라 1분 캐시도 부담 없음.
+//    [2026-11-19] 파일을 그대로 보내지 않고 두 가지를 손본다(저장 파일은 건드리지 않는다):
+//      ① summary 에서 그림 제목 줄(「< … 분포도 >」)을 뺀다 — 새로 받는 글은 수집 때 빠지지만, 이미 저장된 글에도 바로 듣게(사용자 「강수지역분포도 그 부분이 표출되지 않도록 텍스트도 삭제」)
+//      ② 원문(PDF)을 우리 서버에 받아 둔 관서에는 doc 을 붙인다 — 카드 머리줄 📋 가 그 그림을 팝업으로 연다(사용자 「4.원문보기 반영」). 아직 못 받았으면 doc 없음 = 📋 를 안 그린다.
 router.get('/api/regional-forecast', (req, res) => {
     try {
         const filePath = path.join(DATA_DIR, 'regional_forecast.json');
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({ error: 'regional_forecast.json not found' });
         }
+        const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        const rb = require('../regional_bulletin_collector'), docs = require('../services/bulletin_docs');
+        for (const e of Object.values(data)) {
+            if (!e || typeof e !== 'object' || !e.officeCode) continue;
+            if (typeof e.summary === 'string') e.summary = rb.dropFigureCaption(e.summary);
+            const d = rb.docKeyOf(e.officeCode, e.bulletinReportId);
+            if (d && docs.pages(d.key).length) {
+                e.doc = { title: String(e.officeName || '') + ' 날씨해설 ' + d.ho, viewUrl: '/api/bulletin-doc/' + d.key + '/view' };
+                if (docs.file(d.key, 'pdf')) e.doc.downloadUrl = '/api/bulletin-doc/' + d.key + '/pdf';
+            }
+        }
         res.setHeader('Cache-Control', 'public, max-age=60');
-        res.sendFile(filePath);
+        res.json(data);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }

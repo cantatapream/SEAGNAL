@@ -21,7 +21,8 @@ const { chromium } = require('playwright');
 let pass = 0, fail = 0;
 async function check(name, fn) { try { await fn(); pass++; console.log('✅ ' + name); } catch (e) { fail++; console.log('❌ ' + name + ' — ' + (e && e.message)); } }
 let gemmaState = {};   // 기능별 마지막 Gemma 결과(서버 GET 의 gemma 칸)
-const state = () => ({ ok: true, config: bai.getConfig(), choices: bai.choices(), workers: { fly: true, vm: false }, status: [{ id: 'claude2', hasKey: false }, { id: 'claude1', hasKey: true }, { id: 'upstage', hasKey: true }], gemma: gemmaState });
+const state = () => ({ ok: true, config: bai.getConfig(), choices: bai.choices(), workers: { fly: true, vm: false }, status: [{ id: 'claude2', hasKey: false }, { id: 'claude1', hasKey: true }, { id: 'upstage', hasKey: true }], gemma: gemmaState,
+    seaOffices: [{ code: '109', name: '수도권기상청' }, { code: '184', name: '제주지방기상청' }] });
 
 (async () => {
     const browser = await chromium.launch(), page = await browser.newPage({ viewport: { width: 760, height: 1400 } });
@@ -45,7 +46,7 @@ const state = () => ({ ok: true, config: bai.getConfig(), choices: bai.choices()
 
     await check('[§11.10.51-UI-1] ④ 연안 안전 브리핑 카드 — ①·②·③ 다음 · 처음 순서 클로드 키2→키1→업스테이지→ChatGPT→Gemini · 맨 아래 「규칙 분석(고정)」 줄은 ③ 에만', async () => {
         const feats = await page.$$eval('[data-bai-feature]', (cs) => cs.map((c) => c.getAttribute('data-bai-feature')));
-        assert.deepStrictEqual(feats, ['read', 'interpret', 'forecast', 'briefing', 'escalation']);   // ⑤ 격상 가능성 읽기(2026-11-19) — ④ 다음
+        assert.deepStrictEqual(feats, ['read', 'interpret', 'forecast', 'briefing', 'escalation', 'seasummary']);   // ⑤ 격상 가능성 읽기 · ⑥ 해상 기상 요약(2026-11-19) — ④ 다음
         assert.ok(/⑤ 격상 가능성 읽기/.test(await page.textContent('[data-bai-feature="escalation"]')));
         assert.deepStrictEqual(await rows('escalation'), ['Gemini'], '⑤ 기본은 Gemini 만(다른 AI 는 「다시 추가」 해야 쓰인다)');
         assert.deepStrictEqual(await rows('briefing'), ['클로드 키2', '클로드 키1', '업스테이지', 'ChatGPT', 'Gemini']);
@@ -133,6 +134,68 @@ const state = () => ({ ok: true, config: bai.getConfig(), choices: bai.choices()
         gemmaState = { forecast: { at: Date.parse('2026-11-19T05:00:00+09:00'), model: 'gemma-4-26b-a4b-it', ok: true, error: null, okCount: 4, failCount: 2 } };
         await draw();
         assert.ok(/마지막 Gemma 색칠 성공\(.+\) · gemma-4-26b-a4b-it · 서버를 올린 뒤 성공 4 · 실패 2/.test(await page.textContent('[data-bai-try-out="forecast"]')));
+    });
+
+    // ⑥ 해상 기상 요약(2026-11-19 사용자 「2.순서 - 전용칸 6」 「젬마로 요약을 실제 해봐야 하겠는걸 ?」)
+    const seaTries = []; let seaAnswer = () => ({ ok: true, office: '184', ms: 5210, seaText: '○ (해상) 풍랑특보가 발효 중인 …', result: { state: 'ok', by: 'gemma', zones: [{ zone: '제주도남쪽안쪽먼바다', period: '~모레(21일) 밤', wind: '9~18', wave: '1.5~4.0' }], notes: [{ kind: '천둥·번개', text: '내일(20일)~모레(21일) {{loc:제주도해상}}' }], tried: [{ id: 'gemma', ok: true }], reasons: [] } });
+    await page.route('**/api/admin/bulletin-ai/try-sea-summary', async (r) => { seaTries.push(JSON.parse(r.request().postData() || '{}')); return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(seaAnswer()) }); });
+    await draw();
+    await check('[Sea-UI-1] ⑥ 해상 기상 요약 카드 — ⑤ 다음 · 「먼저 Gemma」가 처음부터 켜져 있다(26b) · 순서는 Gemini 만 · 요약이라고 적는다', async () => {
+        assert.ok(/⑥ 해상 기상 요약/.test(await page.textContent('[data-bai-feature="seasummary"]')));
+        assert.equal(await page.$eval('[data-bai-gemma="seasummary"]', (x) => x.value), 'gemma-4-26b-a4b-it');
+        assert.deepStrictEqual(await rows('seasummary'), ['Gemini']);
+        assert.ok(/Gemma 가 요약하지 못하면\(오류·한도 초과·수요 과다·못 쓰는 답\) 아래 순서대로 이어서 부릅니다/.test(await page.textContent('[data-bai-gemma-row="seasummary"]')));
+        assert.ok(/Gemma 가 색칠하지 못하면/.test(await page.textContent('[data-bai-gemma-row="forecast"]')), '③ 의 문구는 그대로');
+        await page.selectOption('[data-bai-gemma="seasummary"]', ''); await settle();
+        assert.deepStrictEqual(posts[posts.length - 1], { feature: 'seasummary', gemma: '' });
+        assert.equal(await page.$eval('[data-bai-gemma="seasummary"]', (x) => x.value), '', '「쓰지 않음」이 다시 그려도 그대로(기본값으로 되살아나지 않는다)');
+        await page.selectOption('[data-bai-gemma="seasummary"]', 'gemma-4-26b-a4b-it'); await settle();
+    });
+    await check('[Sea-UI-2] 「시험 요약」 — 지방청을 골라 누르면 그 지방청으로 묻고, 누가 답했는지·걸린 시간·요약·AI 에게 준 글을 보인다(⑥ 에만 있다)', async () => {
+        assert.equal((await page.$$('[data-bai-sea-row]')).length, 1);
+        assert.ok(await page.$('[data-bai-feature="seasummary"] [data-bai-sea-row]'));
+        assert.deepStrictEqual(await page.$eval('[data-bai-sea-office]', (x) => [...x.options].map((o) => o.value + '|' + o.textContent)), ['109|수도권기상청', '184|제주지방기상청']);
+        await page.selectOption('[data-bai-sea-office]', '184');
+        await page.click('[data-bai-sea-try]');
+        await page.waitForFunction(() => /요약됨/.test(document.querySelector('[data-bai-sea-out]').textContent));
+        assert.deepStrictEqual(seaTries, [{ office: '184' }]);
+        const t = await page.textContent('[data-bai-sea-out]');
+        assert.ok(/요약됨 · 답한 AI: gemma · 5210ms · 시도: gemma 성공/.test(t) && /\[해역\] 제주도남쪽안쪽먼바다 \| ~모레\(21일\) 밤 \| 바람 9~18 m\/s \| 물결 1\.5~4\.0 m/.test(t) && /\[천둥·번개\] 내일/.test(t) && /── AI 에게 준 바다 글 ──/.test(t), t);
+    });
+    await check('[Sea-UI-3] 「시험 요약」 — 요약을 못 만들면 붉게, 걸린 까닭(원문 대조)과 시도 기록을 보인다 · 바다 항목이 없는 글·본문이 없는 지방청도 뜻이 보인다', async () => {
+        seaAnswer = () => ({ ok: true, office: '184', ms: 31000, seaText: '○ (해상) …', result: { state: 'raw', error: '답을 쓸 수 없다(부르는 쪽 검사에 걸림)', lines: ['○ (해상) …'], tried: [{ id: 'gemma', ok: false, error: '답을 쓸 수 없다' }, { id: 'gemini', ok: false, error: '429' }], reasons: ['물결 숫자가 글에 없다: 제주도앞바다 1.5~9.0'] } });
+        await page.click('[data-bai-sea-try]');
+        await page.waitForFunction(() => /요약하지 못함/.test(document.querySelector('[data-bai-sea-out]').textContent));
+        const t = await page.textContent('[data-bai-sea-out]');
+        assert.ok(/요약하지 못함\(화면에는 원문의 바다 항목이 그대로 나갑니다\) · 31000ms/.test(t) && /시도: gemma 실패\(답을 쓸 수 없다\) → gemini 실패\(429\)/.test(t) && /원문 대조에 걸린 까닭: 물결 숫자가 글에 없다/.test(t), t);
+        assert.equal(await page.$eval('[data-bai-sea-out]', (e) => e.style.color), 'rgb(248, 113, 113)');
+        seaAnswer = () => ({ ok: true, office: '184', ms: 3, seaText: '', result: { state: 'none' } });
+        await page.click('[data-bai-sea-try]');
+        await page.waitForFunction(() => /바다 항목이 없습니다/.test(document.querySelector('[data-bai-sea-out]').textContent));
+        seaAnswer = () => ({ ok: false, error: '그 지방청의 통보문 본문이 서버에 없습니다(아직 수집 전).' });
+        await page.click('[data-bai-sea-try]');
+        await page.waitForFunction(() => /시험 실패 — 그 지방청의 통보문 본문이 서버에 없습니다/.test(document.querySelector('[data-bai-sea-out]').textContent));
+    });
+
+    await check('[Sea-UI-4] 「시험 요약」이 도는 동안: 버튼이 잠겨 두 번 부르지 않는다 · 그 사이 다른 칸을 만져 화면이 다시 그려져도 결과와 고른 지방청이 남는다', async () => {
+        let release; const gate = new Promise((r) => { release = r; }); seaTries.length = 0;
+        seaAnswer = () => ({ ok: true, office: '184', ms: 9000, seaText: '', result: { state: 'ok', by: 'gemma', zones: [], notes: [{ kind: '너울', text: '늦게 온 답' }], tried: [], reasons: [], dropped: ['해역 줄(숫자 없음): A'] } });
+        await page.unroute('**/api/admin/bulletin-ai/try-sea-summary');
+        await page.route('**/api/admin/bulletin-ai/try-sea-summary', async (r) => { seaTries.push(JSON.parse(r.request().postData() || '{}')); await gate; return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(seaAnswer()) }); });
+        await page.selectOption('[data-bai-sea-office]', '184');
+        await page.click('[data-bai-sea-try]');
+        await page.waitForFunction(() => /요약하는 중/.test(document.querySelector('[data-bai-sea-out]').textContent));
+        assert.equal(await page.$eval('[data-bai-sea-try]', (b) => b.disabled), true, '도는 중인데 버튼이 안 잠겼다');
+        await page.evaluate(() => document.querySelector('[data-bai-sea-try]').click());   // 잠긴 버튼을 억지로 눌러도
+        await page.selectOption('[data-bai-gemma="forecast"]', ''); await settle();           // 다른 칸을 만져 다시 그린다
+        assert.equal(await page.$eval('[data-bai-sea-office]', (x) => x.value), '184', '다시 그린 뒤 고른 지방청이 처음으로 돌아갔다');
+        assert.ok(/요약하는 중/.test(await page.textContent('[data-bai-sea-out]')), '다시 그린 뒤 진행 글이 사라졌다');
+        assert.equal(await page.$eval('[data-bai-sea-try]', (b) => b.disabled), true, '다시 그린 뒤 버튼이 풀렸다');
+        release();
+        await page.waitForFunction(() => /늦게 온 답/.test(document.querySelector('[data-bai-sea-out]').textContent));
+        assert.equal(seaTries.length, 1, '서버를 두 번 불렀다');
+        assert.ok(/쓰인 답에서 버리거나 고친 것: 해역 줄\(숫자 없음\): A/.test(await page.textContent('[data-bai-sea-out]')));
+        assert.equal(await page.$eval('[data-bai-sea-try]', (b) => b.disabled), false, '끝났는데 버튼이 안 풀렸다');
     });
 
     await browser.close();

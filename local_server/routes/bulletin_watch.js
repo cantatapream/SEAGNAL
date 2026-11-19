@@ -85,7 +85,8 @@ function createRouter({ bulletinAi = require('../services/bulletin_ai'), watch =
     //   GET → { config:{read,interpret,forecast,briefing,escalation}, choices, workers(Fly·VM 연결), gemma(기능별 마지막 Gemma 호출 결과) } ·
     //   POST { feature, order?, removed?, models?, attempts?(briefing 만), gemma?(forecast 만 — 먼저 부를 Gemma 모델) } → 저장 후 같은 모양.
     const aiState = () => ({ ok: true, config: bulletinAi.getConfig(), choices: bulletinAi.choices(), workers: require('../services/codex_bridge').workers(),
-        status: require('../services/llm_chain').status([]), gemma: bulletinAi.gemmaStatus() });
+        status: require('../services/llm_chain').status([]), gemma: bulletinAi.gemmaStatus(),
+        seaOffices: require('../regional_bulletin_collector').BULLETIN_OFFICES });   // ⑥ 「시험 요약」이 고를 지방청 7곳
     router.get('/api/admin/bulletin-ai/config', authorize, (req, res) => { res.set('Cache-Control', 'no-store'); res.json(aiState()); });
     router.post('/api/admin/bulletin-ai/config', authorize, (req, res) => {
         const b = req.body || {};
@@ -98,6 +99,23 @@ function createRouter({ bulletinAi = require('../services/bulletin_ai'), watch =
     router.post('/api/admin/bulletin-ai/try-model', authorize, async (req, res) => {
         res.set('Cache-Control', 'no-store');
         res.json(await bulletinAi.tryModel(String((req.body || {}).model || '')));
+    });
+    // 「시험 요약」(2026-11-19) — ⑥ 해상 기상 요약: 그 지방청의 지금 통보문을 지금 설정(먼저 Gemma → ⑥ 순서)대로 요약해 본다. 저장하지 않는다.
+    //   사용자 「젬마로 요약을 실제 해봐야 하겠는걸 ?」 — 작업 환경에 AI 키가 없어 운영 키로 여기서 본다. 누가 답했는지·걸린 까닭(원문 대조)·걸린 시간을 함께 준다.
+    //   POST { office:'184' } → { ok:true, office, ms, seaText, result:{ state, by, zones, notes, lines, tried, reasons, error } } | { ok:false, error }
+    let seaTrialBusy = false;
+    router.post('/api/admin/bulletin-ai/try-sea-summary', authorize, async (req, res) => {
+        res.set('Cache-Control', 'no-store');
+        const rb = require('../regional_bulletin_collector');
+        const office = String((req.body || {}).office || '');
+        if (!rb.BULLETIN_OFFICES.some((o) => o.code === office)) return res.status(400).json({ ok: false, error: 'office 는 ' + rb.BULLETIN_OFFICES.map((o) => o.code).join('|') });
+        const raw = rb.currentRawText(office);
+        if (!raw) return res.json({ ok: false, error: '그 지방청의 통보문 본문이 서버에 없습니다(아직 수집 전).' });
+        // 한 번에 하나만 — 연달아 누르면 AI 가 겹쳐 불린다(운영 키로 나가는 호출이다. 별도 에이전트 검토 2026-11-19)
+        if (seaTrialBusy) return res.json({ ok: false, error: '앞서 누른 시험 요약이 아직 도는 중입니다. 끝난 뒤 다시 눌러 주세요.' });
+        seaTrialBusy = true;
+        try { res.json(Object.assign({ ok: true, office }, await require('../services/regional_sea_summary').trial(raw))); }
+        finally { seaTrialBusy = false; }
     });
     // 통보문 기준 특보현황(관리자 메인 화면 [통보문] 버튼) — /api/weather-alerts 와 같은 모양(current 나무). 2026-11-16
     router.get('/api/admin/bulletin-status', authorize, (req, res) => {

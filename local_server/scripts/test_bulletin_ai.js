@@ -118,7 +118,7 @@ gemini.callGemini = async (a) => { calls.push({ id: 'gemini', model: a.model });
     const plain = []; let gemmaAnswer = () => ({ success: true, text: '```json\n' + GOOD + '\n```' });
     gemini.callPlain = async (a) => { plain.push(a); return gemmaAnswer(a); };
     const g2 = await (await fetch(base + '/api/admin/bulletin-ai/config')).json();
-    ok('선택지: ③ 에서만 · Gemma 두 모델(Gemini API 가 제공하는 것 — 실제로 불린 26b 가 앞) · 「시험 호출」은 기본 Gemini 모델도', g2.choices.gemma && g2.choices.gemma.features.join() === 'forecast'
+    ok('선택지: ③·⑥ 에서만 · Gemma 두 모델(Gemini API 가 제공하는 것 — 실제로 불린 26b 가 앞) · 「시험 호출」은 기본 Gemini 모델도', g2.choices.gemma && g2.choices.gemma.features.join() === 'forecast,seasummary'
       && g2.choices.gemma.models.join() === 'gemma-4-26b-a4b-it,gemma-4-31b-it' && g2.choices.gemma.tryModels.join() === 'gemini-2.5-flash-lite,gemma-4-26b-a4b-it,gemma-4-31b-it', JSON.stringify(g2.choices.gemma));
     ok('기본은 종전 그대로 — ③ 의 gemma 칸은 비어 있다(쓰지 않음) · 다른 기능에는 그 칸이 없다', g2.config.forecast.gemma === '' && !('gemma' in g2.config.escalation) && !('gemma' in g2.config.read) && !('gemma' in g2.config.briefing) && !('gemini' in g2.config.forecast.models));
     // 관리자가 정한 순서: 클로드 키2 → Gemini (나머지는 삭제)
@@ -207,6 +207,29 @@ gemini.callGemini = async (a) => { calls.push({ id: 'gemini', model: a.model });
     gemmaAnswer = () => ({ success: true, text: '{"항목":[]}' }); plain.length = 0; calls.length = 0;
     const e1 = await bai.call('escalation', 'P');
     ok('⑤ 격상 가능성 읽기는 Gemma 를 부르지 않는다 — 정해 둔 순서(기본 Gemini)만', e1.provider === 'gemini' && plain.length === 0 && calls.length === 1 && calls[0].model === 'gemini-2.5-flash-lite' && !bai.gemmaStatus().escalation);
+    // ⑥ 해상 기상 요약(2026-11-19 사용자 「2.순서 - 전용칸 6」 「이 작업은 젬마가 진행하도록 하고 젬마가 안되면 … 순서로서 ai api 호출」)
+    {
+      const c6 = bai.getConfig().seasummary;
+      ok('⑥ 기본: 「먼저 Gemma」가 처음부터 켜져 있다(26b) · 순서는 Gemini 만(다른 AI 는 「다시 추가」 해야 쓰인다) · ③ 의 기본(쓰지 않음)은 그대로', c6.gemma === 'gemma-4-26b-a4b-it' && c6.order.filter((id) => !c6.removed.includes(id)).join() === 'gemini'
+        && bai.normFeature('forecast', undefined).gemma === '' && bai.GEMMA_DEFAULT.seasummary === bai.GEMMA_MODELS[0], JSON.stringify(c6));
+      const seen = [];
+      gemmaAnswer = () => ({ success: true, text: '{"zones":[],"notes":[],"by":"gemma"}' }); plain.length = 0; calls.length = 0;
+      const s1 = await bai.call('seasummary', 'P', { accept: (p) => { seen.push(p && p.by); return true; } });
+      ok('⑥ Gemma 가 먼저 답한다 — 색칠 칸(categories·summary)이 없는 답이어도 된다 · 부르는 쪽 검사(accept)를 거친다', s1.success && s1.provider === 'gemma' && plain.length === 1 && plain[0].model === 'gemma-4-26b-a4b-it' && calls.length === 0 && seen.join() === 'gemma', JSON.stringify(s1));
+      seen.length = 0; plain.length = 0; calls.length = 0;
+      const s2 = await bai.call('seasummary', 'P', { accept: (p) => { seen.push(p && p.by); return !!p && p.by !== 'gemma'; } });
+      ok('⑥ Gemma 답이 부르는 쪽 검사에 걸리면 정해 둔 순서(Gemini)가 답한다 — 그 답도 같은 검사를 거친다', s2.success && s2.provider === 'gemini' && seen.join() === 'gemma,gemini' && s2.tried.map((t) => t.id + ':' + t.ok).join() === 'gemma:false,gemini:true' && bai.gemmaStatus().seasummary.ok === false, JSON.stringify(s2));
+      seen.length = 0;
+      const s3 = await bai.call('seasummary', 'P', { accept: () => false });
+      ok('⑥ 어느 AI 의 답이든 검사에 걸리면 실패로 돌려준다(지어낸 숫자가 든 답이 「성공」이 되지 않게) — 던지지 않는다', s3.success === false && s3.tried.map((t) => t.id + ':' + t.ok).join() === 'gemma:false,gemini:false' && /부르는 쪽 검사에 걸림/.test(s3.error), JSON.stringify(s3));
+      gemmaAnswer = () => ({ success: true, text: '{"zones":[],"notes":[{"kind":"너울","text":"{{period:내일까지}} {{loc:제주도해안}} 너울"}]}' });
+      const s4 = await bai.call('seasummary', 'P', { accept: () => true });
+      ok('⑥ 색 표시 꼴은 여기서 보지 않는다(부르는 쪽이 벗겨 내고 본다 — 실제 Gemma 답의 `{{period:…}}`) · 배열·글 답은 여전히 못 쓰는 답', s4.provider === 'gemma'
+        && (gemmaAnswer = () => ({ success: true, text: '["zones"]' }), (await bai.call('seasummary', 'P', { accept: () => true })).provider) === 'gemini');
+      const off6 = await (await post({ feature: 'seasummary', gemma: '' })).json(); plain.length = 0;
+      ok('⑥ 「쓰지 않음」으로 저장하면 그대로 꺼져 있다(기본값으로 되살아나지 않는다) — Gemma 를 안 부른다', off6.ok && off6.config.seasummary.gemma === '' && bai.getConfig().seasummary.gemma === '' && (await bai.call('seasummary', 'P')).provider === 'gemini' && plain.length === 0);
+      ok('accept 는 다른 기능에도 듣는다(순서 쪽 AI 답) · 안 주면 종전 그대로', (await bai.call('escalation', 'P', { accept: () => false })).success === false && (await bai.call('escalation', 'P')).success === true);
+    }
     // 끄기
     const off = await (await post({ feature: 'forecast', gemma: '' })).json(); plain.length = 0; calls.length = 0;
     ok('「쓰지 않음」으로 되돌리면 Gemma 를 더 부르지 않는다', off.ok && off.config.forecast.gemma === '' && (await bai.call('forecast', 'P')).provider === 'claude2' && plain.length === 0);

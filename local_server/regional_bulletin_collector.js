@@ -41,11 +41,17 @@
  *   - summary             : 마크업이 적용된 전체 본문 텍스트
  *                           (AI 색칠 실패 시엔 마크업 없는 원문 텍스트 — 프론트가 자동 색칠/표출)
  *   - bulletinColored     : AI 색칠 완료 여부(false=원문만 표출 중, 다음 사이클 재색칠 대상)
+ *   - seaSummary          : 해상 기상 요약(2026-11-19) — { state:'ok', zones, notes } | { state:'none' }(바다 얘기 없음) | { state:'raw', lines }(AI 가 못 함 — 다음 수집 때 다시, 통보문마다 4번까지) |
+ *                           null(아직 안 만듦). 수집(색칠)이 끝난 뒤 summarizePending 이 따로 채운다. AI 오류 글·시도 기록은 캐시 파일에만 둔다.
+ *   본문에서는 그림 제목 줄(「< … 분포도 >」)을 뺀다(dropFigureCaption — 2026-11-19).
  *   PDF 출처 필드(publishTime, temperature, marineForecast, coastalForecast)는 그대로 유지.
  *
  * [연계]
  *   - scheduler.js                : 윈도우 시각에 collectAllRegionalBulletins() 호출
- *   - routes/weather.js           : /api/regional-forecast 가 이 JSON 그대로 응답
+ *   - routes/weather.js           : /api/regional-forecast 가 이 JSON 에 원문 보기 주소(doc)를 붙여 응답(저장된 글의 그림 제목 줄도 거기서 뺀다)
+ *   - services/regional_sea_summary : 해상 기상 요약(바다 항목 뽑기 · AI 요약 ⑥ · 원문 대조)
+ *   - services/bulletin_docs      : 날씨해설 원문(PDF)을 받아 쪽 그림으로(syncDocs → syncExtra — 카드 머리줄 📋)
+ *   - routes/bulletin_watch.js    : 관리자 「시험 요약」이 currentRawText 로 지금 본문을 읽는다
  *   - js/marine_forecast.js       : renderRegionalForecast() 가 새 필드를 사용해 표출
  *   - regional_forecast_collector : PDF 기반 marine/coastal 수집(별도, 충돌 없음)
  *   - services/bulletin_ai        : AI 호출('forecast' — 관리자 AI 모델 설정 ③ 해상 기상 전망 색칠 순서. 기본 Gemini 만,
@@ -57,6 +63,7 @@
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const seaSummary = require('./services/regional_sea_summary');   // 해상 기상 요약(⑥) — 바다 항목 뽑기·AI 요약·원문 대조(2026-11-19)
 const bulletinAi = require('./services/bulletin_ai');   // ③ 해상 기상 전망 색칠 순서(2026-11-16 — 종전 Gemini 고정)
 
 // ============================================================================
@@ -64,10 +71,10 @@ const bulletinAi = require('./services/bulletin_ai');   // ③ 해상 기상 전
 // ============================================================================
 
 // PDF 수집기와 공유하는 결과 파일 — partial merge 로 사용
-const DATA_FILE = path.join(__dirname, 'data', 'regional_forecast.json');
+const DATA_FILE = process.env.REGIONAL_FORECAST_FILE || path.join(__dirname, 'data', 'regional_forecast.json');   // 검사에서는 임시 파일을 가리킨다
 
 // 지방청 단기 전망 전용 캐시 디렉토리 (본청용 forecast_cache/ 와 분리)
-const CACHE_DIR = path.join(__dirname, 'data', 'forecast_cache', 'regional');
+const CACHE_DIR = process.env.REGIONAL_BULLETIN_CACHE_DIR || path.join(__dirname, 'data', 'forecast_cache', 'regional');
 
 // 7개 지방기상청 (앱 기존 표시 순서대로 — 수도권→부산→광주→강원→대전→대구→제주)
 // code 는 KMA list.do 의 stn 파라미터, name 은 화면 헤더에 표출되는 라벨이다.
@@ -263,7 +270,22 @@ async function fetchBulletinBody(officeCode, reportId) {
         .replace(/\[?\s*날씨해설\s*\]?/g, '')
         .trim();
 
-    return text;
+    return dropFigureCaption(text);
+}
+
+/**
+ * 본문에서 그림 제목 줄(「< 오늘~모레 예상 강수지역 분포도 >」)을 뺀다 — 날씨누리 본문에는 첨부 그림의 제목이 글자로 섞여 오는데, 앱은 그 그림을 보이지 못한다.
+ * 사용자 2026-11-19: 「강수지역 분포도, 온도분포도가 원래는 이미지도 그 전망에 반영 … 우리 앱에서는 표출을 못시키고 있어. 아예 강수지역분포도 그 부분이 표출되지 않도록 텍스트도 삭제」
+ *   실측(2026-11-18~19 날씨누리 21편): 21편 모두 맨 위에 한 줄, 꼴 11가지(「< 특보 현황 및 오늘~모레 예상 강수지역 분포도 >」 등) — 모두 꺾쇠 한 줄에 「분포도」가 든다.
+ *   그림이 든 원문은 카드 머리줄의 📋 로 본다(routes/weather.js /api/regional-forecast 의 doc).
+ * 예: dropFigureCaption('< 오늘~모레 예상 강수지역 분포도 >\n<특보 현황>\n○ …') → '<특보 현황>\n○ …'
+ * @param {string} text @returns {string}
+ * [연계] ← fetchBulletinBody(새로 받는 글) · routes/weather.js /api/regional-forecast(이미 저장된 글)
+ */
+function dropFigureCaption(text) {
+    //   색칠 표시가 낀 줄(`< {{loc:오늘}}~모레 … 분포도 >`)·전각 꺾쇠도 같은 줄로 본다(별도 에이전트 검토 2026-11-19)
+    const cap = (l) => /^[<＜〈][^\n]*분포도[^\n]*[>＞〉]$/.test(l.replace(/\{\{[a-zA-Z]+:([^{}]*)\}\}/g, '$1').trim());
+    return typeof text === 'string' ? text.split('\n').filter((l) => !cap(l)).join('\n').trim() : text;
 }
 
 // ============================================================================
@@ -476,6 +498,51 @@ function extractMarineOutlooksRegex(text) {
     return out;
 }
 
+/** 해상 기상 요약이 끝난 것인가 — 요약됨(ok)·바다 얘기 없음(none). 'raw'(AI 가 못 함)·없음(아직 안 함)은 다시 해 볼 것. [연계] ← summarizePending */
+const seaSettled = (s) => !!s && (s.state === 'ok' || s.state === 'none');
+// 한 통보문에 요약을 몇 번까지 해 보나 — 없으면: 원문 대조에 늘 걸리는 글 하나가 발표 시간대 내내(5분마다, 하루 48번) AI 를 두 개씩(먼저 Gemma + 순서) 헛부른다
+//   (별도 에이전트 검토 2026-11-19 — 최악 하루 672번. 실제 Gemma 시험에서도 같은 글에서 같은 해역을 거듭 빼먹었다). 「수요 과다」처럼 잠깐의 실패는 네 번 안에 대개 풀린다.
+const SEA_MAX_TRIES = 4;
+let seaRunning = false;
+/** 공개 파일(regional_forecast.json → GET /api/regional-forecast)에 넣을 요약 — 화면이 쓰는 칸만. AI 오류 글·시도 기록·걸린 까닭은 캐시 파일에만 둔다. */
+const publicSea = (r) => (r.state === 'ok' ? { state: 'ok', zones: r.zones, notes: r.notes, at: r.at } : r.state === 'raw' ? { state: 'raw', lines: r.lines, at: r.at } : { state: 'none', at: r.at });
+
+/**
+ * 요약이 안 끝난 지방청의 「해상 기상 요약」을 만든다 — 수집(색칠)이 끝난 뒤 따로 돈다. 절대 던지지 않는다.
+ *   지방청마다: 지금 통보문의 요약이 끝났으면(ok·none) 건너뛴다 → 캐시에 끝난 요약이 있으면 그것을 싣는다 → 아니면 AI 로 요약(regional_sea_summary.summarize)해 캐시와 공개 파일에 넣는다.
+ *   못 한 것(raw)은 다음 수집 때 다시 — 한 통보문에 SEA_MAX_TRIES 번까지. 그동안 새 통보문이 들어오면 그 결과는 버린다(통보문 번호가 같을 때만 싣는다).
+ * 예: await summarizePending() → { ok: 5, raw: 1, none: 1, gaveUp: 0 }
+ * @param {{summarize?:function}} [o] summarize 를 끼울 수 있다(검사용) @returns {Promise<{ok:number, raw:number, none:number, gaveUp:number, skipped?:boolean}>}
+ * [연계] ← collectAllRegionalBulletins(끝에서, 기다리지 않고) / → services/regional_sea_summary.summarize
+ */
+async function summarizePending(o) {
+    const stat = { ok: 0, raw: 0, none: 0, gaveUp: 0 };
+    if (seaRunning) return Object.assign(stat, { skipped: true });
+    seaRunning = true;
+    const readStore = () => { try { return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); } catch (e) { if (e.code !== 'ENOENT') console.warn('[RegionalBulletin] 저장 파일을 못 읽음:', e.message); return {}; } };
+    // 공개 파일의 그 지방청 칸에 요약을 싣는다 — 읽고 고쳐 쓰는 사이에 기다림이 없다(다른 수집기의 칸을 덮지 않는다). 그 사이 통보문이 바뀌었으면 싣지 않는다.
+    const publish = (code, rid, sea) => { const fresh = readStore(); if (!fresh[code] || fresh[code].bulletinReportId !== rid) return false; fresh[code].seaSummary = publicSea(sea); fs.writeFileSync(DATA_FILE, JSON.stringify(fresh, null, 2), 'utf8'); return true; };
+    try {
+        for (const office of BULLETIN_OFFICES) {
+            const e = readStore()[office.code];
+            if (!e || !e.bulletinReportId || seaSettled(e.seaSummary)) continue;
+            const cached = loadCache(office.code, e.bulletinReportId);
+            if (!cached || !cached.rawText) continue;   // 본문이 없으면 요약할 것이 없다(상자를 그리지 않는다)
+            if (seaSettled(cached.seaSummary)) { publish(office.code, e.bulletinReportId, cached.seaSummary); stat[cached.seaSummary.state]++; continue; }
+            const tries = cached.seaTries || 0;
+            if (tries >= SEA_MAX_TRIES) { stat.gaveUp++; if (!e.seaSummary && cached.seaSummary) publish(office.code, e.bulletinReportId, cached.seaSummary); continue; }
+            const r = await ((o && o.summarize) || seaSummary.summarize)(cached.rawText);
+            saveCache(office.code, e.bulletinReportId, { ...(loadCache(office.code, e.bulletinReportId) || cached), seaSummary: r, seaTries: tries + 1 });
+            publish(office.code, e.bulletinReportId, r);
+            stat[r.state]++;
+            if (r.state === 'raw') console.log(`[RegionalBulletin] ${office.name}: 해상 기상 요약을 못 만듦(${tries + 1}/${SEA_MAX_TRIES}번째) — 원문 바다 줄을 그대로 보인다`);
+        }
+    } catch (e) {
+        console.warn('[RegionalBulletin] 해상 기상 요약 중 오류:', e && e.message);
+    } finally { seaRunning = false; }
+    return stat;
+}
+
 async function processOneOffice(office) {
     try {
         const found = await findBulletinForOffice(office.code);
@@ -487,6 +554,7 @@ async function processOneOffice(office) {
         // [캐시 정책] AI 색칠까지 끝난(aiColored===true) 경우에만 "완료"로 보고 즉시 반환.
         //   색칠 못 한 폴백(aiColored===false, 원문만 표출 중)은 할당량 회복 후 재색칠하도록
         //   캐시에 남겨둔 rawText 를 재사용해 AI 만 다시 시도한다(기상청 재요청 회피).
+        //   해상 기상 요약은 여기서 하지 않는다 — 수집이 끝난 뒤 summarizePending 이 따로 한다(색칠본이 요약을 기다리지 않게).
         const cached = loadCache(office.code, found.reportId);
         if (cached && cached.aiColored === true && cached.summary !== undefined) {
             console.log(`[RegionalBulletin] ${office.name}: 캐시 hit (색칠 완료) (${found.title})`);
@@ -541,6 +609,9 @@ async function processOneOffice(office) {
             marineOutlooks,
             collectedAt: new Date().toISOString()
         };
+        // 같은 통보문을 다시 색칠하는 길이면 앞서 해 둔 요약과 시도 횟수를 캐시에 이어 둔다(지우면 요약을 처음부터 다시 부른다)
+        if (cached && cached.seaSummary) result.seaSummary = cached.seaSummary;
+        if (cached && cached.seaTries) result.seaTries = cached.seaTries;
 
         saveCache(office.code, found.reportId, result);
         if (!aiColored) {
@@ -551,6 +622,47 @@ async function processOneOffice(office) {
         console.error(`[RegionalBulletin] ${office.name} 처리 오류: ${e.message}`);
         return null;
     }
+}
+
+/**
+ * 그 통보문의 원문 PDF 열쇠·주소·제목 — 기상청 공개 폴더의 파일 이름은 발표시각·관서·호로 정해진다.
+ * 예: docKeyOf('184', 'cmt:202611190450:37') → { key:'fax_wcmt_202611190450_184_37', url:'https://marine.kma.go.kr/…/202611/19/fax_wcmt_202611190450_184_37.pdf', ho:'제11-37호' }
+ *   실측 2026-11-19: 제주 11-37호·부산 11-35호·11-37호·제주 2025-08-21 08-42호 네 건이 이 주소에서 PDF 로 받아졌다(로그인 없이).
+ * @param {string} officeCode 관서 번호 @param {string} reportId 날씨누리 통보문 번호(cmt:<발표시각 12자리>:<호>) @returns {{key:string, url:string, ho:string}|null} 꼴이 다르면 null
+ * [연계] ← scheduler.js(원문 받기 — services/bulletin_docs.syncExtra) · routes/weather.js(/api/regional-forecast 의 doc)
+ */
+function docKeyOf(officeCode, reportId) {
+    const m = String(reportId || '').match(/^cmt:(\d{12}):(\d+)$/);
+    if (!m || !/^\d+$/.test(String(officeCode))) return null;
+    const key = `fax_wcmt_${m[1]}_${officeCode}_${m[2]}`;
+    return { key, url: `https://marine.kma.go.kr/resources/kmas/C5N_DATA/WRN/PDF/${m[1].slice(0, 6)}/${m[1].slice(6, 8)}/${key}.pdf`, ho: `제${m[1].slice(4, 6)}-${m[2]}호` };
+}
+
+/**
+ * 지방청 7곳의 지금 통보문 원문(PDF)을 우리 서버에 받아 쪽 그림으로 바꿔 두게 한다(카드 머리줄 📋 가 연다). 앞선 발표분의 원문은 지워진다. 절대 던지지 않는다.
+ * 예: await syncDocs() → { need:7, fetched:1, converted:1, waiting:0, removed:3 }
+ * @returns {Promise<object>} services/bulletin_docs.syncExtra 의 결과
+ * [연계] ← scheduler.js(지방청 단기 전망 수집이 끝날 때마다 — 부팅 · 발표 시간대 5분마다) / → services/bulletin_docs.syncExtra
+ */
+function syncDocs() {
+    let store = {};
+    try { store = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); } catch (e) { if (e.code !== 'ENOENT') console.warn('[RegionalBulletin] 저장 파일을 못 읽음:', e.message); }
+    const docs = BULLETIN_OFFICES.map((o) => store && store[o.code] && docKeyOf(o.code, store[o.code].bulletinReportId)).filter(Boolean);
+    return require('./services/bulletin_docs').syncExtra(docs);
+}
+
+/**
+ * 그 관서의 지금 통보문 본문(색칠 전 원문) — 관리자 「시험 요약」이 쓴다. 없으면 ''.
+ * 예: currentRawText('184') → '<특보 현황>\n○ 대설주의보: 제주도산지\n…'
+ * @param {string} officeCode @returns {string}
+ * [연계] ← routes/bulletin_watch.js POST /api/admin/bulletin-ai/try-sea-summary
+ */
+function currentRawText(officeCode) {
+    let store = {};
+    try { store = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); } catch (e) { if (e.code !== 'ENOENT') console.warn('[RegionalBulletin] 저장 파일을 못 읽음:', e.message); }
+    const e = store && store[officeCode];
+    const c = e && e.bulletinReportId ? loadCache(officeCode, e.bulletinReportId) : null;
+    return (c && c.rawText) || '';
 }
 
 // ============================================================================
@@ -638,6 +750,7 @@ async function collectAllRegionalBulletins() {
     // 변경분이 없으면(전부 사이클스킵/실패) 파일을 건드리지 않는다 — 불필요한 write/경합 회피.
     if (Object.keys(collected).length === 0) {
         console.log(`[RegionalBulletin] 완료: 신규 ${updated}건 / 캐시 ${cacheHits}건 / 사이클스킵 ${cycleSkips}건 / 실패 ${failed}건 (변경 없음, 저장 생략)`);
+        summarizePending().catch((e) => console.warn('[RegionalBulletin] 해상 기상 요약 오류:', e && e.message));   // 앞서 못 한 요약을 다시 — 기다리지 않는다
         return store;
     }
 
@@ -656,7 +769,9 @@ async function collectAllRegionalBulletins() {
         } catch (_) { fresh = {}; }
 
         for (const [code, fields] of Object.entries(collected)) {
-            fresh[code] = { ...(fresh[code] || {}), ...fields };
+            // 통보문이 바뀌었으면 앞 통보문의 해상 기상 요약을 지운다 — 새 글에 옛 요약이 붙어 나가지 않게(새 요약은 아래 summarizePending 이 만든다)
+            const changed = (fresh[code] || {}).bulletinReportId !== fields.bulletinReportId;
+            fresh[code] = { ...(fresh[code] || {}), ...fields, ...(changed ? { seaSummary: null } : {}) };
         }
         fresh._lastUpdated = new Date().toISOString();
 
@@ -668,6 +783,9 @@ async function collectAllRegionalBulletins() {
     // ──────────────────────────────────────────────────────────────────────
 
     console.log(`[RegionalBulletin] 완료: 신규 ${updated}건 / 캐시 ${cacheHits}건 / 사이클스킵 ${cycleSkips}건 / 실패 ${failed}건 / 원문폴백 ${rawFallbacks}건`);
+    // 해상 기상 요약 — 색칠본을 저장한 뒤에, 기다리지 않고 따로 돈다. 없으면(여기서 기다리면): 서버가 뜰 때 7곳 요약(한 곳 5~12초, 안 되면 60초 제한까지)이 끝나야
+    //   매분 수집(푸시·특보)이 시작되고, 새 발표분 색칠본도 7곳 요약이 다 끝나야 화면에 나간다(별도 에이전트 검토 2026-11-19).
+    summarizePending().catch((e) => console.warn('[RegionalBulletin] 해상 기상 요약 오류:', e && e.message));
     return store;
 }
 
@@ -679,6 +797,13 @@ module.exports = {
     analyzeBulletinWithAI,
     fixMarkup,
     gemmaKeptSummary,
+    dropFigureCaption,
+    docKeyOf,
+    syncDocs,
+    currentRawText,
+    summarizePending,
+    publicSea,
+    SEA_MAX_TRIES,
     BULLETIN_OFFICES,
     REGIONAL_BULLETIN_AI_PROMPT,
 };
