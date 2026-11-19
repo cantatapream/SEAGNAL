@@ -37,10 +37,20 @@ const tokensOf = (arr) => arr.map((r) => r.token).sort().join(',');
     check('거부 뒤에도 기본값 그대로', exposure.getExposure() === 'admin');
     check('user 저장', exposure.setExposure('user') === true && exposure.getExposure() === 'user');
     check('off 저장', exposure.setExposure('off') === true && exposure.getExposure() === 'off');
+    check('저장 뒤 임시 파일(.tmp)이 남지 않는다', !fs.existsSync(process.env.LOCATION_ALERT_EXPOSURE_FILE + '.tmp'));
+    // 깨진 파일 — 기본값으로 보되 조용히 넘기지 않는다(서버 로그에 경고). 독립 검토 C.
+    const realWarn = console.warn; let warned = [];
+    console.warn = (...x) => warned.push(x.join(' '));
     fs.writeFileSync(process.env.LOCATION_ALERT_EXPOSURE_FILE, '{깨진 파일', 'utf8');
     check('파일이 깨졌으면 기본값 admin', exposure.getExposure() === 'admin');
+    check('깨진 파일이면 경고를 남긴다', warned.some((w) => /노출 범위 파일을 못 읽어/.test(w)), warned);
+    warned = [];
     fs.writeFileSync(process.env.LOCATION_ALERT_EXPOSURE_FILE, JSON.stringify({ exposure: 'public' }), 'utf8');
-    check('모르는 값이 적혀 있으면 기본값 admin', exposure.getExposure() === 'admin');
+    check('모르는 값이 적혀 있으면 기본값 admin + 경고', exposure.getExposure() === 'admin' && warned.length === 1, warned);
+    warned = [];
+    fs.unlinkSync(process.env.LOCATION_ALERT_EXPOSURE_FILE);
+    check('파일이 없을 때는 경고하지 않는다(아직 안 바꾼 정상 상태)', exposure.getExposure() === 'admin' && warned.length === 0, warned);
+    console.warn = realWarn;
     exposure.setExposure('admin');
 
     console.log('\n[2] 동의 레코드의 관리자 표시');
@@ -232,6 +242,22 @@ const tokensOf = (arr) => arr.map((r) => r.token).sort().join(',');
     fetchReply = { status: 200, body: { ok: true, audience: 'user', display: 'yes' } };
     await UI.initLocationAlertUI();
     check('display 가 true 가 아니면(이상한 값) 숨김', card.style.display === 'none', card.style.display);
+
+    // 독립 검토 C: 설정을 연달아 열 때 늦게 도착한 옛 판정이 새 판정을 덮으면 안 된다.
+    {
+        const resolvers = [];
+        const savedFetch = global.fetch;
+        global.fetch = () => new Promise((res) => resolvers.push(res));
+        const mk = (body) => ({ ok: true, status: 200, json: async () => body });
+        const p1 = UI.initLocationAlertUI();   // 먼저 연 것(옛 판정: 보임)
+        const p2 = UI.initLocationAlertUI();   // 나중에 연 것(새 판정: 숨김)
+        resolvers[1](mk({ ok: true, audience: 'off', display: false }));   // 새 판정이 먼저 도착
+        await p2;
+        resolvers[0](mk({ ok: true, audience: 'user', display: true }));   // 옛 판정이 늦게 도착
+        await p1;
+        check('늦게 온 옛 판정이 새 판정을 덮지 않는다(숨김 유지)', card.style.display === 'none', card.style.display);
+        global.fetch = savedFetch;
+    }
 
     // 숨겨진 상태에서 토글 켜기 시도(방어) → 켜지지 않는다
     const cb = { checked: true };

@@ -1,55 +1,39 @@
 /**
  * ============================================================================
  * 파일명: js/assistant.js
- * 역할: SEAGNAL 음성 비서 프론트엔드 (호출어 "누구야" + STT + TTS + 텍스트 폴백)
+ * 역할: SEAGNAL AI 비서 프론트엔드 (글자 입력 질문 + 답변 표시 + TTS 읽어 주기)
  * [연계]
  *  - 사용하는 파일 : assistant_deeplink.js(답변 바로가기), user_memory_bridge.js
- *                    (window.SeagnalMemory — 배선 대기), Capacitor 플러그인
- *  - 서버 API      : /api/assistant/* (질의응답·로그)
- *  - 마크업        : assistant.html (#assistant-* 오버레이/입력 요소)
+ *                    (window.SeagnalMemory — 배선 대기), Capacitor 플러그인(위치)
+ *  - 서버 API      : /api/assistant/* (질의응답·TTS·말투요약)
+ *  - 마크업        : assistant.html
  *  - 나를 쓰는 곳  : assistant.html 이 로드하는 진입 파일 (자가 초기화)
  * ============================================================================
  *
  * [흐름]
- *   마이크 ON → (호출어 대기) → "누구야" 인식 → (명령 수신) → 질문 캡처
- *            → POST /api/assistant/ask → 답변 표시 + 음성 출력(TTS) → 다시 호출어 대기
+ *   질문 입력(또는 예시 칩) → POST /api/assistant/ask → 답변 표시 + 음성 출력(TTS, 스피커)
  *
- * [중요]
- *   - Web Speech API(webkitSpeechRecognition)는 브라우저/WebView 지원에 의존한다.
- *     미지원 환경에서는 음성 UI를 숨기고 하단 텍스트 입력으로 동일 기능을 제공한다.
- *   - 프로덕션에서 상시 호출어를 더 견고히 하려면 오프라인 wake-word 엔진
- *     (예: Picovoice Porcupine)이나 네이티브 음성 플러그인으로 교체하면 된다.
- *
- * [기존 앱에 끼워넣기]
- *   index2.html 등에 <script src="/js/assistant.js"></script> 만 추가해도
- *   이 파일이 필요한 DOM(#micBtn 등)을 못 찾으면 조용히 위젯을 자동 생성하도록
- *   확장할 수 있다. 본 프로토타입은 assistant.html 의 DOM 을 사용한다.
+ * [제거 이력]
+ *   2026-11-19 마이크(음성 입력) 기능 전부 제거 — 호출어, 웹 음성 인식, 클라우드 받아쓰기,
+ *   네이티브 상시 청취와 Vosk 음성 모델 내려받기. 사용자 지시: "마이크가 들어가는 부분은
+ *   모두 제거해줘. 사용하지 않을거야." / "음성모델 ? 그것도 제거해줘."
+ *   (TTS 는 마이크가 아니라 스피커 출력이므로 그대로 둔다.)
  * ============================================================================
  */
 (function () {
   'use strict';
 
   // ── 설정 ───────────────────────────────────────────────────────────────
-  var WAKE_WORDS = ['나리야', '나리아', '나리', '누구야', '시그널아'];
-  var COMMAND_TIMEOUT_MS = 6000;   // 호출어 후 명령 대기 최대 시간
   var API_URL = '/api/assistant/ask';
 
   // ── DOM ────────────────────────────────────────────────────────────────
   var $ = function (id) { return document.getElementById(id); };
-  var micBtn = $('micBtn'), micLabel = $('micLabel');
   var dot = $('dot'), statusText = $('statusText');
   var heardEl = $('heard'), answerEl = $('answer'), metaEl = $('answerMeta');
-  var srcBadge = $('srcBadge'), speechWarn = $('speechWarn');
+  var srcBadge = $('srcBadge');
   var askForm = $('askForm'), qInput = $('qInput');
   var speakingEq = $('speakingEq'), answerActions = $('answerActions'), stateBanner = $('stateBanner');
   var lastAnswer = '';   // "다시 듣기"용
-
-  // ── 상태 ───────────────────────────────────────────────────────────────
-  var micOn = false;          // 마이크 토글
-  var mode = 'idle';          // idle | wake | command | thinking | speaking
-  var commandTimer = null;
-  var recognition = null;
-  var restartGuard = false;   // onend 자동 재시작 루프 보호
 
   // ── 유틸 ───────────────────────────────────────────────────────────────
   function normalize(s) { return String(s || '').replace(/[\s.,!?~·]/g, '').toLowerCase(); }
@@ -77,34 +61,17 @@
     else { srcBadge.textContent = ''; }
   }
 
-  // 호출어가 발화 안에 들어 있으면, 호출어 이후의 텍스트(질문)를 잘라 반환.
-  // 호출어만 있고 질문이 없으면 '' 반환. 호출어가 전혀 없으면 null 반환.
-  function extractAfterWake(transcript) {
-    var norm = normalize(transcript);
-    for (var i = 0; i < WAKE_WORDS.length; i++) {
-      var w = normalize(WAKE_WORDS[i]);
-      var idx = norm.indexOf(w);
-      if (idx !== -1) {
-        // 원문에서 대략적인 호출어 끝 위치 이후를 질문으로 사용 (정규화 길이 기반 근사)
-        var after = transcript.slice(transcript.length - (norm.length - (idx + w.length)));
-        return after.replace(/^[\s,.!?~·]+/, '').trim();
-      }
-    }
-    return null;
-  }
-
   // ── TTS (음성) — 텍스트는 화면에, 음성은 여기서. 자연음성↔내장음성 둘 다 지원 ──────
   var NATURAL_KEY = 'seagnal_natural_voice';
   function getNaturalVoice() { try { return localStorage.getItem(NATURAL_KEY) === '1'; } catch (e) { return false; } }
   function setNaturalVoice(on) { try { localStorage.setItem(NATURAL_KEY, on ? '1' : '0'); } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ } }
 
   function speakStartVisual() {
-    mode = 'speaking'; safeStopRecognition();
     setStatus('말하는 중…', 'speak'); setBanner('🔊 답변하고 있어요', 'speak'); showEq(true);
   }
   function speakEndVisual() {
     showEq(false);
-    if (micOn) startWakeMode(); else { setBanner(''); setStatus('대기 중 — 마이크를 켜세요', ''); }
+    setBanner(''); setStatus('대기 중', '');
   }
 
   function speak(text) {
@@ -265,7 +232,6 @@
   function ask(query) {
     if (!query) return;
     setHeard(query);
-    mode = 'thinking';
     setStatus('생각 중…', 'think');
     setBanner('💭 생각하고 있어요', 'cmd');
     setAnswer('…', null);
@@ -277,7 +243,6 @@
         if (!loc) {
           setAnswer('위치 권한이 필요해요. 권한을 허용하면 현재 위치 기준으로 찾아드릴게요. (관리자 AI 탭에서 위치 권한 허용 가능)', null);
           setStatus('대기 중', 'on'); renderActions(null);
-          if (micOn) startWakeMode();
           return;
         }
         doAsk(query, loc);
@@ -376,7 +341,6 @@
           }
 
           speak(d.answer);
-          if (!('speechSynthesis' in window) && micOn) startWakeMode();
           // 임의 지점 물때: 지명 검색 → 확인 → 고조/저조 조회 흐름 시작
           if (d.tideSearch) startTidePlaceSearch(d.tideSearch);
         })
@@ -384,45 +348,7 @@
           setAnswer('죄송해요, 데이터를 가져오지 못했습니다. (' + err.message + ')', null);
           metaEl.textContent = '';
           renderActions(null);
-          if (micOn) startWakeMode();
         });
-    });
-  }
-
-  // ── 클라우드 정확 받아쓰기 (MediaRecorder → /api/assistant/transcribe → ask) ──────
-  var _rec = null, _recChunks = [], _recTimer = null;
-  function cloudRecordToggle() {
-    if (_rec && _rec.state === 'recording') { try { _rec.stop(); } catch (e) { /* 이미 멈춘 녹음이면 던진다 — 멈추려던 것이 이미 멈춰 있다 */ } return; }
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
-      setAnswer('이 환경에서는 녹음을 지원하지 않습니다. 기기 키보드 마이크로 입력해 주세요.', null); return;
-    }
-    setStatus('녹음 중… (다시 탭하면 종료)', 'listen'); setBanner('🎤 녹음 중 — 질문하세요', 'cmd');
-    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
-      _recChunks = [];
-      _rec = new MediaRecorder(stream);
-      _rec.ondataavailable = function (e) { if (e.data && e.data.size) _recChunks.push(e.data); };
-      _rec.onstop = function () {
-        clearTimeout(_recTimer);
-        try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) { /* 마이크가 그새 뽑혔으면 던진다 — 트랙 정리만 못 하고 받아쓰기는 그대로 이어간다 */ }
-        setStatus('받아쓰는 중…', 'think'); setBanner('💭 받아쓰는 중', 'cmd');
-        var blob = new Blob(_recChunks, { type: (_rec && _rec.mimeType) || 'audio/webm' });
-        var reader = new FileReader();
-        reader.onloadend = function () {
-          var b64 = String(reader.result).split(',')[1] || '';
-          fetch('/api/assistant/transcribe', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ audio: b64, mimeType: blob.type })
-          }).then(function (r) { return r.json(); }).then(function (d) {
-            if (d && d.ok && d.text) { setHeard(d.text); ask(d.text); }
-            else { setAnswer('받아쓰기를 못 했어요. ' + ((d && d.error) || '') , null); setBanner(''); }
-          }).catch(function (e) { setAnswer('받아쓰기 오류: ' + e.message, null); setBanner(''); });
-        };
-        reader.readAsDataURL(blob);
-      };
-      _rec.start();
-      _recTimer = setTimeout(function () { if (_rec && _rec.state === 'recording') try { _rec.stop(); } catch (e) { /* 8초 자동 정지 — 그 찰나에 사용자가 먼저 멈췄으면 던진다. 할 일이 이미 끝난 것이다 */ } }, 8000); // 최대 8초
-    }).catch(function () {
-      setAnswer('마이크 권한이 필요해요. 관리자 AI 탭에서 마이크를 허용해 주세요.', null); setBanner('');
     });
   }
 
@@ -527,156 +453,6 @@
     speak(txt);
   }
 
-  // ── 음성 인식 (Web Speech API) ──────────────────────────────────────────
-  function speechSupported() {
-    return ('webkitSpeechRecognition' in window) || ('SpeechRecognition' in window);
-  }
-
-  function createRecognition() {
-    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    var r = new SR();
-    r.lang = 'ko-KR';
-    r.continuous = true;
-    r.interimResults = true;
-    r.maxAlternatives = 1;
-
-    r.onresult = function (ev) {
-      var interim = '', finalText = '';
-      for (var i = ev.resultIndex; i < ev.results.length; i++) {
-        var res = ev.results[i];
-        if (res.isFinal) finalText += res[0].transcript;
-        else interim += res[0].transcript;
-      }
-      var live = (finalText || interim).trim();
-      if (!live) return;
-
-      if (mode === 'wake') {
-        // 호출어 탐지
-        var after = extractAfterWake(live);
-        if (after !== null) {
-          beep();
-          if (after) {
-            // "누구야 + 질문"이 한 발화에 들어온 경우 즉시 질의
-            if (finalText) ask(after);
-            else { setHeard(after); } // 아직 interim이면 표시만
-          } else {
-            startCommandMode();
-          }
-        }
-      } else if (mode === 'command') {
-        setHeard(live);
-        if (finalText) {
-          clearTimeout(commandTimer);
-          ask(finalText.trim());
-        }
-      }
-    };
-
-    r.onend = function () {
-      // continuous 인식은 주기적으로 종료된다. 마이크가 켜져 있고 말하는 중이
-      // 아니라면 자동 재시작하여 "상시 대기"를 유지한다.
-      if (micOn && mode !== 'speaking' && mode !== 'thinking' && !restartGuard) {
-        restartGuard = true;
-        setTimeout(function () { restartGuard = false; safeStartRecognition(); }, 250);
-      }
-    };
-
-    r.onerror = function (e) {
-      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-        micOn = false; updateMicUI();
-        setStatus('마이크 권한이 거부되었습니다', '');
-        showSpeechWarn('마이크 권한이 필요합니다. 브라우저 설정에서 허용해 주세요. (텍스트 입력은 사용 가능)');
-      }
-      // no-speech / aborted 등은 onend 의 자동 재시작에 맡긴다.
-    };
-
-    return r;
-  }
-
-  function safeStartRecognition() {
-    if (!recognition) return;
-    try { recognition.start(); } catch (e) { /* 이미 시작됨 등 → 무시 */ }
-  }
-  function safeStopRecognition() {
-    if (!recognition) return;
-    try { recognition.stop(); } catch (e) { /* 무시 */ }
-  }
-
-  function startWakeMode() {
-    mode = 'wake';
-    setStatus('"나리야" 라고 불러주세요', 'on');
-    setBanner('👂 "나리야" 부르면 반응해요', '');  // 대기(상시 청취) — 은은한 배너
-    showEq(false);
-    setHeard('—');
-    safeStartRecognition();
-  }
-
-  function startCommandMode() {
-    mode = 'command';
-    setStatus('듣고 있어요… 질문하세요', 'listen');
-    setBanner('🎙️ 듣고 있어요 — 질문하세요', 'cmd');  // 명령 수신 — 강조 배너
-    setHeard('…');
-    clearTimeout(commandTimer);
-    commandTimer = setTimeout(function () {
-      if (mode === 'command' && micOn) {
-        setStatus('질문을 못 들었어요. 다시 "나리야"', 'on');
-        startWakeMode();
-      }
-    }, COMMAND_TIMEOUT_MS);
-  }
-
-  // 짧은 인식 신호음 (Web Audio)
-  function beep() {
-    try {
-      var ctx = beep._ctx || (beep._ctx = new (window.AudioContext || window.webkitAudioContext)());
-      var o = ctx.createOscillator(), g = ctx.createGain();
-      o.connect(g); g.connect(ctx.destination);
-      o.frequency.value = 880; o.type = 'sine';
-      g.gain.setValueAtTime(0.001, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
-      o.start(); o.stop(ctx.currentTime + 0.2);
-    } catch (e) { /* 무시 */ }
-  }
-
-  // ── 마이크 토글 UI ───────────────────────────────────────────────────────
-  function updateMicUI() {
-    if (micOn) {
-      micBtn.className = 'mic active';
-      micLabel.textContent = '듣는 중 (끄기)';
-    } else {
-      micBtn.className = 'mic off';
-      micLabel.textContent = '마이크 켜기';
-      setStatus('대기 중 — 마이크를 켜세요', '');
-    }
-  }
-
-  function toggleMic() {
-    if (!speechSupported()) {
-      showSpeechWarn('이 브라우저/앱은 음성 인식을 지원하지 않습니다. 아래 입력창으로 질문하세요.');
-      return;
-    }
-    micOn = !micOn;
-    if (micOn) {
-      if (!recognition) recognition = createRecognition();
-      // TTS 보이스 로딩 트리거 (일부 브라우저는 최초 호출 시 비어있음)
-      if ('speechSynthesis' in window) window.speechSynthesis.getVoices();
-      updateMicUI();
-      startWakeMode();
-    } else {
-      mode = 'idle';
-      clearTimeout(commandTimer);
-      safeStopRecognition();
-      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-      updateMicUI();
-    }
-  }
-
-  function showSpeechWarn(msg) {
-    speechWarn.style.display = 'block';
-    speechWarn.textContent = msg;
-  }
-
   // ── 텍스트 폴백 + 예시 칩 ─────────────────────────────────────────────────
   askForm.addEventListener('submit', function (e) {
     e.preventDefault();
@@ -687,189 +463,6 @@
   Array.prototype.forEach.call(document.querySelectorAll('.chip'), function (chip) {
     chip.addEventListener('click', function () { ask(chip.textContent.trim()); });
   });
-
-  micBtn.addEventListener('click', toggleMic);
-
-  // ── 네이티브 백그라운드 비서 (안드로이드 앱 전용) ────────────────────────────
-  // 앱(Capacitor) 안에서 열렸고 SeagnalAssistant 플러그인이 있으면, 웹 STT 대신
-  // 네이티브 포그라운드 서비스로 "나리야" 상시 청취를 켜고 끌 수 있다.
-  //
-  // [호출어 엔진 게이팅 — Vosk 모델 다운로드 흐름]
-  //   Porcupine assets 가 있으면 즉시 시작. 없으면 Vosk 한국어 모델(~80MB)이 필요 — 사용자에게
-  //   동의 다이얼로그(Wi-Fi 기본)를 띄우고, 동의 시 전경 서비스가 백그라운드 다운로드. 진행률은
-  //   'voskState' 이벤트로 수신해 다이얼로그·진행바 갱신. 완료(READY) 시 자동으로 enable.
-  //   다운로드 중 사용자는 앱을 평소처럼 사용 가능 — 음성지원만 "다운로드 중입니다" 안내.
-  function setupNativeBridge() {
-    var Native = (window.Capacitor && window.Capacitor.Plugins &&
-      window.Capacitor.Plugins.SeagnalAssistant) ? window.Capacitor.Plugins.SeagnalAssistant : null;
-    if (!Native) return; // 일반 웹 브라우저 → 숨김 유지
-
-    var box = $('nativeBox'), statusEl = $('nativeStatus'), toggleBtn = $('nativeToggle');
-    box.style.display = 'block';
-    var running = false;
-
-    function render() {
-      statusEl.textContent = running ? '켜짐 — "나리야" 대기 중' : '꺼짐';
-      statusEl.style.color = running ? 'var(--ok)' : 'var(--muted)';
-      toggleBtn.textContent = running ? '끄기' : '켜기';
-    }
-
-    // ── Vosk 다운로드 다이얼로그 (동적 생성) ────────────────────────────────
-    var dl = null;
-    function buildDialog() {
-      if (dl) return dl;
-      var root = document.createElement('div');
-      root.id = 'vosk-dl';
-      root.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.55);' +
-        'display:none;align-items:center;justify-content:center;padding:16px;' +
-        'font-family:-apple-system,BlinkMacSystemFont,Roboto,"Noto Sans KR",sans-serif;';
-      root.innerHTML =
-        '<div style="background:#0b1f33;border:1px solid rgba(56,189,248,.45);border-radius:16px;' +
-                    'padding:18px;max-width:420px;width:100%;color:#e6f1ff;' +
-                    'box-shadow:0 18px 50px rgba(0,0,0,.6);">' +
-          '<div id="vdl-title" style="font-size:15px;font-weight:700;margin-bottom:8px;"></div>' +
-          '<div id="vdl-body" style="font-size:13.5px;line-height:1.55;color:#cfe2f3;"></div>' +
-          '<div id="vdl-progress" style="display:none;margin-top:12px;height:8px;background:rgba(255,255,255,.08);' +
-                    'border-radius:6px;overflow:hidden;"><div id="vdl-bar" style="height:100%;width:0%;' +
-                    'background:#38bdf8;transition:width .25s ease;"></div></div>' +
-          '<div id="vdl-pct" style="display:none;margin-top:6px;font-size:12px;color:#a9c3d8;text-align:right;"></div>' +
-          '<label id="vdl-wifi" style="display:none;margin-top:12px;font-size:12.5px;color:#a9c3d8;cursor:pointer;">' +
-            '<input type="checkbox" id="vdl-wifi-chk" checked style="vertical-align:middle;margin-right:6px;">' +
-            'Wi-Fi 에서만 다운로드 (체크 해제 시 모바일 데이터 사용)</label>' +
-          '<div id="vdl-actions" style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;"></div>' +
-        '</div>';
-      document.body.appendChild(root);
-      dl = {
-        root: root,
-        title: root.querySelector('#vdl-title'),
-        body: root.querySelector('#vdl-body'),
-        actions: root.querySelector('#vdl-actions'),
-        wifi: root.querySelector('#vdl-wifi'),
-        wifiChk: root.querySelector('#vdl-wifi-chk'),
-        progress: root.querySelector('#vdl-progress'),
-        bar: root.querySelector('#vdl-bar'),
-        pct: root.querySelector('#vdl-pct')
-      };
-      return dl;
-    }
-    function btn(label, primary) {
-      var b = document.createElement('button');
-      b.textContent = label;
-      b.style.cssText = 'padding:8px 14px;border-radius:10px;border:0;font-size:13.5px;font-weight:600;cursor:pointer;' +
-        (primary ? 'background:#38bdf8;color:#04263b;' : 'background:rgba(255,255,255,.08);color:#cfe2f3;');
-      return b;
-    }
-    function hideDialog() { if (dl) dl.root.style.display = 'none'; }
-    function showDialog(kind, opts) {
-      var d = buildDialog(); opts = opts || {};
-      d.actions.innerHTML = '';
-      d.wifi.style.display = 'none';
-      d.progress.style.display = 'none';
-      d.pct.style.display = 'none';
-      if (kind === 'prompt') {
-        d.title.textContent = '음성 지원 데이터 다운로드';
-        d.body.textContent = '"나리야" 호출어를 사용하려면 한국어 음성 모델(약 80MB)을 한 번 다운로드해야 합니다. ' +
-          '다운로드는 백그라운드로 진행되며 그동안 앱은 평소처럼 사용할 수 있습니다.';
-        d.wifi.style.display = 'block'; d.wifiChk.checked = true;
-        var later = btn('나중에', false); later.addEventListener('click', hideDialog);
-        var go = btn('지금 다운로드', true);
-        go.addEventListener('click', function () {
-          showDialog('progress', { percent: 0 });
-          Native.requestVoskDownload({ allowMobile: !d.wifiChk.checked });
-        });
-        d.actions.appendChild(later); d.actions.appendChild(go);
-      } else if (kind === 'progress') {
-        d.title.textContent = '음성 지원 데이터 준비 중';
-        d.body.textContent = '음성 지원을 하기 위한 데이터를 다운로드 중입니다. 앱은 평소처럼 사용하셔도 됩니다.';
-        d.progress.style.display = 'block';
-        d.pct.style.display = 'block';
-        var p = Math.max(0, Math.min(100, opts.percent|0));
-        d.bar.style.width = p + '%'; d.pct.textContent = p + '%';
-        var cancel = btn('취소', false);
-        cancel.addEventListener('click', function () {
-          if (Native.cancelVoskDownload) Native.cancelVoskDownload();
-          hideDialog();
-        });
-        var hide = btn('숨기기', true); hide.addEventListener('click', hideDialog);
-        d.actions.appendChild(cancel); d.actions.appendChild(hide);
-      } else if (kind === 'wifiRequired') {
-        d.title.textContent = 'Wi-Fi 가 필요합니다';
-        d.body.textContent = opts.message || '현재 Wi-Fi 에 연결돼 있지 않습니다. Wi-Fi 연결 후 다시 시도하거나, 모바일 데이터로 받을 수 있습니다.';
-        var close = btn('닫기', false); close.addEventListener('click', hideDialog);
-        var mobile = btn('데이터로 받기', true);
-        mobile.addEventListener('click', function () {
-          showDialog('progress', { percent: 0 });
-          Native.requestVoskDownload({ allowMobile: true });
-        });
-        d.actions.appendChild(close); d.actions.appendChild(mobile);
-      } else if (kind === 'failed') {
-        d.title.textContent = '다운로드 실패';
-        d.body.textContent = opts.message || '다운로드에 실패했습니다. 잠시 후 다시 시도해 주세요.';
-        var c2 = btn('닫기', false); c2.addEventListener('click', hideDialog);
-        var retry = btn('재시도', true);
-        retry.addEventListener('click', function () { showDialog('prompt'); });
-        d.actions.appendChild(c2); d.actions.appendChild(retry);
-      }
-      d.root.style.display = 'flex';
-    }
-
-    function doEnable() {
-      toggleBtn.disabled = true;
-      Native.enable({ serverUrl: location.origin, profile: JSON.stringify(getProfile() || {}) })
-        .then(function (r) { running = r ? !!r.running : true; render(); })
-        .catch(function (e) {
-          statusEl.textContent = '오류: ' + (e && e.message ? e.message : '권한/서비스 실패');
-          statusEl.style.color = 'var(--warn)';
-        })
-        .then(function () { toggleBtn.disabled = false; });
-    }
-
-    // [#40] 모델 다운로드 READY 시, 이미 가동 중(폴백)이면 서비스를 재기동해 Vosk 로 자동 전환.
-    //   onCreate 의 엔진 선택은 부팅 시 1회뿐이라 가동 중 READY 가 되어도 재선택되지 않는다.
-    function reEnableForVosk() {
-      toggleBtn.disabled = true;
-      Native.disable()
-        .then(function () { return Native.enable({ serverUrl: location.origin, profile: JSON.stringify(getProfile() || {}) }); })
-        .then(function (r) { running = r ? !!r.running : true; render(); })
-        .catch(function () {})
-        .then(function () { toggleBtn.disabled = false; });
-    }
-
-    // Vosk 모델 상태 변경 구독 — 진행률·완료·실패를 다이얼로그에 반영.
-    if (Native.addListener) {
-      Native.addListener('voskState', function (e) {
-        var s = e && e.state;
-        if (s === 'DOWNLOADING')      showDialog('progress', { percent: e.progress|0 });
-        else if (s === 'READY')       { hideDialog(); if (!running) doEnable(); else reEnableForVosk(); }
-        else if (s === 'WIFI_REQUIRED') showDialog('wifiRequired', { message: e.message });
-        else if (s === 'FAILED')      showDialog('failed', { message: e.message });
-      });
-    }
-
-    Native.isEnabled().then(function (r) { running = !!(r && r.running); render(); })
-      .catch(function () { render(); });
-
-    toggleBtn.addEventListener('click', function () {
-      if (running) {
-        toggleBtn.disabled = true;
-        Native.disable()
-          .then(function (r) { running = r ? !!r.running : false; render(); if (window.__nariyaOverlayHide) window.__nariyaOverlayHide(); })
-          .catch(function (e) { statusEl.textContent = '오류: ' + (e && e.message ? e.message : ''); })
-          .then(function () { toggleBtn.disabled = false; });
-        return;
-      }
-      // ON — 호출어 엔진 가용성 확인 후 분기
-      if (!Native.getCapabilities) { doEnable(); return; }   // 구버전 플러그인 호환
-      Native.getCapabilities().then(function (cap) {
-        if (cap && cap.porcupineAvailable) { doEnable(); return; }
-        var v = (cap && cap.vosk) || { state: 'NOT_DOWNLOADED' };
-        if (v.state === 'READY')        { doEnable(); return; }
-        if (v.state === 'DOWNLOADING')  { showDialog('progress', { percent: v.progress|0 }); return; }
-        if (v.state === 'WIFI_REQUIRED'){ showDialog('wifiRequired', { message: v.message }); return; }
-        showDialog('prompt');   // NOT_DOWNLOADED / FAILED
-      }).catch(function () { doEnable(); /* 구현 누락 시 기존 동작으로 폴백 */ });
-    });
-  }
 
   // ── 온보딩 (AI 대화형) + 프로필 관리 ────────────────────────────────────────
   var onboardEl = $('onboard'), obLog = $('obLog'), obForm = $('obForm'), obInput = $('obInput');
@@ -990,25 +583,13 @@
     } catch (e) { /* silent fallback */ }
   }
 
-  setupNativeBridge();
-
   // 자연 음성 토글 연결
   var natToggle = $('naturalVoiceToggle');
   if (natToggle) {
     natToggle.checked = getNaturalVoice();
     natToggle.addEventListener('change', function () { setNaturalVoice(natToggle.checked); });
   }
-  // 클라우드 정확 받아쓰기 버튼
-  var cloudBtn = $('cloudSttBtn');
-  if (cloudBtn) cloudBtn.addEventListener('click', cloudRecordToggle);
-
   // ── 초기화 ────────────────────────────────────────────────────────────────
-  if (!speechSupported()) {
-    showSpeechWarn('이 브라우저/앱은 음성 인식을 지원하지 않습니다. 아래 입력창으로 질문하세요. (서버/AI 기능은 정상 동작)');
-    micBtn.disabled = true;
-    micBtn.style.opacity = '.5';
-  }
-
   // 직종(occupation)이 없으면 온보딩으로 물어본다. 단, 사용자가 명시적으로 '건너뜀(skipped)'을
   // 선택한 경우에는 다시 묻지 않는다. (과거의 빈 프로필 {} 은 직종도 skipped도 없으므로 다시 물어봄)
   var _initProfile = getProfile();

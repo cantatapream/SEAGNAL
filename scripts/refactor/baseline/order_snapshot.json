@@ -113,7 +113,6 @@
     "app_init.js",
     "backbutton.js",
     "assistant_deeplink.js",
-    "assistant_overlay.js",
     "hls.min.js",
     "cctv1.js",
     "cctv4.js",

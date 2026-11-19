@@ -701,24 +701,11 @@ window.switchUnifiedAdminTab = function (tabId) {
 };
 
 // ============================================================================
-// AI 탭 — Gemini 호출량 + AI 비서 테스트 호출 + 음성 권한 토글
+// AI 탭 — Gemini 호출량 + AI 비서 테스트 호출 + 위치 권한
 // ----------------------------------------------------------------------------
 //  보안: 이 탭은 관리자만 진입 가능. AI 도구는 공개/사용자 데이터 한정이며
 //        관리자 기능에는 접근하지 않는다(서버 측 도구 카탈로그에서 제외됨).
 // ============================================================================
-// 전역 디버그 로그 버퍼 — 앱 내 "테스트" 하위탭에서 열람·JSON 복사 (휴대폰-PC 연결 불요).
-//   ⚠2026-11-03 「테스트」 하위탭 삭제로 지금은 읽는 곳이 없다(AI 비서가 쌓기만 함 — 메모리 300건 한도, 남겨 둠).
-//   네이티브 logcat 대신 voskState 이벤트·엔진 선택·권한·에러를 메모리에 적재해 사장님이
-//   관리자 화면에서 바로 보고 JSON 으로 복사·공유한다. 페이지 새로고침 시 소멸(휘발).
-window.SeagnalDebug = window.SeagnalDebug || (function () {
-    var BUF = [], MAX = 300;
-    return {
-        push:  function (tag, data) { try { BUF.push({ ts: Date.now(), tag: String(tag), data: data }); if (BUF.length > MAX) BUF.shift(); } catch (e) { /* 진단 버퍼 쌓기다 — 여기서 던져도 관리자 화면 동작을 멈추면 안 된다 */ } },
-        all:   function () { return BUF.slice(); },
-        clear: function () { BUF.length = 0; }
-    };
-})();
-
 // AI 탭 호스트 — [AI 비서] / [AI 챗봇] / [AI 브리핑] 하위탭(「테스트」는 2026-11-03 삭제). 시연 탭과 동일한 하위탭 패턴.
 //   「AI 브리핑」(2026-10-16, 설계서 §11.6 결정 16 — U61 「사고 분석·예측」 이름 대체)은 admin_station_briefing.js 가 그린다.
 //   「AI 사고예측(오류현황)」은 2026-10-15 사용자 결정으로 점검 → 데이터 수집현황 아래로 옮겼다
@@ -907,13 +894,6 @@ async function renderAiAssistantSubtab(container) {
         <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:14px;">
             <div style="font-size:0.85rem;color:#94a3b8;margin-bottom:10px;"><i class="fa-solid fa-shield-halved"></i> 권한 관리</div>
 
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-                <i class="fa-solid fa-microphone" style="color:#22d3ee;width:16px;"></i>
-                <span style="font-size:0.85rem;color:#cbd5e1;">마이크</span>
-                <span id="ai-perm-mic" style="font-size:0.8rem;color:#94a3b8;">확인 중…</span>
-                <button id="ai-perm-mic-req" style="padding:5px 10px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;">권한 요청</button>
-                <button id="ai-perm-mic-set" style="padding:5px 10px;background:#64748b;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;display:none;">설정 열기</button>
-            </div>
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                 <i class="fa-solid fa-location-dot" style="color:#34d399;width:16px;"></i>
                 <span style="font-size:0.85rem;color:#cbd5e1;">위치(GPS)</span>
@@ -922,16 +902,6 @@ async function renderAiAssistantSubtab(container) {
                 <button id="ai-perm-gps-set" style="padding:5px 10px;background:#64748b;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;display:none;">설정 열기</button>
             </div>
             <div style="font-size:0.72rem;color:#64748b;margin-top:6px;">거부했어도 "권한 요청"을 다시 누르거나, 막혔으면 "설정 열기"로 직접 허용할 수 있습니다.</div>
-
-            <hr style="border:none;border-top:1px solid rgba(255,255,255,.08);margin:12px 0;">
-            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                <i class="fa-solid fa-tower-broadcast" style="color:#22d3ee;"></i>
-                <span style="font-size:0.85rem;color:#cbd5e1;">음성 비서(나리야)</span>
-                <span id="ai-voice-status" style="font-size:0.8rem;color:#94a3b8;">상태 확인 중…</span>
-                <button id="ai-voice-toggle" style="padding:6px 14px;background:#22d3ee;color:#04263b;border:none;border-radius:8px;font-weight:700;cursor:pointer;">켜기</button>
-            </div>
-            <div style="font-size:0.72rem;color:#64748b;margin-top:6px;">켜면 백그라운드에서 "나리야" 호출을 대기합니다. (앱에서만 동작)</div>
-            <div id="ai-voice-engine" style="font-size:0.78rem;color:#94a3b8;margin-top:8px;display:none;"></div>
         </div>
 
         <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;">
@@ -952,7 +922,7 @@ async function renderAiAssistantSubtab(container) {
                 </span>
             </div>
             <div id="ai-log-list" style="max-height:300px;overflow-y:auto;font-size:0.82rem;color:#cbd5e1;line-height:1.5;">불러오는 중…</div>
-            <div style="font-size:0.7rem;color:#64748b;margin-top:6px;">백그라운드 "나리야" 대화 포함. 서버 메모리에만 임시 보관(재시작 시 소멸).</div>
+            <div style="font-size:0.7rem;color:#64748b;margin-top:6px;">서버 메모리에만 임시 보관(재시작 시 소멸).</div>
         </div>
     `;
 
@@ -976,10 +946,10 @@ async function renderAiAssistantSubtab(container) {
         document.getElementById('ai-usage-content').textContent = '호출량을 불러오지 못했습니다: ' + e.message;
     }
 
-    // 2) 권한 관리 — 마이크/위치 권한 상태·요청·설정열기 (거부해도 재요청 가능)
+    // 2) 권한 관리 — 위치 권한 상태·요청·설정열기 (거부해도 재요청 가능)
+    //    (마이크 권한·음성 비서(나리야) 켜기는 2026-11-19 사용자 지시로 삭제 — 앱에서 마이크를 쓰지 않는다)
     (function () {
         const P = (window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins : null;
-        const Native = P && P.SeagnalAssistant ? P.SeagnalAssistant : null;   // 마이크(@Permission) 보유
         const Geo = P && P.Geolocation ? P.Geolocation : null;               // 위치
         const Settings = P && P.NativeSettings ? P.NativeSettings : null;    // 앱 설정 열기
         const label = (s) => s === 'granted' ? '허용됨' : (s === 'denied' ? '거부됨' : '미요청');
@@ -1003,146 +973,7 @@ async function renderAiAssistantSubtab(container) {
             });
             setEl.addEventListener('click', openSettings);
         }
-        wire(Native, 'microphone', { st: 'ai-perm-mic', req: 'ai-perm-mic-req', set: 'ai-perm-mic-set' });
         wire(Geo, 'location', { st: 'ai-perm-gps', req: 'ai-perm-gps-req', set: 'ai-perm-gps-set' });
-
-        // 음성 비서(나리야) on/off 토글 — Vosk 모델 다운로드 다이얼로그·진행률·연속성 지원
-        const st = document.getElementById('ai-voice-status');
-        const btn = document.getElementById('ai-voice-toggle');
-        const engineEl = document.getElementById('ai-voice-engine');
-        if (!Native) { st.textContent = '앱(안드로이드)에서만 사용 가능'; btn.disabled = true; btn.style.opacity = .5; return; }
-        let running = false;
-        const render = () => { st.textContent = running ? '켜짐 — "나리야" 대기 중' : '꺼짐'; st.style.color = running ? '#34d399' : '#94a3b8'; btn.textContent = running ? '끄기' : '켜기'; };
-
-        // [#39] 현재 실제 선택된 호출어 엔진 표시 — 폴백(안드로이드 기본) 여부를 눈으로 확인.
-        const ENGINE_LABEL = {
-            porcupine: { txt: '현재 엔진: Porcupine ✅ (저전력 호출어)', color: '#34d399' },
-            vosk:      { txt: '현재 엔진: Vosk ✅ (오프라인 한국어)',     color: '#34d399' },
-            android:   { txt: '현재 엔진: 안드로이드 기본 ⚠️ (폴백 — Vosk 모델 미설치)', color: '#fbbf24' }
-        };
-        const refreshEngine = () => {
-            if (!engineEl) return;
-            if (!running || !Native.getCapabilities) { engineEl.style.display = 'none'; return; }
-            Native.getCapabilities().then(cap => {
-                window.SeagnalDebug.push('getCapabilities', cap);
-                const e = ENGINE_LABEL[cap && cap.activeEngine];
-                if (e) { engineEl.textContent = e.txt; engineEl.style.color = e.color; engineEl.style.display = 'block'; }
-                else { engineEl.style.display = 'none'; }
-            }).catch(err => { window.SeagnalDebug.push('getCapabilities.error', String(err && err.message || err)); engineEl.style.display = 'none'; });
-        };
-        Native.isEnabled().then(x => { running = !!(x && x.running); render(); refreshEngine(); }).catch(render);
-
-        // ── Vosk 다운로드 다이얼로그 (assistant.js 의 흐름을 admin.js 토글에도 동일 적용) ──
-        let dl = null;
-        const buildDialog = () => {
-            if (dl) return dl;
-            const root = document.createElement('div');
-            root.id = 'admin-vosk-dl';
-            root.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:16px;font-family:-apple-system,BlinkMacSystemFont,Roboto,"Noto Sans KR",sans-serif;';
-            root.innerHTML =
-                '<div style="background:#0b1f33;border:1px solid rgba(56,189,248,.45);border-radius:16px;padding:18px;max-width:420px;width:100%;color:#e6f1ff;box-shadow:0 18px 50px rgba(0,0,0,.6);">' +
-                  '<div id="vdl-title" style="font-size:15px;font-weight:700;margin-bottom:8px;"></div>' +
-                  '<div id="vdl-body" style="font-size:13.5px;line-height:1.55;color:#cfe2f3;"></div>' +
-                  '<div id="vdl-progress" style="display:none;margin-top:12px;height:8px;background:rgba(255,255,255,.08);border-radius:6px;overflow:hidden;"><div id="vdl-bar" style="height:100%;width:0%;background:#38bdf8;transition:width .25s ease;"></div></div>' +
-                  '<div id="vdl-pct" style="display:none;margin-top:6px;font-size:12px;color:#a9c3d8;text-align:right;"></div>' +
-                  '<label id="vdl-wifi" style="display:none;margin-top:12px;font-size:12.5px;color:#a9c3d8;cursor:pointer;"><input type="checkbox" id="vdl-wifi-chk" checked style="vertical-align:middle;margin-right:6px;">Wi-Fi 에서만 다운로드 (체크 해제 시 모바일 데이터 사용)</label>' +
-                  '<div id="vdl-actions" style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;"></div>' +
-                '</div>';
-            document.body.appendChild(root);
-            dl = { root, title: root.querySelector('#vdl-title'), body: root.querySelector('#vdl-body'), actions: root.querySelector('#vdl-actions'), wifi: root.querySelector('#vdl-wifi'), wifiChk: root.querySelector('#vdl-wifi-chk'), progress: root.querySelector('#vdl-progress'), bar: root.querySelector('#vdl-bar'), pct: root.querySelector('#vdl-pct') };
-            return dl;
-        };
-        const mkBtn = (label, primary) => { const b = document.createElement('button'); b.textContent = label; b.style.cssText = 'padding:8px 14px;border-radius:10px;border:0;font-size:13.5px;font-weight:600;cursor:pointer;' + (primary ? 'background:#38bdf8;color:#04263b;' : 'background:rgba(255,255,255,.08);color:#cfe2f3;'); return b; };
-        const hideDialog = () => { if (dl) dl.root.style.display = 'none'; };
-        const showDialog = (kind, opts) => {
-            const d = buildDialog(); opts = opts || {};
-            d.actions.innerHTML = ''; d.wifi.style.display = 'none'; d.progress.style.display = 'none'; d.pct.style.display = 'none';
-            if (kind === 'prompt') {
-                d.title.textContent = '음성 지원 데이터 다운로드';
-                d.body.textContent = '"나리야" 호출어를 사용하려면 한국어 음성 모델(약 80MB)을 한 번 다운로드해야 합니다. 다운로드는 백그라운드로 진행되며 그동안 앱은 평소처럼 사용할 수 있습니다.';
-                d.wifi.style.display = 'block'; d.wifiChk.checked = true;
-                const later = mkBtn('나중에', false); later.addEventListener('click', hideDialog);
-                const go = mkBtn('지금 다운로드', true);
-                go.addEventListener('click', () => { showDialog('progress', { percent: 0 }); Native.requestVoskDownload({ allowMobile: !d.wifiChk.checked }); });
-                d.actions.appendChild(later); d.actions.appendChild(go);
-            } else if (kind === 'progress') {
-                d.title.textContent = '음성 지원 데이터 준비 중';
-                d.body.textContent = '음성 지원을 하기 위한 데이터를 다운로드 중입니다. 앱은 평소처럼 사용하셔도 됩니다.';
-                d.progress.style.display = 'block'; d.pct.style.display = 'block';
-                const p = Math.max(0, Math.min(100, opts.percent|0));
-                d.bar.style.width = p + '%'; d.pct.textContent = p + '%';
-                const cancel = mkBtn('취소', false); cancel.addEventListener('click', () => { if (Native.cancelVoskDownload) Native.cancelVoskDownload(); hideDialog(); });
-                const hide = mkBtn('숨기기', true); hide.addEventListener('click', hideDialog);
-                d.actions.appendChild(cancel); d.actions.appendChild(hide);
-            } else if (kind === 'wifiRequired') {
-                d.title.textContent = 'Wi-Fi 가 필요합니다';
-                d.body.textContent = opts.message || '현재 Wi-Fi 에 연결돼 있지 않습니다. Wi-Fi 연결 후 다시 시도하거나, 모바일 데이터로 받을 수 있습니다.';
-                const close = mkBtn('닫기', false); close.addEventListener('click', hideDialog);
-                const mobile = mkBtn('데이터로 받기', true);
-                mobile.addEventListener('click', () => { showDialog('progress', { percent: 0 }); Native.requestVoskDownload({ allowMobile: true }); });
-                d.actions.appendChild(close); d.actions.appendChild(mobile);
-            } else if (kind === 'failed') {
-                d.title.textContent = '다운로드 실패';
-                d.body.textContent = opts.message || '다운로드에 실패했습니다. 잠시 후 다시 시도해 주세요.';
-                const c2 = mkBtn('닫기', false); c2.addEventListener('click', hideDialog);
-                const retry = mkBtn('재시도', true); retry.addEventListener('click', () => showDialog('prompt'));
-                d.actions.appendChild(c2); d.actions.appendChild(retry);
-            }
-            d.root.style.display = 'flex';
-        };
-        const doEnable = () => {
-            btn.disabled = true;
-            let profile = '{}'; try { profile = localStorage.getItem('seagnal_profile') || '{}'; } catch (e) { /* 사생활 모드면 던진다 — 프로필 없이 기본값 {} 으로 보낸다 */ }
-            Native.enable({ serverUrl: location.origin, profile })
-                .then(x => { running = x ? !!x.running : true; render(); refreshEngine(); setTimeout(refreshEngine, 600); })
-                .catch(e => { st.textContent = '오류: ' + (e && e.message ? e.message : '권한/서비스 실패'); st.style.color = '#fbbf24'; })
-                .then(() => { btn.disabled = false; });
-        };
-        // [#40] 모델 다운로드 READY 시, 이미 가동 중(폴백)이면 서비스를 재기동해 Vosk 로 자동 전환.
-        //   onCreate 의 엔진 선택은 부팅 시 1회뿐이라 가동 중 READY 가 되어도 재선택되지 않는다.
-        const reEnableForVosk = () => {
-            btn.disabled = true;
-            Native.disable()
-                .then(() => { let profile = '{}'; try { profile = localStorage.getItem('seagnal_profile') || '{}'; } catch (e) { /* 같은 까닭 — 프로필을 못 읽어도 켜기 자체는 진행한다 */ }
-                              return Native.enable({ serverUrl: location.origin, profile }); })
-                .then(x => { running = x ? !!x.running : true; render(); refreshEngine(); setTimeout(refreshEngine, 600); })
-                .catch(() => {})
-                .then(() => { btn.disabled = false; });
-        };
-        // 모델 상태 이벤트 구독 — 진행률·완료·실패 다이얼로그 반영
-        if (Native.addListener) {
-            Native.addListener('voskState', e => {
-                window.SeagnalDebug.push('voskState', e);
-                const s = e && e.state;
-                if (s === 'DOWNLOADING')        showDialog('progress', { percent: e.progress|0 });
-                else if (s === 'READY')         { hideDialog(); if (!running) doEnable(); else reEnableForVosk(); }
-                else if (s === 'WIFI_REQUIRED') showDialog('wifiRequired', { message: e.message });
-                else if (s === 'FAILED')        showDialog('failed', { message: e.message });
-            });
-        }
-
-        btn.addEventListener('click', () => {
-            window.SeagnalDebug.push('voiceToggle.click', { wasRunning: running });
-            if (running) {
-                btn.disabled = true;
-                Native.disable()
-                    .then(x => { running = x ? !!x.running : false; render(); refreshEngine(); if (window.__nariyaOverlayHide) window.__nariyaOverlayHide(); })
-                    .catch(e => { st.textContent = '오류: ' + (e && e.message ? e.message : ''); })
-                    .then(() => { btn.disabled = false; });
-                return;
-            }
-            // ON — capabilities 분기
-            if (!Native.getCapabilities) { doEnable(); return; }  // 구버전 호환
-            Native.getCapabilities().then(cap => {
-                window.SeagnalDebug.push('getCapabilities', cap);
-                if (cap && cap.porcupineAvailable) { doEnable(); return; }
-                const v = (cap && cap.vosk) || { state: 'NOT_DOWNLOADED' };
-                if (v.state === 'READY')         { doEnable(); return; }
-                if (v.state === 'DOWNLOADING')   { showDialog('progress', { percent: v.progress|0 }); return; }
-                if (v.state === 'WIFI_REQUIRED') { showDialog('wifiRequired', { message: v.message }); return; }
-                showDialog('prompt');  // NOT_DOWNLOADED / FAILED
-            }).catch(() => doEnable());
-        });
     })();
 
     // 3) 테스트 호출 (기존 /api/assistant/ask 사용)

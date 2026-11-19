@@ -38,17 +38,6 @@
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
 
-        <!-- 음성 비서 백그라운드 상시 청취 서비스 (호출어 "나리야") -->
-        <service
-            android:name=".voice.VoiceAssistantService"
-            android:exported="false"
-            android:foregroundServiceType="microphone" />
-        <!-- 음성 비서: Vosk 한국어 모델 1회 다운로드(~80MB) 전경 서비스 -->
-        <service
-            android:name=".voice.VoskDownloadService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
         <!-- ════════════════════════════════════════════════════════════════
              위치기반 해상특보(killed 대응) FCM 수신 서비스.
 
@@ -85,11 +74,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- 음성 비서: 마이크 + 포그라운드 서비스(상시 청취). 14+(API34)는 마이크 타입 권한 필수 -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- [음성 비서 삭제 2026-11-19, 사용자 지시] 마이크(RECORD_AUDIO)·마이크 전경 서비스(FOREGROUND_SERVICE_MICROPHONE)·
+         음성 모델 내려받기 전경 서비스(FOREGROUND_SERVICE_DATA_SYNC) 권한과 그 서비스 2개를 지웠다.
+         FOREGROUND_SERVICE 는 백그라운드 위치 플러그인(@capacitor-community/background-geolocation)이 자기 매니페스트로
+         선언하므로 병합 결과에는 그대로 남는다 — 여기서는 종전 선언을 유지한다. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
-    <!-- Vosk 모델 다운로드용 — Android 14+(API34) 데이터 동기화 타입 -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- 네트워크 상태 확인 — MainActivity 의 오프라인 판정(ConnectivityManager)이 쓴다 -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 </manifest>

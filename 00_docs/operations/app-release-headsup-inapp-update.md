@@ -1,4 +1,4 @@
-# 앱 1.2.3 — 헤드업 알림 · 앱 안 업데이트(유연형) (2026-11-19)
+# 앱 1.3.0 — 헤드업 알림 · 앱 안 업데이트(유연형) · 음성 비서 삭제 (2026-11-19)
 
 > 이 문서는 **APK(휴대폰 쪽)를 고친 작업**의 배경·설계·검증·배포 절차다.
 > 서버·화면은 본 서버에 합치는 즉시 모든 사용자에게 반영되지만, APK 는 스토어 심사를 거쳐
@@ -13,6 +13,10 @@
 > *"또한 "유연형 앱을 계속 쓰는 동안 뒤에서 내려받고, 다 받으면 "다시 시작" 버튼 권장 업데이트" 이 방식으로 적용되도록 하고 싶어."*
 
 > *"중요한점은 나는 별도 테스트 서버 없이 바로 본 서버에 머지하고 있기 때문에, 본 서버에 잘못된 업데이트가 반영되어서 헤드업 등 작동이 제대로 안되면 apk를 또 다시 업데이트 해주어야 하는 상황이 발생하고, 사용자들이 그동안 정상적으로 쓰지 못하는 문제가 발생할 수 있기 떄문에 그 부분을 유념하여 몇번을 검증 재검증 하여야해."*
+
+> 버전: *"1.3.0으로 할게."* (스토어 현재판 1.1.1 → 1.3.0 · versionCode 3 → 15)
+
+> *"작업 과정에서 이미지와 같이 마이크가 들어가는 부분은 모두 제거해줘. 사용하지 않을거야."* · *"음성모델 ? 그것도 제거해줘."*
 
 > *"앱의 아이콘을 바꾸고자해."* → *"앱 아이콘만 바꿀거고 내가 추후 제공해줄게."* (그림을 받은 뒤 같은 APK 에 넣는다 — 아직 안 했다)
 
@@ -32,8 +36,9 @@
 
 - Firebase 는 ①메시지가 지정한 채널 ②매니페스트 기본 채널 ③자체 폴백 채널 순으로 고르고, **①②는 그 채널이 이미 만들어져 있을 때만** 쓴다.
   그래서 채널을 Activity 가 아니라 **Application** 에서 만든다 — 앱이 꺼진 상태에서 푸시를 받아 프로세스가 막 떴을 때도 채널이 있어야 한다.
-- 앱이 켜져 있을 때도 같다 — `@capacitor/push-notifications` 7.0.4 의 `fireNotification` 이 같은 `getOrCreateChannel` 을 쓴다
-  (`capacitor.config.json` 의 `presentationOptions` 에 `alert` 가 있어 앱이 켜져 있어도 알림을 띄운다).
+- **앱을 켜서 보고 있을 때도 헤드업이 뜬다** — `@capacitor/push-notifications` 7.0.4 의 `fireNotification` 이 같은 `getOrCreateChannel` 을 쓴다
+  (`capacitor.config.json` 의 `presentationOptions` 에 `alert` 가 있어 앱이 켜져 있어도 알림을 띄운다. 종전에는 이때도 상태표시줄에만 떴다).
+- 화면이 잠겨 있을 때는 헤드업이 아니라 잠금화면 알림으로 보인다(firebase `DisplayNotification.isAppForeground` 가 잠금 상태를 따로 본다).
 - **서버·화면 코드는 바꾸지 않았다.** 옛 버전 앱은 채널도 meta-data 도 없으므로 종전과 똑같이 표시된다.
 - 위치기반 특보 알림은 종전부터 별도 채널(`location_alert_safety`, 중요도 높음)을 쓴다 — 건드리지 않았다.
 
@@ -57,7 +62,7 @@
 |---|---|
 | `android/.../update/AppUpdatePlugin.java` (신설) | Capacitor 플러그인 `SeagnalAppUpdate` — `check`·`start`·`complete` + 사건 `installState` |
 | `MainActivity.java` | `registerPlugin(AppUpdatePlugin.class)` |
-| `android/app/build.gradle` | `com.google.android.play:app-update:2.1.0` · versionCode 15 · versionName 1.2.3 |
+| `android/app/build.gradle` | `com.google.android.play:app-update:2.1.0` · versionCode 15 · versionName 1.3.0 |
 | `client/capacitor-plugins.js` | `tryInAppUpdate`·`showUpdateReadyBar` 신설, `checkAppUpdate` 가 앱 안 업데이트를 먼저 시도 |
 
 ### 못 쓰는 경우는 종전 방식 그대로
@@ -71,13 +76,39 @@
 | 새 버전은 있는데 Play 가 유연형을 불허 | 종전 방식 |
 | Play 확인 창을 못 띄움 | 종전 방식 |
 
+### 독립 검토로 보강한 것 (2026-11-19)
+- Play 에 묻는 호출(`check`)에 **10초 한도** — Capacitor 다리에는 시간 제한이 없어, Play 가 끝내 답하지 않으면 종전 방식으로도 못 넘어간다(검토 A·B).
+  사용자가 고르기를 기다리는 `start` 에는 한도를 두지 않는다.
+- Play 가 "모름"(`UpdateAvailability.UNKNOWN`)이라고 답하면 "최신"으로 치지 않고 종전 방식으로 간다(`known:false`).
+- 상태 리스너를 `check` **보다 먼저** 건다 — 그 사이에 내려받기 완료 사건이 오면 놓친다.
+- `AppUpdateManagerFactory.create` 에 Activity 가 아니라 앱 컨텍스트를 넘긴다(공식 문서 표현대로).
+
 ### ⚠달라지는 점 — 새 APK 에서는 "강제 업데이트 팝업"이 안 뜬다
-종전 팝업은 닫는 버튼이 없어 사실상 강제였다. 새 APK(1.2.3+)가 Play 에서 설치돼 있으면 **Play 기준**으로만 움직이므로,
+종전 팝업은 닫는 버튼이 없어 사실상 강제였다. 새 APK(1.3.0+)가 Play 에서 설치돼 있으면 **Play 기준**으로만 움직이므로,
 관리자 화면에서 `latestVersion` 을 올려도 그 팝업은 뜨지 않는다(옛 APK·스토어 밖 설치에는 종전대로 뜬다).
 강제 업데이트가 다시 필요해지면 따로 설계한다(예: `app_version.json` 의 `minVersion` — 지금은 쓰는 코드가 없다).
 
 ### 이 기능은 "다음 업데이트"부터 보인다
-1.2.3 자체는 종전 방식(스토어)으로 받는다. 1.2.3 이 깔린 폰이 **그다음 버전(1.2.4…)** 을 받을 때부터 앱 안에서 된다.
+1.3.0 자체는 종전 방식(스토어)으로 받는다. 1.3.0 이 깔린 폰이 **그다음 버전** 을 받을 때부터 앱 안에서 된다.
+
+## 3-1. 음성 비서 삭제 — 마이크·호출어 듣기·음성 모델
+
+| 어디 | 지운 것 |
+|---|---|
+| `AndroidManifest.xml` | 권한 `RECORD_AUDIO`·`FOREGROUND_SERVICE_MICROPHONE`·`FOREGROUND_SERVICE_DATA_SYNC`, 서비스 `VoiceAssistantService`·`VoskDownloadService` |
+| `android/app/build.gradle` | Porcupine(호출어)·Vosk(오프라인 음성 인식)·JNA 의존성 |
+| `android/.../voice/` | `VoiceAssistantService`·`VoskDownloadService`·`VoskModelManager`·`VoskWakeEngine`·`PorcupineWakeEngine`·`AndroidSpeechWakeEngine`·`WakeWordEngine` |
+| `voice/SeagnalAssistantPlugin.java` | 마이크 권한 선언, `enable`·`disable`·`isEnabled`·`getCapabilities`·`requestVoskDownload`·`cancelVoskDownload`·`audioBusy` (사용자 기억 메서드 6개는 그대로) |
+| `MainActivity.java` | WebView 의 마이크 권한 요청을 허용하던 `WebChromeClient` |
+| 화면 | 관리자 센터 AI → AI 비서의 「마이크」·「음성 비서(나리야)」 줄, `assistant_overlay.js`, `assistant.html`·`assistant.js` 의 마이크 버튼·웹 음성 인식·클라우드 받아쓰기·상시 비서 카드 |
+| 서버 | `POST /api/assistant/transcribe` |
+
+- **남긴 것**: 글자로 묻는 AI 비서, 답변 읽어 주기(TTS — 스피커 출력), 사용자 기억(Room), 위치 권한 줄.
+- 옛 시험용 APK(1.1.2~1.2.2)에는 상시 청취 서비스가 들어 있는데 끄는 화면이 없어졌다 → `capacitor-plugins.js` 가 앱을 켤 때
+  `SeagnalAssistant.disable` 이 있으면 한 번 불러 끈다(새 APK·스토어판에는 그 메서드가 없어 아무 일도 하지 않는다).
+- 손대지 않은 것(언급만): 서버 프롬프트의 자기소개 문구 *"음성 비서 나리야"*(`routes/assistant.js` 3곳 — 문구를 바꾸면 답변이 달라진다),
+  시안 페이지 `client/assistant_overlay_preview.html`.
+- 심사 쪽 이득: 첫 스토어 업데이트에서 **마이크 권한과 마이크·데이터 동기화 전경 서비스 신고가 필요 없어진다**(§4-1).
 
 ## 4. 검증 — 무엇을 확인했고 무엇을 못 했나
 
@@ -99,19 +130,19 @@
   ⚠Play 콘솔을 직접 본 것은 아니다. **올리기 전에 콘솔의 현재 versionCode 를 눈으로 확인한다.**
 - 그 뒤 1.1.2(4)~1.2.2(14)는 시험용 APK 로만 돌았다(커밋 이력 — `git log -- android/app/build.gradle`).
 - 그래서 일반 사용자는 전부 **3월의 옛 APK** 를 쓴다. 이번 업데이트는 3월 이후 쌓인 네이티브 변경을 **한꺼번에** 싣는다:
-  음성 비서(마이크·전경 서비스) · 위치기반 특보(백그라운드 위치 "항상 허용") · 헤드업 · 앱 안 업데이트.
+  위치기반 특보(백그라운드 위치 "항상 허용") · 사용자 기억(Room) · 헤드업 · 앱 안 업데이트. (음성 비서는 §3-1 로 뺐다.)
 - **versionName 을 1.2.1 아래로 내리면 안 된다** — 위치기반 기능은 앱 버전이 `NATIVE_MIN_VERSION`(1.2.1) 이상일 때만 켤 수 있다
   (`client/js/location-alert/location_alert_ui.js`). 1.1.2 로 내면 새 앱인데도 "업데이트가 필요합니다"가 뜬다.
 - **versionCode 는 15 이상** — 스토어는 3보다 크기만 하면 받지만, 시험용 APK(4~14)가 깔린 폰은 그보다 낮은 번호로 못 덮는다.
 
 ### 3월 판(1.1.1) 이후 새로 들어간 권한 — 심사에서 따로 묻는 것들
 `AndroidManifest.xml` 에 지금 있는 것 중 1.1.1 뒤에 추가된 것(커밋 이력의 설명 기준):
-`RECORD_AUDIO` · `FOREGROUND_SERVICE` · `FOREGROUND_SERVICE_MICROPHONE` · `FOREGROUND_SERVICE_DATA_SYNC` ·
-`FOREGROUND_SERVICE_LOCATION` · `ACCESS_BACKGROUND_LOCATION` · `ACCESS_NETWORK_STATE`.
+`FOREGROUND_SERVICE` · `FOREGROUND_SERVICE_LOCATION` · `ACCESS_BACKGROUND_LOCATION` · `ACCESS_NETWORK_STATE`.
+(마이크 쪽 `RECORD_AUDIO`·`FOREGROUND_SERVICE_MICROPHONE`·`FOREGROUND_SERVICE_DATA_SYNC` 는 §3-1 로 지웠다.)
 ⚠아래는 구글 플레이 정책에 대한 **작성자의 기억**이며 이 세션에서 콘솔·정책 원문으로 확인하지 못했다 — 올릴 때 콘솔이 요구하는 대로 따른다.
 - 백그라운드 위치(`ACCESS_BACKGROUND_LOCATION`): 콘솔에서 **위치 권한 신고서**(왜 필요한지 + 시연 영상)를 내고 따로 심사받는다.
-- 전경 서비스 유형(마이크·위치·데이터 동기화): 콘솔의 **전경 서비스 신고**에 유형별 용도를 적는다.
-- 마이크·위치를 새로 쓰므로 **데이터 보안(Data safety) 양식**과 개인정보처리방침을 맞춘다.
+- 전경 서비스 유형(위치 — 백그라운드 위치 플러그인이 선언한다): 콘솔의 **전경 서비스 신고**에 용도를 적는다.
+- 위치를 새로 쓰므로 **데이터 보안(Data safety) 양식**과 개인정보처리방침을 맞춘다.
 - 그래서 **심사가 평소보다 오래 걸리거나 반려될 수 있다.** 내부 테스트 트랙은 이 신고 없이도 올릴 수 있는 경우가 많아
   기능 확인(④⑤)은 먼저 할 수 있다(이것도 기억 — 콘솔에서 확인).
 
@@ -126,15 +157,26 @@
 1. GitHub → Actions → 「Build Debug APK」 → 실행 → 끝나면 Artifacts 의 `seagnal-debug-apk` 를 받는다.
 2. 시험할 폰에 설치한다. ⚠서명이 달라 **스토어에서 받은 앱 위에 덮어 깔리지 않는다** — 스토어 앱을 지우고 깔거나 다른 폰을 쓴다.
 3. 앱을 한 번 켜고 알림을 허용한 뒤, **앱을 끈 상태**와 **켠 상태** 각각에서 관리자 센터 「직접 발송」으로 푸시를 보낸다.
+   - "끈 상태"는 **최근 앱 목록에서 밀어서 끄기**다. 설정의 「강제 종료」로 끄면 푸시 자체가 오지 않는다(안드로이드 규칙).
+   - **화면을 켜고 잠금을 푼 채로** 본다. 잠겨 있으면 헤드업 대신 잠금화면 알림으로 보인다.
 4. 확인할 것: 화면 위에 잠깐 뜨는가 · 폰 설정 → 앱 → 알림에 「SEA:GNAL 알림」 채널이 생겼는가 · 알림을 누르면 앱이 열리는가.
 5. 시험용 APK 에서는 앱 안 업데이트가 동작하지 않는다(스토어 밖 설치) — 정상이다.
 
 ### 5-3. 정식 빌드 → Play 「내부 테스트」 (⑤)
 1. 아이콘을 바꾼다면 이 단계 전에 넣는다.
-2. Android Studio 에서 서명된 번들(AAB)을 만든다 — versionCode 15 · versionName 1.2.3 (이미 올려 뒀다).
-3. Play 콘솔 → 테스트 → **내부 테스트** 에 올리고, 테스터(본인 계정)로 등록한 폰에서 스토어를 통해 설치한다.
-4. 헤드업을 다시 확인한다(정식 서명본).
-5. 앱 안 업데이트 확인: versionCode 16 인 번들을 하나 더 만들어 내부 테스트에 올린다 → 15 가 깔린 폰에서 앱을 켠다 →
+2. ★**빌드 전에 반드시** 저장소 맨 위에서 `npm install` → `npx cap sync android` 를 돌린다(독립 검토 B 가 찾음).
+   - 이 명령이 `android/app/src/main/assets/capacitor.config.json`(서버 주소·`presentationOptions`)과 플러그인 목록을 만든다.
+     둘 다 git 에 없는 생성물이라, 건너뛰면 **플러그인이 빠지거나 옛 설정으로 빌드된 앱**이 나간다.
+   - 2026-11-19 에 저장소의 `android/capacitor.settings.gradle`·`android/app/capacitor.build.gradle` 을 다시 만들어 보니
+     백그라운드 위치·로컬 알림·Preferences 플러그인이 빠져 있었다(지금은 넣어 커밋했다). 그래도 `assets/` 쪽 때문에 sync 는 매번 필요하다.
+   - 확인: 빌드 뒤 `android/app/build/intermediates/merged_manifests/release/.../AndroidManifest.xml` 에
+     `RECORD_AUDIO` 가 **없고** `default_notification_channel_id` 가 **있는지** 본다.
+3. Android Studio 에서 서명된 번들(AAB)을 만든다 — versionCode 15 · versionName 1.3.0 (이미 올려 뒀다).
+4. Play 콘솔 → 테스트 → **내부 테스트** 에 올리고, 테스터(본인 계정)로 등록한 폰에서 스토어를 통해 설치한다.
+   - ★가능하면 **스토어판 1.1.1 이 깔린 폰을 그대로 1.3.0 으로 올려서** 본다 — 실제 사용자가 겪는 길이다
+     (옛 「기타」 알림 채널이 이미 있는 상태에서 올라온다. 시험용 APK 로는 이 길을 볼 수 없다).
+5. 헤드업을 다시 확인한다(정식 서명본).
+6. 앱 안 업데이트 확인: versionCode 16 인 번들을 하나 더 만들어 내부 테스트에 올린다 → 15 가 깔린 폰에서 앱을 켠다 →
    Play 확인 창 → [업데이트] → 내려받기 → 「다시 시작」 띠 → 누르면 16 으로 바뀌는지.
    (스토어가 새 버전을 알아채는 데 시간이 걸릴 수 있다. Play 스토어 앱에서 내 앱 페이지를 한 번 열면 빨라진다.)
 

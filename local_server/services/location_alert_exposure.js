@@ -16,7 +16,8 @@
  *   'user'  = 일반 공개      — 모든 사용자에게 보이고, 동의한 모든 기기에 알림을 보낸다.
  *   'admin' = 관리자만 노출  — 관리자 기기에만 보이고, 관리자 기기에만 알림을 보낸다. ★기본값
  *   'off'   = 모두 비노출    — 아무에게도 안 보이고, 아무에게도 알림을 보내지 않는다.
- * 파일이 없거나 깨졌으면 기본값 'admin' — 이 기능은 처음부터 관리자 전용이었다(배포 직후 동작이 종전과 같다).
+ * 파일이 없으면 기본값 'admin' — 이 기능은 처음부터 관리자 전용이었다(배포 직후 동작이 종전과 같다).
+ * 파일이 있는데 깨졌으면 기본값으로 보되 서버 로그에 경고를 남긴다(조용히 넘기지 않는다).
  */
 'use strict';
 const fs = require('fs');
@@ -34,10 +35,15 @@ const DEFAULT_MODE = 'admin';
  * [연계] ← routes/location_alert.js(노출 판정) · location_alert_store.getTargetConsents(알림 대상 거르기)
  */
 function getExposure() {
+    let raw;
+    try { raw = fs.readFileSync(FILE, 'utf8'); } catch (_) { return DEFAULT_MODE; } // 파일 없음 = 아직 안 바꿨다 → 기본값
     try {
-        const mode = JSON.parse(fs.readFileSync(FILE, 'utf8')).exposure;
-        return MODES.includes(mode) ? mode : DEFAULT_MODE;
-    } catch (_) { return DEFAULT_MODE; } // 파일 없음·깨짐 = 기본값(관리자만)
+        const mode = JSON.parse(raw).exposure;
+        if (MODES.includes(mode)) return mode;
+    } catch (_) { /* 아래에서 알린다 */ }
+    // 파일은 있는데 못 읽는다 — 조용히 기본값으로 떨어지면 「일반 공개」였던 것이 말없이 「관리자만」이 된다(독립 검토 C).
+    console.warn('[LocationAlertExposure] ⚠노출 범위 파일을 못 읽어 기본값(' + DEFAULT_MODE + ')으로 본다 — 관리자 센터 「위치 기반」에서 다시 골라 저장할 것: ' + FILE);
+    return DEFAULT_MODE;
 }
 
 /**
@@ -51,7 +57,9 @@ function setExposure(mode) {
     if (!MODES.includes(mode)) return false;
     try {
         fs.mkdirSync(path.dirname(FILE), { recursive: true });
-        fs.writeFileSync(FILE, JSON.stringify({ exposure: mode, at: new Date().toISOString() }, null, 2), 'utf8');
+        // 임시 파일에 쓰고 이름을 바꾼다 — 쓰는 도중 서버가 죽어도 파일이 반쯤 쓰인 채 남지 않는다(admin_auth 와 같은 방식).
+        fs.writeFileSync(FILE + '.tmp', JSON.stringify({ exposure: mode, at: new Date().toISOString() }, null, 2), 'utf8');
+        fs.renameSync(FILE + '.tmp', FILE);
         return true;
     } catch (e) {
         console.error('[LocationAlertExposure] 저장 실패:', e && e.message);

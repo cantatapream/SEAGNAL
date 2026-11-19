@@ -36,6 +36,11 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        # ★2026-11-19 `packages` 를 명시한다. 이 액션의 기본값은 'tools platform-tools' 인데, 러너의 cmdline-tools 16.0 에는
+        #   'tools' 꾸러미가 더 이상 없어 `sdkmanager tools` 가 "Failed to find package 'tools'" 로 죽는다(run #39 — 컴파일까지 가지 못했다).
+        #   필요한 것은 아래 단계가 따로 설치한다.
+        with:
+          packages: 'platform-tools'
 
       - name: Install Android SDK packages
         run: |

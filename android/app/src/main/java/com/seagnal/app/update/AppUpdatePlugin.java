@@ -50,7 +50,8 @@ public class AppUpdatePlugin extends Plugin {
     @Override
     public void load() {
         try {
-            manager = AppUpdateManagerFactory.create(getContext());
+            // Activity 가 아니라 앱 컨텍스트를 넘긴다(공식 문서: "the application Context for your app") — Activity 를 붙들지 않게.
+            manager = AppUpdateManagerFactory.create(getContext().getApplicationContext());
             listener = state -> {
                 int status = state.installStatus();
                 // 내려받는 중(진행률)은 JS 가 쓰지 않아 보내지 않는다 — 상태가 바뀐 순간만 알린다.
@@ -79,7 +80,7 @@ public class AppUpdatePlugin extends Plugin {
 
     /**
      * Play 스토어에 "새 버전이 있나"를 묻는다.
-     * 결과: updateAvailable(새 버전 있음) · flexibleAllowed(유연형 가능) · inProgress(이미 내려받는 중) ·
+     * 결과: known(Play 가 답을 알고 있음) · updateAvailable(새 버전 있음) · flexibleAllowed(유연형 가능) · inProgress(이미 내려받는 중) ·
      *       downloaded(다 받아 설치만 남음) · availableVersionCode · status(설치 상태 이름).
      * Play 에 물을 수 없으면(스토어 밖 설치 등) reject.
      */
@@ -93,6 +94,8 @@ public class AppUpdatePlugin extends Plugin {
                             int availability = info.updateAvailability();
                             int status = info.installStatus();
                             JSObject ret = new JSObject();
+                            // known=false: Play 가 "모름"(UNKNOWN)이라고 답함 → JS 는 종전 방식(서버 버전 비교)으로 간다.
+                            ret.put("known", availability != UpdateAvailability.UNKNOWN);
                             ret.put("updateAvailable", availability == UpdateAvailability.UPDATE_AVAILABLE);
                             ret.put("flexibleAllowed", info.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE));
                             ret.put("inProgress", availability == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS

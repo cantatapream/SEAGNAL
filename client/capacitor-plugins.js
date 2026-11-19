@@ -673,6 +673,9 @@ function showUpdatePopup(currentVersion, latestVersion, updateMessage, playStore
 //   이 간격이 없으면 하루에도 앱을 켤 때마다 「업데이트할까요?」 창이 뜬다.
 const IN_APP_UPDATE_ASKED_KEY = 'seagnal_inapp_update_asked_at';
 const IN_APP_UPDATE_ASK_GAP_MS = 24 * 60 * 60 * 1000;
+// Play 에 새 버전을 묻는 호출(check)을 기다리는 한도. Capacitor 다리에는 시간 제한이 없어, Play 가 끝내 답하지 않으면
+//   이 한도 없이는 종전 방식(스토어 팝업)으로도 못 넘어가 업데이트 안내가 아예 안 뜬다(독립 검토 A·B 지적).
+const IN_APP_UPDATE_CHECK_TIMEOUT_MS = 10 * 1000;
 
 /** 네이티브 앱 안 업데이트 플러그인(없으면 null — 옛 APK). */
 function getInAppUpdatePlugin() {
@@ -745,29 +748,35 @@ async function tryInAppUpdate() {
     const AU = getInAppUpdatePlugin();
     if (!AU) return false; // 옛 APK — 플러그인 없음
 
-    let info;
-    try {
-        info = await AU.check();
-    } catch (e) {
-        // Play 에 물을 수 없다(스토어 밖 설치 등) → 종전 방식.
-        console.warn('[AppUpdate] 앱 안 업데이트 확인 불가 → 종전 방식:', e && e.message);
-        return false;
-    }
-    if (!info) return false;
-
     // 쓰는 중에 내려받기가 끝나면 「다시 시작」 띠를 띄운다. 실패·취소면 다음 실행 때 다시 묻도록 기록을 지운다.
+    //   ★check 보다 먼저 건다 — check 응답("내려받는 중")과 리스너 등록 사이에 완료 사건이 오면 놓친다(독립 검토 B).
+    const onListenFail = (e) => console.warn('[AppUpdate] 상태 리스너 등록 실패(다 받으면 다음 실행 때 띠가 뜬다):', e && e.message);
     try {
-        AU.addListener('installState', (s) => {
+        Promise.resolve(AU.addListener('installState', (s) => {
             if (!s) return;
             if (s.downloaded) showUpdateReadyBar(AU);
             else if (s.status === 'failed' || s.status === 'canceled') {
                 console.warn('[AppUpdate] 내려받기 ' + s.status + ' — 다음 실행 때 다시 묻는다');
                 try { localStorage.removeItem(IN_APP_UPDATE_ASKED_KEY); } catch (_) { /* 저장소를 못 쓰면 간격 기록도 없다 — 다음 실행 때 어차피 다시 묻는다 */ }
             }
-        });
+        })).catch(onListenFail);
     } catch (e) {
-        console.warn('[AppUpdate] 상태 리스너 등록 실패(다 받으면 다음 실행 때 띠가 뜬다):', e && e.message);
+        onListenFail(e);
     }
+
+    let info;
+    try {
+        info = await Promise.race([
+            AU.check(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('check timeout')), IN_APP_UPDATE_CHECK_TIMEOUT_MS)),
+        ]);
+    } catch (e) {
+        // Play 에 물을 수 없다(스토어 밖 설치 등)·답이 없다 → 종전 방식.
+        console.warn('[AppUpdate] 앱 안 업데이트 확인 불가 → 종전 방식:', e && e.message);
+        return false;
+    }
+    if (!info) return false;
+    if (info.known === false) return false;                         // Play 가 "모름"이라고 답함 → 종전 방식(독립 검토 B)
 
     if (info.downloaded) { showUpdateReadyBar(AU); return true; }   // 이미 받아 둠 → 설치만 남았다
     if (info.inProgress) return true;                               // 내려받는 중 → 리스너가 이어받는다
@@ -850,6 +859,16 @@ const checkAppUpdate = async () => {
 
 initPushNotifications();
 checkAppUpdate();
+
+// [음성 비서 삭제 2026-11-19] 사용자 지시로 마이크·호출어 듣기·음성 모델을 앱에서 뺐다(끄는 화면도 없어졌다).
+//   옛 시험용 APK(1.1.2~1.2.2)에는 상시 청취 서비스가 아직 들어 있다 — 켜 둔 채 남아 있으면 여기서 끈다.
+//   새 APK 와 스토어판(1.1.1)에는 disable 이 없어 아무 일도 하지 않는다.
+try {
+    const VA = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.SeagnalAssistant;
+    if (VA && typeof VA.disable === 'function') {
+        Promise.resolve(VA.disable()).catch((e) => console.warn('[앱] 옛 음성 비서 서비스 끄기 실패:', e && e.message));
+    }
+} catch (e) { console.warn('[앱] 옛 음성 비서 서비스 끄기 실패:', e && e.message); }
 
 // [위치기반 특보 #1] 앱 실행 시 fresh-fix 1회(이벤트 기반 전환).
 //   상시 watcher/전경 서비스를 제거했으므로 "되살리기"가 아니라, 기능이 활성(+동의)이면

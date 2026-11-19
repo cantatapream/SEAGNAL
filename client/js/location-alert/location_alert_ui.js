@@ -134,6 +134,7 @@
     // ── 노출 범위 (2026-11-19) ────────────────────────────────────────────────
     //   서버 판정 전·판정 실패 시 = 숨김(보수적). initLocationAlertUI 가 설정 화면을 열 때마다 새로 받는다.
     let _exposure = { audience: 'off', display: false };
+    let _exposureSeq = 0; // 설정을 연달아 열 때 늦게 도착한 옛 판정이 새 판정을 덮지 않게(독립 검토 C)
     /**
      * 서버에 "이 기기에 카드를 보여도 되나"를 묻는다.
      * 예: 노출 '관리자만' + 관리자 기기 → {audience:'admin', display:true} · 일반 기기 → {audience:'admin', display:false}
@@ -449,7 +450,9 @@
         if (!root.document) return;
         const card = root.document.getElementById('location-alert-card');
         if (card) card.style.display = 'none'; // 판정이 오기 전에는 숨긴다(index2.html 기본값도 숨김)
+        const seq = ++_exposureSeq;
         return fetchExposure().then(function (ex) {
+            if (seq !== _exposureSeq) return; // 그 사이 더 새 판정을 요청했다 — 이 응답은 버린다
             _exposure = ex;
             applyExposure();
         });
