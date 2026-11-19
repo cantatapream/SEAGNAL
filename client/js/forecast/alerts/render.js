@@ -113,6 +113,11 @@ function openAlertZoneSetup() {
 window.openAlertZoneSetup = openAlertZoneSetup;
 document.addEventListener('DOMContentLoaded', syncAlertZoneGear);
 
+// 앱을 켠 뒤 특보현황/기상현황 자동 펼침을 이미 했는가(renderApp — 처음 한 번만). [연계] ← renderApp
+let _alertAccordionAutoDone = false;
+// 대분류(동해·서해·남해)마다 펼쳐 둔 중분류 이름 — renderApp 이 목록을 새로 만들어도 그 칸을 펼친 채로 그리려고. [연계] ← renderApp
+const _openAlertSubRegion = {};
+
 function renderApp() {
     const seaSections = {
         '동해': document.getElementById('east-sea-list'),
@@ -295,9 +300,11 @@ function renderApp() {
                     if (isCurrentlyHidden) {
                         slideDown(listContainer);
                         subHeader.style.marginLeft = '4px';
+                        _openAlertSubRegion[mainRegion] = subRegion;   // 다시 그려도 펼친 채로(아래 설명)
                         // [사용량] 특보현황 중분류(동해남부해상 등) "부모 해역" 펼침 → 1건
                         if (window.trackUsage) window.trackUsage('main.warn_region_open');
                     } else {
+                        if (_openAlertSubRegion[mainRegion] === subRegion) delete _openAlertSubRegion[mainRegion];
                         slideUp(listContainer);
                         const icon = subHeader.querySelector('.fa-chevron-right');
                         if (icon) icon.style.transform = 'rotate(0deg)';
@@ -311,6 +318,13 @@ function renderApp() {
                     counts[mainRegion]++;
                     listContainer.appendChild(createAlertElement(item));
                 });
+
+                // 직전에 펼쳐 두었던 중분류면 펼친 채로 그린다 — 5분마다 다시 그려도(자료 새로고침) 접히지 않게.
+                //   [2026-11-19 사용자] 큰 아코디언을 다시 펼쳤을 때 「그 아코디언 안에 직전에 펼쳐놨던 아코디언이 펼쳐져있게」.
+                if (_openAlertSubRegion[mainRegion] === subRegion) {
+                    listContainer.style.display = 'block';
+                    subHeader.style.marginLeft = '4px';
+                }
 
                 subSection.appendChild(subHeader);
                 subSection.appendChild(listContainer);
@@ -403,6 +417,12 @@ function renderApp() {
     }
 
     // --- Global Badge & Accordion State Logic ---
+    // [자동 펼침은 앱을 처음 켤 때만 — 2026-11-19 사용자] 큰 아코디언이 한 번에 하나만 펼쳐지게 되면서(main-accordion/main_accordion_solo.js),
+    //   자료를 새로 받을 때마다(5분마다·탭 이동·앱 복귀) 특보현황/기상현황을 다시 펼치면 사용자가 보던 아코디언이 갑자기 접힌다.
+    //   질문 「앱 처음 켤 때만 자동」에 사용자가 「1-가」로 답함 → 서버 자료를 처음 받은 뒤 그리는 한 번만 펼치고 접는다.
+    //   appState.lastUpdated 는 fetchAllData 가 자료를 받은 뒤에만 채운다 — 그 전에 다른 곳(settings.js)이 부른 renderApp 은 세지 않는다.
+    const autoOpen = !_alertAccordionAutoDone && !!appState.lastUpdated;
+    if (autoOpen) _alertAccordionAutoDone = true;
     const globalStatusContainer = document.querySelector('#main-accordion-header .header-status'); // 해역별 특보현황 헤더의 상태 배지 영역
     const mainHeader = document.getElementById('main-accordion-header');
     const mainBody = document.getElementById('main-accordion-body');
@@ -499,8 +519,8 @@ function renderApp() {
                 globalStatusContainer.appendChild(prelimBadge);
             }
 
-            // Start Expanded (필터링된 상태에서도 알림이 있으면 펼쳐짐)
-            if (mainBody && mainBody.classList.contains('collapsed')) {
+            // Start Expanded (필터링된 상태에서도 알림이 있으면 펼쳐짐) — 앱을 처음 켤 때만(아래 autoOpen 설명)
+            if (autoOpen && mainBody && mainBody.classList.contains('collapsed')) {
                 mainBody.classList.remove('collapsed');
                 if (mainHeader) mainHeader.classList.remove('collapsed-state');
             }
@@ -525,8 +545,8 @@ function renderApp() {
             safeBadge.style.marginRight = '6px';
             globalStatusContainer.appendChild(safeBadge);
 
-            // Start Collapsed
-            if (mainBody && !mainBody.classList.contains('collapsed')) {
+            // Start Collapsed — 앱을 처음 켤 때만
+            if (autoOpen && mainBody && !mainBody.classList.contains('collapsed')) {
                 mainBody.classList.add('collapsed');
                 if (mainHeader) mainHeader.classList.add('collapsed-state');
             }
@@ -547,7 +567,7 @@ function renderApp() {
     const statusBody = document.getElementById('marine-status-accordion-body');
     const statusHeader = document.getElementById('marine-status-accordion-header');
 
-    if (statusBody) {
+    if (statusBody && autoOpen) {
         if (totalCount > 0) {
             // 특보 있음 -> 기상현황 닫기 (특보에 집중)
             if (!statusBody.classList.contains('collapsed')) {

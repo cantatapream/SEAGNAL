@@ -10,6 +10,8 @@
  *         ② 「해역별 특보현황」 관심해역 ⚙ — 관심해역을 안 골랐을 때만 보임 · 누르면 온보딩 관심해역 화면(안내 → 해역 → 지도)
  *            · 마치면 안내 띠 + ⚙ 가 흐려지며 사라짐 · [건너뛰기]는 닫기만.
  *         ③ 두 ⚙ 모두 머리 안 오른쪽 끝, 「활동지점 안전 브리핑」 ⚙ 와 같은 모양.
+ *         ⑥ 큰 아코디언 4개 한 번에 하나만 · 다시 펼치면 안쪽 직전 상태 · 자동 펼침은 앱 처음 켤 때만 · 해상 기상 전망 안쪽 하나만·기본값(지방청 → 없으면 최신 초단기/단기) ·
+ *            「지방기상청 단기 전망」 칸(종합 예보 칸 없앰) · 「내 위치」 한 줄(2026-11-19).
  *         ⑤ 특보 카드 머리줄 — 큰 글자·좁은 폭에서 📋 와 뱃지가 갈라지지 않고 함께 다음 줄로, 그때 📋 는 뱃지 바로 왼쪽(2026-11-19).
  *         ④ 해역별 📋 통보문 팝업(alert_history.js showZoneBulletins)이 하드웨어 뒤로가기(core/backbutton.js PopupStack)로 닫힌다(2026-11-18).
  *         380px 스크린샷(안내 칸·설정 팝업·두 머리)을 GEAR_SHOT_DIR(없으면 임시 폴더)에 남긴다.
@@ -41,10 +43,11 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
 
 (async () => {
     let browser, server;
+    let marineForecast = { ultraShort: null, shortTerm: null };   // /api/marine-forecast 응답(⑥ 에서 바꾼다)
     try {
         const app = express();
         app.get('/api/regional-forecast', (req, res) => res.json(REGIONAL));
-        app.get('/api/marine-forecast', (req, res) => res.json({ ultraShort: null, shortTerm: null }));
+        app.get('/api/marine-forecast', (req, res) => res.json(marineForecast));   // ⑥ 시험이 발표 시각을 바꿔 넣는다
         app.get('/api/warn-zones', (req, res) => res.sendFile(path.join(root, 'client/assets/warn_zones.geojson')));
         app.get('/', (req, res) => res.sendFile(path.join(root, 'client/index2.html')));
         app.use(express.static(path.join(root, 'client')));
@@ -94,7 +97,7 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
         const tap = async (page, sel) => { await page.waitForSelector(sel, { state: 'attached' }); await page.evaluate((s) => document.querySelector(s).click(), sel); };
         const openMarine = async (page) => { await page.evaluate(() => { const b = document.getElementById('marine-forecast-accordion-body'); if (b.classList.contains('collapsed')) window.toggleMarineForecastAccordion(); }); await page.waitForTimeout(200); };
         const regionalText = (page) => page.evaluate(() => document.getElementById('regional-forecast-body').innerText);
-        const officeCards = (page) => page.evaluate(() => [...document.querySelectorAll('#regional-forecast-body .regional-forecast-office-name')].map((e) => e.textContent));
+        const officeCards = (page) => page.evaluate(() => [...document.querySelectorAll('#regional-forecast-title .regional-forecast-office-name')].map((e) => e.textContent));   // 2026-11-19 — 지방청 이름이 「지방기상청 단기 전망」 칸 머리로 올라왔다
         const checkedCodes = (page) => page.evaluate(() => [...document.querySelectorAll('#office-settings-panel input[type=radio]:checked')].map((e) => e.value));
         const stored = (page, k) => page.evaluate((k) => localStorage.getItem(k), k);
         /** 라디오 한 줄을 실제로 누른다(라벨 줄을 클릭). */
@@ -102,8 +105,8 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
 
         // ── ① 관심 기상청 ─────────────────────────────────────────────
         const p = await device();
-        await check('처음 설치: ⚙ 는 「기상청 해상 기상 전망」 머리 안에 있고 「종합 예보」 칸에는 없다', async () => {
-            const r = await p.evaluate(() => { const g = document.getElementById('regional-office-settings-btn'); return { inHeader: !!g && g.parentElement.id === 'marine-forecast-accordion-header', last: !!g && g === g.parentElement.lastElementChild, inSub: !!document.querySelector('#regional-forecast-section .marine-forecast-sub-header button'), visible: !!g && getComputedStyle(g).display !== 'none' }; });
+        await check('처음 설치: ⚙ 는 「기상청 해상 기상 전망」 머리 안에 있고 「지방기상청 단기 전망」 칸에는 없다', async () => {
+            const r = await p.evaluate(() => { const g = document.getElementById('regional-office-settings-btn'); return { inHeader: !!g && g.parentElement.id === 'marine-forecast-accordion-header', last: !!g && g === g.parentElement.lastElementChild, inSub: !!document.querySelector('#regional-forecast-section .marine-forecast-sub-header button:not(.regional-forecast-doc)'), visible: !!g && getComputedStyle(g).display !== 'none' }; });
             assert.deepEqual(r, { inHeader: true, last: true, inSub: false, visible: true });
         });
         await check('처음 설치: 아코디언을 펼치면 「관심 기상청이 설정되지 않았습니다.」+안내+[설정하기] — 지방청 카드는 0개', async () => {
@@ -113,7 +116,7 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             assert.ok(t.includes('설정하면 그 지방기상청의 해상 단기 전망을 보여 드립니다.'), t);
             assert.equal(await p.locator('#regional-forecast-body button', { hasText: '설정하기' }).count(), 1);
             assert.deepEqual(await officeCards(p), []);
-            assert.equal(await p.textContent('#regional-forecast-title'), '종합 예보');
+            assert.equal(await p.textContent('#regional-forecast-title'), '지방기상청 단기 전망');
         });
         await p.setViewportSize({ width: 380, height: 844 }); await clean(p);
         await p.evaluate(() => document.getElementById('marine-forecast-accordion-header').scrollIntoView({ block: 'center' }));
@@ -146,7 +149,7 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             await p.waitForSelector('#office-settings-panel');
             assert.deepEqual(await checkedCodes(p), [], '취소한 선택이 남아 있으면 안 된다');
             await pickRow(p, '159'); await tap(p, '[data-office-action=done]');
-            await p.waitForFunction(() => document.querySelectorAll('#regional-forecast-body .regional-forecast-office').length === 1);
+            await p.waitForFunction(() => document.querySelectorAll('#regional-forecast-title .regional-forecast-office-name').length === 1);
             assert.equal(await p.locator('#office-settings-panel').count(), 0);
             const s = JSON.parse(await stored(p, 'officeManualSettings'));
             assert.deepEqual(Object.keys(s).filter((k) => s[k]), ['159']); assert.equal(Object.keys(s).length, 7);
@@ -252,7 +255,7 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             await tap(q, '.regional-office-unset-btn'); await q.waitForSelector('#office-settings-panel');
             assert.deepEqual(await checkedCodes(q), []);
             await pickRow(q, '184'); await tap(q, '[data-office-action=done]');
-            await q.waitForFunction(() => document.querySelectorAll('#regional-forecast-body .regional-forecast-office').length === 1);
+            await q.waitForFunction(() => document.querySelectorAll('#regional-forecast-title .regional-forecast-office-name').length === 1);
             assert.deepEqual(await officeCards(q), ['제주지방기상청 단기 전망']);
             await q.context().close();
         });
@@ -279,7 +282,7 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             await openMarine(q);
             await tap(q, '#regional-office-settings-btn'); await q.waitForSelector('#office-settings-panel');
             await pickRow(q, '159'); await tap(q, '[data-office-action=done]');
-            await q.waitForFunction(() => (document.querySelector('#regional-forecast-body .regional-forecast-office-name') || {}).textContent === '부산지방기상청 단기 전망');
+            await q.waitForFunction(() => (document.querySelector('#regional-forecast-title .regional-forecast-office-name') || {}).textContent === '부산지방기상청 단기 전망');
             await reopen(q); await openMarine(q);
             assert.deepEqual(await officeCards(q), ['부산지방기상청 단기 전망']);
             await q.context().close();
@@ -418,6 +421,119 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             // 2026-11-19 사용자 「통보문 버튼이 … 뱃지 바로 왼쪽에」 + 「두 줄일 때만 뱃지 옆」
             assert.ok(long.btnToBadge >= 0 && long.btnToBadge <= 16, '둘째 줄이면 📋 는 뱃지 바로 왼쪽: ' + JSON.stringify(long));
             assert.ok(short.btnToName >= 0 && short.btnToName <= 30 && short.btnToBadge > 30, '한 줄이면 📋 는 해역명 바로 뒤: ' + JSON.stringify(short));
+        });
+        // ── ⑥ 큰 아코디언 4개·해상 기상 전망 안쪽 칸·「내 위치」 (2026-11-19 사용자) ─────────────────────
+        //   「다른 아코디언이 펼쳐지면 기존 펼쳐져있던 아코디언은 접히도록 … 다시 펼쳤을 때 그 아코디언 안에 직전에 펼쳐놨던 아코디언이 펼쳐져있게」
+        //   「해상기상전망 아코디언 안에서도 마찬가지로 … 기본적으로 지방기상청 단기전망부터 … 선택하지 않은 사람은 초단기전망과 단기전망 중 발표가 최신인것」
+        //   질문 답: 1-가(자동 펼침은 앱 처음 켤 때만) · 2(앱을 켤 때마다 기본값, 켠 동안은 마지막 칸) · 4(「내 위치」 항상 한 줄)
+        const acc = (page) => page.evaluate(() => {
+            const open = (id) => { const e = document.getElementById(id); return !!e && !e.classList.contains('collapsed'); };
+            const sub = (id) => document.getElementById(id).classList.contains('open');
+            return { forecast: open('marine-forecast-accordion-body'), alert: open('main-accordion-body'), status: open('marine-status-accordion-body'),
+                sub: [sub('regional-forecast-section') && 'regional', sub('ultra-short-forecast-section') && 'ultra', sub('short-term-forecast-section') && 'short'].filter(Boolean) };
+        });
+        const ALERTS = [['동해남부북쪽안쪽먼바다', '경보'], ['경북북부앞바다', '주의보'], ['동해중부안쪽먼바다', '주의보']]
+            .map(([z, lv]) => ({ zoneName: z, warnType: '풍랑', level: lv, tmFc: '202611180400', tmEf: '202611190000' }));
+        const a1 = await device();
+        await check('⑥ 앱을 처음 켜면 특보가 없으므로 「해역별 기상현황」만 펼쳐져 있다(자동 펼침) · 해상 기상 전망 안쪽은 기본값 한 칸만(관심 기상청 없음 + 발표 시각 모름 → 지방청 칸)', async () => {
+            assert.deepEqual(await acc(a1), { forecast: false, alert: false, status: true, sub: ['regional'] });
+        });
+        await check('⑥ 하나를 펼치면 나머지는 접힌다 — 해상 기상 전망 → 특보현황 → 기상현황, 어느 길로 열어도(머리 누르기·함수)', async () => {
+            await tap(a1, '#marine-forecast-accordion-header');
+            assert.deepEqual((await acc(a1)), { forecast: true, alert: false, status: false, sub: ['regional'] });   // 관심 기상청 없음 + 발표 시각 모름 → 지방청 칸([설정하기] 안내)
+            await a1.evaluate(() => window.toggleMainAccordion());
+            const s1 = await acc(a1); assert.ok(s1.alert && !s1.forecast && !s1.status, JSON.stringify(s1));
+            await a1.evaluate(() => window.toggleMarineStatusAccordion());
+            const s2 = await acc(a1); assert.ok(s2.status && !s2.forecast && !s2.alert, JSON.stringify(s2));
+        });
+        await check('⑥ 해상 기상 전망 안쪽도 하나만 — 초단기를 누르면 지방청이 접히고, 단기를 누르면 초단기가 접힌다 · 펼친 칸을 다시 누르면 접힌다', async () => {
+            await tap(a1, '#marine-forecast-accordion-header');
+            await tap(a1, '#ultra-short-forecast-section .marine-forecast-sub-header');
+            assert.deepEqual((await acc(a1)).sub, ['ultra']);
+            await tap(a1, '#short-term-forecast-section .marine-forecast-sub-header');
+            assert.deepEqual((await acc(a1)).sub, ['short']);
+            await tap(a1, '#short-term-forecast-section .marine-forecast-sub-header');
+            assert.deepEqual((await acc(a1)).sub, []);
+            await tap(a1, '#short-term-forecast-section .marine-forecast-sub-header');
+        });
+        await check('⑥ 다른 아코디언을 펼쳤다가 해상 기상 전망을 다시 펼치면 직전에 펼쳐 둔 칸(단기)이 그대로 — 기본값으로 돌아가지 않는다', async () => {
+            await a1.evaluate(() => window.toggleMainAccordion());
+            assert.equal((await acc(a1)).forecast, false);
+            await tap(a1, '#marine-forecast-accordion-header');
+            assert.deepEqual(await acc(a1), { forecast: true, alert: false, status: false, sub: ['short'] });
+        });
+        await check('⑥ 자료를 새로 받아 다시 그려도(5분마다 renderApp) 특보현황이 저절로 펼쳐지지 않는다 — 보던 해상 기상 전망 그대로', async () => {
+            await a1.evaluate((al) => { appState.alerts = al; appState.coastalAlerts = {}; window.renderApp(); }, ALERTS);
+            assert.deepEqual(await acc(a1), { forecast: true, alert: false, status: false, sub: ['short'] });
+        });
+        await check('⑥ 특보현황 안에서 펼쳐 둔 중분류는 다시 그려도(5분마다) 펼친 채로 — 접었다 다시 펼쳐도 그대로', async () => {
+            await a1.evaluate(() => window.toggleMainAccordion());
+            await a1.evaluate(() => { toggleSection('east-sea-list'); });
+            await a1.waitForTimeout(100);
+            await tap(a1, '#east-sea-list .sub-region-header');
+            await a1.waitForTimeout(450);
+            const shown = () => a1.evaluate(() => [...document.querySelectorAll('#east-sea-list .sub-region-list')].map((l) => l.style.display !== 'none'));
+            const before = await shown();
+            assert.deepEqual(before.filter(Boolean).length, 1, JSON.stringify(before));
+            await a1.evaluate(() => window.renderApp());
+            assert.deepEqual(await shown(), before, '다시 그린 뒤 펼친 중분류가 접혔다');
+            await tap(a1, '#marine-forecast-accordion-header');   // 특보현황이 접힌다
+            await a1.evaluate(() => window.renderApp());          // 접혀 있는 동안 자료 새로고침
+            await a1.evaluate(() => window.toggleMainAccordion());
+            assert.deepEqual(await shown(), before, '다시 펼쳤을 때 직전 중분류가 펼쳐져 있지 않다');
+        });
+        await a1.context().close();
+
+        const MF_BOTH = { ultraShort: { reportId: 'cmt:202611191010:92', publishTime: '11.19. 10:10', type: '초단기전망' }, shortTerm: { reportId: 'cmt:202611191640:51', publishTime: '11.19. 16:40', type: '단기전망' } };
+        await check('⑥ 관심 기상청 없음 → 해상 기상 전망을 처음 펼치면 초단기·단기 중 발표가 최신인 칸(단기 16:40)만 펼쳐진다', async () => {
+            marineForecast = MF_BOTH;
+            const q = await device();
+            await tap(q, '#marine-forecast-accordion-header');
+            assert.deepEqual((await acc(q)).sub, ['short']);
+            await q.context().close();
+            marineForecast = { ultraShort: { reportId: 'cmt:202611191710:93', publishTime: '11.19. 17:10' }, shortTerm: MF_BOTH.shortTerm };
+            const q2 = await device();
+            await tap(q2, '#marine-forecast-accordion-header');
+            assert.deepEqual((await acc(q2)).sub, ['ultra'], '초단기가 더 최신이면 초단기');
+            await q2.context().close();
+        });
+        await check('⑥ 관심 기상청 있음 → 처음 펼치면 「지방기상청 단기 전망」(이름이 칸 머리) · 칸을 바꾼 뒤 앱을 다시 켜면 다시 기본값', async () => {
+            const q = await device({ store: { officeManualSettings: JSON.stringify({ 109: false, 159: true, 156: false, 105: false, 133: false, 143: false, 184: false }) } });
+            await tap(q, '#marine-forecast-accordion-header');
+            assert.deepEqual((await acc(q)).sub, ['regional']);
+            assert.equal((await q.textContent('#regional-forecast-title .regional-forecast-office-name')).trim(), '부산지방기상청 단기 전망');
+            assert.equal(await q.locator('#regional-forecast-body .regional-forecast-office-name').count(), 0, '안쪽에 지방청 카드가 또 있으면 안 된다');
+            await tap(q, '#ultra-short-forecast-section .marine-forecast-sub-header');
+            assert.deepEqual((await acc(q)).sub, ['ultra']);
+            await reopen(q);
+            await tap(q, '#marine-forecast-accordion-header');
+            assert.deepEqual((await acc(q)).sub, ['regional'], '앱을 다시 켜면 기본값(지방청)부터');
+            await q.context().close();
+            marineForecast = { ultraShort: null, shortTerm: null };
+        });
+        await check('⑥ 「내 위치」 버튼에 이름이 한 줄로 붙고 버튼 안에 다 들어간다 — 평소·글자 크게 모두(해양종합정보 화면에서 잰다. 해양안전생활 #ls-gps-btn 은 같은 표시)', async () => {
+            for (const size of ['medium', 'large']) {
+                const q = await device({ store: { user_font_size: size } });
+                await q.evaluate(() => window.switchMainTab('ocean-map-section'));
+                await q.waitForTimeout(800); await clean(q);
+                const r = await q.evaluate(() => {
+                    const b = document.getElementById('ocean-myloc-btn'), l = b.querySelector('.ocean-overlay-label'), ls = document.querySelector('#ls-gps-btn .ocean-overlay-label');
+                    const br = b.getBoundingClientRect(), lr = l.getBoundingClientRect(), cs = getComputedStyle(b);
+                    const inner = br.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - parseFloat(cs.borderLeftWidth) - parseFloat(cs.borderRightWidth);
+                    // 큰 글자 모드는 글자를 ::before 로 그린다(style.css) — 그 글자가 줄바꿈 금지(nowrap)면 한 줄이고, 라벨 폭이 곧 글자 폭이다
+                    const big = document.documentElement.getAttribute('data-font-size') === 'large';
+                    const ws = getComputedStyle(l, big ? '::before' : null).whiteSpace;
+                    return { text: l.textContent, line1: l.getAttribute('data-line1'), line2: l.getAttribute('data-line2'), lsText: ls && ls.textContent, lsLine2: ls && ls.getAttribute('data-line2'),
+                        w: lr.width, inner, ws, bw: br.width, basemapW: document.getElementById('ocean-basemap-label').closest('button').getBoundingClientRect().width, visible: br.width > 0 };
+                });
+                assert.ok(r.visible, '버튼이 안 보인다');
+                assert.deepEqual([r.text, r.line1, r.line2, r.lsText, r.lsLine2], ['내 위치', '내 위치', null, '내 위치', null]);
+                assert.ok(r.w <= r.inner + 0.5, size + ' — 글자가 버튼 안쪽 폭을 넘는다: ' + JSON.stringify(r));
+                assert.equal(r.ws, 'nowrap', size + ' — 줄바꿈이 될 수 있다: ' + JSON.stringify(r));
+                assert.ok(Math.abs(r.bw - r.basemapW) < 0.5, size + ' — 「내 위치」 버튼 폭이 기본맵 버튼과 다르다(글자가 넘쳐 버튼이 넓어짐): ' + JSON.stringify(r));
+                await q.screenshot({ path: path.join(SHOT, 'myloc_' + size + '.png'), clip: { x: 0, y: 0, width: 220, height: 260 } });
+                await q.context().close();
+            }
         });
         await check('화면 오류 없음', () => assert.deepEqual(errors.filter((m) => !/Failed to fetch|NetworkError|Load failed/.test(m)), []));
         console.log('스크린샷:', SHOT);
