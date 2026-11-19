@@ -707,6 +707,7 @@ window.openPromoDetail = async function (postId) {
         });
 
         modal.classList.remove('hidden');
+        bindPromoDetailKeyboardFit();   // 댓글 입력 때 키보드가 떠도 창이 보이는 화면 안에 들어오게(2026-11-19)
         // 몸통(본문·댓글)만 스크롤된다 — 다른 글을 열면 맨 위부터(2026-11-19, 제목 머리·댓글 입력칸은 고정)
         const scrollEl = document.getElementById('promo-detail-scroll');
         if (scrollEl) scrollEl.scrollTop = 0;
@@ -725,9 +726,58 @@ window.openPromoDetail = async function (postId) {
     }
 };
 
+/**
+ * 게시글 상세 창을 **지금 실제로 보이는 화면**(visualViewport — 키보드를 뺀 나머지) 안에 맞춘다.
+ * 예: 댓글 입력창을 눌러 키보드가 화면 아래 절반을 덮으면 → 창이 위 절반 안에 들어가고, 제목(머리)·댓글 입력(발)은
+ *     그대로 보이며 가운데 본문 칸만 줄어든다. 키보드가 내려가면 원래대로.
+ * @returns {void}
+ * [연계] ← bindPromoDetailKeyboardFit(visualViewport resize·scroll) / style.css #promo-detail-modal.promo-kb-open
+ * [왜] 2026-11-19 사용자 지적: 댓글 입력창을 누르면 머리가 위로 밀려 올라가고 본문이 휴대폰 상태표시줄 밑까지 넘어갔다.
+ *      키보드가 뜨면 이 앱의 웹 화면은 「보이는 화면」만 줄고 전체 화면 크기는 그대로라, 화면 전체 기준으로 가운데 놓인 창이
+ *      키보드 뒤로 들어가고 브라우저가 입력창을 보이려고 화면을 위로 밀었다. 나리야 채팅 창(ai_chat.js fitChat)과 같은 방식.
+ */
+function fitPromoDetailToViewport() {
+    const modal = document.getElementById('promo-detail-modal');
+    const vv = window.visualViewport;
+    if (!modal || !vv) return;
+    modal.style.top = vv.offsetTop + 'px';
+    modal.style.height = vv.height + 'px';
+    // 키보드가 떠 있으면(보이는 높이가 전체보다 100px 넘게 작음) 아래 여백을 줄여 댓글 입력이 키보드 바로 위에 붙게 한다
+    modal.classList.toggle('promo-kb-open', window.innerHeight - vv.height > 100);
+}
+
+/** 상세 창이 열려 있는 동안 키보드(보이는 화면 크기·위치 변화)를 따라가게 한다. 두 번 불러도 한 번만 건다.
+ * 예: openPromoDetail 끝에서 부른다 → 댓글 입력창을 누르면 fitPromoDetailToViewport 가 돈다
+ * @returns {void}
+ * [연계] ← openPromoDetail / → fitPromoDetailToViewport · 해제는 unbindPromoDetailKeyboardFit(closePromoDetail) */
+function bindPromoDetailKeyboardFit() {
+    const vv = window.visualViewport;
+    if (!vv || bindPromoDetailKeyboardFit.on) return;
+    bindPromoDetailKeyboardFit.on = true;
+    vv.addEventListener('resize', fitPromoDetailToViewport);
+    vv.addEventListener('scroll', fitPromoDetailToViewport);
+    fitPromoDetailToViewport();
+}
+
+/** 키보드 따라가기를 끄고 창 위치를 원래(style.css 의 .modal — 화면 전체)로 되돌린다.
+ * 예: closePromoDetail 이 부른다
+ * @returns {void}
+ * [연계] ← closePromoDetail / ↔ bindPromoDetailKeyboardFit */
+function unbindPromoDetailKeyboardFit() {
+    const vv = window.visualViewport;
+    if (vv && bindPromoDetailKeyboardFit.on) {
+        vv.removeEventListener('resize', fitPromoDetailToViewport);
+        vv.removeEventListener('scroll', fitPromoDetailToViewport);
+    }
+    bindPromoDetailKeyboardFit.on = false;
+    const modal = document.getElementById('promo-detail-modal');
+    if (modal) { modal.style.top = ''; modal.style.height = ''; modal.classList.remove('promo-kb-open'); }
+}
+
 // 4. 게시글 상세 보기 닫기 (YouTube 영상 정지 포함)
 window.closePromoDetail = function () {
     const modal = document.getElementById('promo-detail-modal');
+    unbindPromoDetailKeyboardFit();
     if (modal) {
         // YouTube iframe 정지 (src 초기화로 영상 중단)
         const iframes = modal.querySelectorAll('iframe');

@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 157 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 158 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -428,6 +428,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_wheel_date_picker` | 날짜칸을 누르면 휠 선택기가 뜨고, 고른 값이 칸에 제대로 들어가는지 |
 | `test_promo_youtube_shorts` | 2026-11-19: 게시글 편집기 「동영상」(필름 모양) 버튼에 쇼츠 주소를 넣으면 Quill 1.3.6 이 |
 | `test_promo_detail_ui` | 공지사항 게시글 상세 팝업의 새 모양(2026-11-19 사용자 확정 시안)을 실제 Chromium 으로 index2.html 전체를 띄워 본다. |
+| `test_promo_detail_keyboard` | 2026-11-19 사용자 지적: 게시글 상세에서 댓글 입력창을 누르면 머리(제목)가 위로 밀려 올라가고 본문이 |
 
 > 위 두 표는 **기계가 찍은 것**이다 — `verify_all.sh` 의 절 머리줄과 `SUITES` 배열,
 > 그리고 각 스위트 파일 머리 주석에서 그대로 뽑았다. 손으로 고치면 다음 실행에 사라진다.

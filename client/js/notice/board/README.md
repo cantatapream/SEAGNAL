@@ -27,3 +27,12 @@ index.html 의 script 태그 순서를 따름 — 변경 금지 (번들러 없�
 - 재생 화면 크기: 게시글 화면에서 **본문 좌우 너비를 꽉 채우고 16:9 비율**(`style.css .promo-content-view iframe.ql-video`, 2026-11-19 사용자 요청 — 종전에는 크기를 정하지 않아 300×150 으로 작았다). 편집기 안 크기는 그대로다. 앱(Capacitor 7 `BridgeWebChromeClient.onShowCustomView`)의 전체화면은 앱 화면 크기만큼 채우는 방식이다.
 - 영상 주인이 「다른 사이트에 넣기」를 막아 둔 영상은 어떤 방법으로도 재생되지 않는다.
 - 시험: `local_server/scripts/test_promo_youtube_shorts.js` (쇼츠 변환 + 링크 버튼).
+
+## 게시글 상세 창 — 키보드가 떠도 제자리 (2026-11-19)
+
+- 사용자 지적: 댓글 입력창을 누르면 머리(제목)가 위로 밀려 올라가고 본문이 휴대폰 상태표시줄 밑까지 넘어갔다.
+- 원인: 키보드가 뜨면 이 앱의 웹 화면은 「보이는 화면」(`visualViewport`)만 줄고 전체 화면 크기는 그대로다. 전체 화면 기준으로 가운데 놓인 창이 키보드 뒤로 들어가고, 브라우저가 입력창을 보이려고 화면을 위로 밀었다.
+- 고침: 창이 열려 있는 동안 `promo.js fitPromoDetailToViewport` 가 바깥 칸(`#promo-detail-modal`)의 위치·높이를 보이는 화면에 맞춘다(나리야 채팅 `ai_chat.js fitChat` 과 같은 방식). `style.css` 는 폰에서 창 높이를 `vh`(키보드가 떠도 그대로) 대신 바깥 칸 기준(`max-height:100%`)으로 잡고, 위 여백을 상태표시줄 높이(`safe-area-inset-top`) 이상·기본 40px 로, 키보드가 떠 있으면(`promo-kb-open`) 아래 여백을 6px 로 둔다.
+  → 키보드가 뜨면 제목·댓글 입력은 그대로 보이고 가운데 본문 칸만 줄어든다. 키보드가 없을 때 모양은 종전과 같다(위아래 40px).
+- 켜고 끄기: `openPromoDetail` → `bindPromoDetailKeyboardFit`, `closePromoDetail` → `unbindPromoDetailKeyboardFit`(뒤로가기 버튼으로 닫아도 `closePromoDetail` 을 거친다).
+- 시험: `local_server/scripts/test_promo_detail_keyboard.js`. 실기기에서 키보드를 띄워 본 것은 아니다 — 브라우저에서 보이는 화면 크기를 바꿔 재 봤다.
