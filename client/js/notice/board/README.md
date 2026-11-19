@@ -22,7 +22,8 @@ index.html 의 script 태그 순서를 따름 — 변경 금지 (번들러 없�
   저장·표시 과정에서 지우는 곳은 없다(`openPromoDetail` 이 본문 HTML 을 그대로 넣는다). 게시글을 닫으면 `closePromoDetail` 이 영상을 멈춘다.
 - 받는 주소: `youtube.com/watch?v=…`·`m.youtube.com/watch?v=…`·`youtu.be/…`(Quill 1.3.6 이 embed 로 바꿈) · **`youtube.com/shorts/…`(이 파일의 `promoYoutubeEmbedUrl` 이 embed 로 바꿈 — 쇼츠 주소는 유튜브가 다른 사이트 안에서 띄우기를 막아 그대로 넣으면 빈 칸이 된다)**.
   변환은 `registerPromoVideoFormat` 이 Quill 의 video 형식 `sanitize` 를 감싸 한다(편집기를 처음 만들 때 한 번).
-- 사슬 모양 **「링크」 버튼은 글자를 먼저 선택해야 반응한다**(Quill 원본 동작). 링크로 넣은 유튜브 주소는 재생 화면이 아니라 유튜브로 넘어가는 글자가 된다.
+- 사슬 모양 **「링크」 버튼**: 글자를 선택하고 누르면 그 글자에 링크를 건다(Quill 원본). **선택 없이 누르면 주소 입력 팝업이 뜨고, 넣은 주소가 그대로 링크 글자로 들어간다**(`enablePromoLinkWithoutSelection`, 2026-11-19 — 종전에는 아무 반응이 없었다). 주소에 `https://` 가 없으면 붙인다(`promoNormalizeLinkUrl`). `javascript:` 같은 주소는 Quill 이 `about:blank` 로 바꾼다.
+  링크로 넣은 유튜브 주소는 재생 화면이 아니라 유튜브로 넘어가는 글자가 된다 — 글 안에서 재생하려면 「동영상」 버튼.
 - 재생 화면 크기는 정하지 않았다(작게 보인다) — 사용자 판단: 전체화면으로 보면 된다. 앱(Capacitor 7 `BridgeWebChromeClient.onShowCustomView`)에서는 전체화면이 앱 화면 크기만큼 채우는 방식이다.
 - 영상 주인이 「다른 사이트에 넣기」를 막아 둔 영상은 어떤 방법으로도 재생되지 않는다.
-- 시험: `local_server/scripts/test_promo_youtube_shorts.js`.
+- 시험: `local_server/scripts/test_promo_youtube_shorts.js` (쇼츠 변환 + 링크 버튼).
