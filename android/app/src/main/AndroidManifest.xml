@@ -2,12 +2,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
     <application
+        android:name=".SeagnalApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
+        <!-- [헤드업 알림] 채널 지정이 없는 푸시(서버의 일반 푸시 전부)가 쓸 기본 알림 채널.
+             값은 SeagnalApplication.PUSH_CHANNEL_ID 와 같아야 한다(중요도 높음 → 화면 위에 잠깐 뜬다).
+             채널은 SeagnalApplication.onCreate 가 만든다. 채널이 없으면 Firebase 가 종전 채널로 돌아간다. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="seagnal_push_high" />
+
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"

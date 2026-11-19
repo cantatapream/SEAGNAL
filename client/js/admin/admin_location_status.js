@@ -1,12 +1,14 @@
 /**
  * ============================================================================
  * admin_location_status.js — 관리자 센터 "위치 기반" 탭
- * 역할  : 관리자 센터 "위치 기반" 탭 — 이 기기가 수집·저장한 최신 GPS 위치 표시
+ * 역할  : 관리자 센터 "위치 기반" 탭 — ①설정 화면 「위치 기반 기상 정보 제공」을 누구에게 보일지 고르는 버튼 3개
+ *         (일반 공개 / 관리자만 노출 / 모두 비노출) ②이 기기가 수집·저장한 최신 GPS 위치 표시
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : location-alert/location_alert_core.js(LocationAlertCore.locateZone 재사용), OpenLayers+OSM(CDN — 팝업 지도), Capacitor Preferences(네이티브 저장 위치 읽기)
- *  - 서버 API      : 없음 (완전 온-디바이스 — localStorage/Preferences 만 읽음)
- *  - 마크업        : index2.html 탭 컨테이너에 주입 (#locstat-coords, #locstat-map, #locstat-sealand, #locstat-wake 등)
+ *  - 서버 API      : GET·POST /api/admin/location-alert/exposure (노출 범위 — routes/location_alert.js).
+ *                    수집 위치 쪽은 서버를 안 쓴다(완전 온-디바이스 — localStorage/Preferences 만 읽음)
+ *  - 마크업        : index2.html 탭 컨테이너에 주입 (#locstat-exposure-btns, #locstat-exposure-note, #locstat-coords, #locstat-map, #locstat-sealand, #locstat-wake 등)
  *  - 나를 쓰는 곳  : admin.js ('위치 기반' 탭 선택 시 window.renderLocationStatusTab 호출)
  * ============================================================================
  * 이 관리자 기기가 위치기반 특보(④)를 위해 수집·저장한 최신 GPS 위치를 보여준다.
@@ -114,10 +116,110 @@
         }
     }
 
+    // ── 노출 범위 (2026-11-19, 사용자 확정) ─────────────────────────────────
+    //   설정 화면의 「위치 기반 기상 정보 제공」 카드를 누구에게 보일지. 숨겨진 대상에게는 서버가 알림도 안 보낸다.
+    var EXPOSURE = {
+        user: { label: '일반 공개', desc: '모든 사용자에게 보이고, 켜 둔 모든 기기에 알림을 보냅니다.' },
+        admin: { label: '관리자만 노출', desc: '관리자 기기에만 보이고, 관리자 기기에만 알림을 보냅니다.' },
+        off: { label: '모두 비노출', desc: '아무에게도 보이지 않고, 알림도 보내지 않습니다.' }
+    };
+
+    /**
+     * 서버 응답대로 버튼 3개와 안내 줄을 칠한다.
+     * 예: paintExposure({exposure:'admin', consents:3, targets:2}) → [관리자만 노출] 강조 + 「켜 둔 기기 3대 중 지금 알림 대상 2대」
+     * @param {object} j - {exposure, consents, targets} @returns {void}
+     * [연계] ← locationExposureLoad·locationExposureSet
+     */
+    function paintExposure(j) {
+        Object.keys(EXPOSURE).forEach(function (mode) {
+            var b = document.getElementById('locstat-exposure-' + mode);
+            if (!b) return;
+            var on = mode === j.exposure;
+            b.style.background = on ? '#2563eb' : 'rgba(255,255,255,.08)';
+            b.style.color = on ? '#fff' : '#cbd5e1';
+            b.style.borderColor = on ? '#60a5fa' : 'transparent';
+        });
+        var note = document.getElementById('locstat-exposure-note');
+        var cur = EXPOSURE[j.exposure];
+        if (note && cur) {
+            note.innerHTML = '지금: <b style="color:#e2e8f0;">' + esc(cur.label) + '</b> — ' + esc(cur.desc) +
+                '<br>켜 둔 기기 ' + esc(String(j.consents)) + '대 중 지금 알림 대상 <b style="color:#e2e8f0;">' + esc(String(j.targets)) + '대</b>';
+        }
+    }
+
+    /** 노출 범위를 못 불러왔거나 못 바꿨을 때 — 빈 화면으로 두지 않고 빨갛게 알린다. */
+    function paintExposureError(msg) {
+        var note = document.getElementById('locstat-exposure-note');
+        if (note) note.innerHTML = '<span style="color:#fca5a5;">' + esc(msg) + '</span>';
+    }
+
+    /**
+     * 지금 노출 범위를 서버에서 읽어 칠한다.
+     * [연계] ← renderLocationStatusTab / → 서버 GET /api/admin/location-alert/exposure (admin.js fetch 래퍼가 관리자 토큰을 붙인다)
+     */
+    window.locationExposureLoad = async function () {
+        try {
+            var res = await fetch('/api/admin/location-alert/exposure', { cache: 'no-store' });
+            var j = await res.json();
+            if (!res.ok || !j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + res.status));
+            paintExposure(j);
+        } catch (e) {
+            console.warn('[관리자] 위치 기반 노출 범위 조회 실패:', e && e.message);
+            paintExposureError('노출 범위를 불러오지 못했습니다 — ' + ((e && e.message) || '알 수 없는 오류'));
+        }
+    };
+
+    /**
+     * 노출 범위를 바꾼다(확인 창을 거친다 — 누르는 즉시 모든 사용자 화면·알림 대상이 바뀐다).
+     * 예: locationExposureSet('user') → 확인 → POST {exposure:'user'} → [일반 공개] 강조
+     * @param {string} mode - 'user'|'admin'|'off'
+     * [연계] ← 버튼 onclick / → 서버 POST /api/admin/location-alert/exposure
+     */
+    window.locationExposureSet = async function (mode) {
+        var next = EXPOSURE[mode];
+        if (!next) return;
+        var msg = '「' + next.label + '」(으)로 바꿀까요?<br>' + next.desc + '<br>누르는 즉시 적용됩니다.';
+        var ok = (typeof window.showCustomPopup === 'function')
+            ? await window.showCustomPopup({
+                icon: '<svg viewBox="0 0 24 24" stroke="#7fd1ff"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
+                iconBg: 'rgba(127,209,255,0.12)',
+                title: '노출 범위 변경', message: msg, confirmText: '변경', cancelText: '취소'
+            })
+            : window.confirm(msg.replace(/<br>/g, '\n'));
+        if (!ok) return;
+        try {
+            var res = await fetch('/api/admin/location-alert/exposure', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ exposure: mode })
+            });
+            var j = await res.json();
+            if (!res.ok || !j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + res.status));
+            paintExposure(j);
+            if (typeof toast === 'function') toast('노출 범위: ' + next.label);
+        } catch (e) {
+            console.warn('[관리자] 위치 기반 노출 범위 변경 실패:', e && e.message);
+            paintExposureError('바꾸지 못했습니다 — ' + ((e && e.message) || '알 수 없는 오류') + ' (종전 설정 그대로입니다)');
+        }
+    };
+
     // ── 렌더 ────────────────────────────────────────────────────────────────
     window.renderLocationStatusTab = function (container) {
         if (!container) return;
+        var expBtn = function (mode) {
+            return '<button id="locstat-exposure-' + mode + '" onclick="window.locationExposureSet(\'' + mode + '\')" ' +
+                'style="flex:1;min-width:92px;padding:10px 8px;border-radius:9px;border:1px solid transparent;background:rgba(255,255,255,.08);color:#cbd5e1;font-weight:700;font-size:0.85rem;cursor:pointer;">' +
+                EXPOSURE[mode].label + '</button>';
+        };
         container.innerHTML =
+            '<div class="admin-section-title">' +
+            '  <span><i class="fa-solid fa-eye" style="color:#60a5fa;"></i> 위치 기반 · 노출 범위</span>' +
+            '</div>' +
+            '<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;margin-bottom:16px;">' +
+            '  <div style="font-size:0.82rem;color:#94a3b8;margin-bottom:10px;">설정 → 푸시 알림의 「위치 기반 기상 정보 제공」을 누구에게 보일지 고릅니다.</div>' +
+            '  <div id="locstat-exposure-btns" style="display:flex;gap:8px;flex-wrap:wrap;">' + expBtn('user') + expBtn('admin') + expBtn('off') + '</div>' +
+            '  <div id="locstat-exposure-note" style="font-size:0.8rem;color:#94a3b8;margin-top:10px;line-height:1.6;">불러오는 중…</div>' +
+            '</div>' +
             '<div class="admin-section-title">' +
             '  <span><i class="fa-solid fa-location-dot" style="color:#34d399;"></i> 위치 기반 · 수집 위치</span>' +
             '</div>' +
@@ -155,6 +257,7 @@
             }
         };
 
+        window.locationExposureLoad();
         window.locationStatusRefresh();
     };
 

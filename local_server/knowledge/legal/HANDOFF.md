@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-19 23:58 KST] 🟢착수 — 앱: 위치기반 노출 3단 설정 + 헤드업 알림 + 유연형 앱 내 업데이트 (브랜치 ccr-dcbed43b-yg4tlo)
+사용자 지시(2026-11-19): ①설정의 '위치 기반 기상 정보 제공' 카드를 관리자에게만 보이게 하고, 통합 관리자 센터 '위치 기반' 탭에 [일반 공개][관리자만 노출][모두 비노출] 3버튼 신설(기본=관리자만). 비노출 대상은 알림(깨우기 신호)도 멈춘다(사용자 답 2-b). ②일반 푸시를 헤드업(화면 위 팝업)으로 — APK 에 중요도 높은 기본 알림 채널 신설(서버 무변경 설계). ③Play 인앱 업데이트 유연형(뒤에서 내려받고 '다시 시작') — 커스텀 Capacitor 플러그인 + capacitor-plugins.js. ④앱 아이콘 교체는 사용자가 그림 제공 후. 스테이징 미사용(사용자 확정) → 옛 APK 호환·실패 시 기존 경로 폴백을 설계 원칙으로 하고, 독립 검토 3각도 + CI 디버그 APK 빌드로 검증한다.
+
+
 ### [2026-11-18 21:22 KST] ✅완료 — 날짜 선택 휠 피커 — 앱 전체 날짜칸 공통 적용 (브랜치 claude/festive-tesla-k7ie2s, PR 전)
 사용자 요청 「날짜 선택하는 부분이 현재 캘린더 방식으로 되어있는데 휠 피커로 년월일을 선택할 수 있도록 해줘」(사고정보 기간선택·통합관리자 통계 등). 한 일: client/js/shared/ui/wheel_date_picker.js 신설 — 문서 전체에서 input[type=date]·datetime-local 누름을 가로채 아래서 올라오는 휠 시트(년·월·일, 날짜시각칸은 시·분까지)를 띄우고, [확인] 시 칸 값·input·change 이벤트를 원래 형식대로 넣는다. 그래서 사고정보 기간(accident_info.js), 관리자 통계·이용현황·CSV·공지만료(admin_collect.js), 설문 기간(admin_survey.js), 특보 발표시각·로그 조회·작업모드 종료(admin.js), 공지 만료(admin_trigger.js) 등 20여 칸은 코드 무수정. 제외는 data-native-picker 속성. 원래 readonly·disabled 칸은 손대지 않음. 시험 test_wheel_date_picker 23 PASS(verify_all SUITES 등록·규칙집 재생성·로드순서 기준선 1줄 추가). 실제 앱(Pixel 7 화면)에서 사고정보 기간·관리자 통계 둘 다 값 반영 확인. verify_all: 실패 다수가 이 컨테이너의 playwright-core 모듈 경로 문제(Cannot find module) — NODE_PATH 에 /opt/node-tools/node_modules 넣고 해당 스위트 재실행해 확인. 참고: 조석 격자 달력 client/tide_calendar.js 는 호출처 0(죽은 코드)이라 손대지 않음. 로컬 서버는 시작 시 .br/.gz 압축본을 만들어 계속 쓰므로 JS 를 고친 뒤엔 서버 재시작해야 새 판이 나간다(로컬 확인 때 헷갈림). 다음: 사용자 확인 후 PR.
 

@@ -660,12 +660,156 @@ function showUpdatePopup(currentVersion, latestVersion, updateMessage, playStore
     });
 }
 
+// ----------------------------------------------------------------------------
+// [앱 안 업데이트 — 유연형] (2026-11-19, 사용자 확정)
+//   새 APK(네이티브 SeagnalAppUpdate 플러그인 — android/.../update/AppUpdatePlugin.java)에서만 동작한다.
+//   흐름: 앱 시작 → Play 스토어에 새 버전을 묻는다 → 있으면 Play 의 「업데이트할까요?」 창 →
+//         [업데이트]를 누르면 앱을 쓰는 동안 뒤에서 내려받는다 → 다 받으면 화면 아래 「다시 시작」 띠.
+//   못 쓰는 경우(옛 APK·스토어 밖 설치·Play 가 유연형을 불허)는 false 를 돌려줘 아래 종전 방식
+//   (서버 버전 비교 → 스토어 이동 팝업)이 그대로 돈다.
+// ----------------------------------------------------------------------------
+
+// 사용자가 Play 확인 창에서 [나중에]를 눌러도 앱을 켤 때마다 다시 묻지 않도록, 마지막으로 물은 시각을 남긴다.
+//   이 간격이 없으면 하루에도 앱을 켤 때마다 「업데이트할까요?」 창이 뜬다.
+const IN_APP_UPDATE_ASKED_KEY = 'seagnal_inapp_update_asked_at';
+const IN_APP_UPDATE_ASK_GAP_MS = 24 * 60 * 60 * 1000;
+
+/** 네이티브 앱 안 업데이트 플러그인(없으면 null — 옛 APK). */
+function getInAppUpdatePlugin() {
+    const P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.SeagnalAppUpdate;
+    return (P && typeof P.check === 'function') ? P : null;
+}
+
 /**
- * 앱 시작 시 서버에서 최신 버전을 확인하고, 업데이트가 필요하면 팝업 표시
+ * 새 버전을 다 내려받았을 때 화면 아래에 「다시 시작」 띠를 띄운다.
+ * 예: showUpdateReadyBar(AU) → 「새 버전을 내려받았습니다 [다시 시작]」 → 누르면 설치 후 앱이 새 버전으로 다시 켜진다
+ * @param {object} AU - SeagnalAppUpdate 플러그인
+ * [연계] ← tryInAppUpdate(앱 시작 때 이미 받아 둔 경우) · installState 리스너(쓰는 중에 다 받은 경우)
+ *        → AU.complete() (AppUpdatePlugin.complete — Play 가 설치하고 앱을 다시 시작한다)
+ */
+function showUpdateReadyBar(AU) {
+    if (!document.body || document.getElementById('app-update-ready-bar')) return; // 중복 생성 방지
+    const bar = document.createElement('div');
+    bar.id = 'app-update-ready-bar';
+    bar.innerHTML = `
+        <style>
+            #app-update-ready-bar {
+                position: fixed;
+                left: 12px; right: 12px;
+                bottom: calc(env(safe-area-inset-bottom, 0px) + 84px);
+                z-index: 999990;
+                display: flex; align-items: center; justify-content: space-between; gap: 12px;
+                padding: 12px 14px;
+                background: linear-gradient(135deg, #161b2d 0%, #1a2238 100%);
+                border: 1px solid rgba(96, 165, 250, 0.45);
+                border-radius: 14px;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+                color: #e2e8f0;
+                font-family: 'Inter', 'Noto Sans KR', sans-serif;
+                font-size: 0.9rem; font-weight: 600;
+            }
+            #app-update-ready-bar button {
+                flex: none;
+                padding: 9px 16px;
+                background: #2563eb; color: #fff;
+                border: none; border-radius: 10px;
+                font-size: 0.88rem; font-weight: 700;
+                cursor: pointer;
+            }
+            #app-update-ready-bar button:disabled { opacity: 0.6; }
+        </style>
+        <span>새 버전을 내려받았습니다.</span>
+        <button type="button" id="app-update-restart-btn">다시 시작</button>
+    `;
+    document.body.appendChild(bar);
+    const btn = document.getElementById('app-update-restart-btn');
+    btn.addEventListener('click', () => {
+        btn.disabled = true;
+        btn.textContent = '설치 중…';
+        // 성공하면 앱이 다시 시작되므로 아래 then 은 보통 실행되지 않는다. 실패하면 버튼을 되살린다.
+        AU.complete().catch((e) => {
+            console.error('[AppUpdate] 설치 시작 실패:', e && e.message);
+            btn.disabled = false;
+            btn.textContent = '다시 시작';
+        });
+    });
+}
+
+/**
+ * 앱 안 업데이트(유연형)를 시도한다.
+ * 예: 새 APK + Play 에 새 버전 있음 → Play 확인 창을 띄우고 true · 옛 APK → false(종전 방식으로)
+ * @returns {Promise<boolean>} true = 이 길이 맡았다(종전 스토어 팝업을 띄우지 않는다) · false = 못 썼다(종전 방식으로)
+ * [연계] ← checkAppUpdate / → AppUpdatePlugin(check·start·complete) · showUpdateReadyBar
+ */
+async function tryInAppUpdate() {
+    const AU = getInAppUpdatePlugin();
+    if (!AU) return false; // 옛 APK — 플러그인 없음
+
+    let info;
+    try {
+        info = await AU.check();
+    } catch (e) {
+        // Play 에 물을 수 없다(스토어 밖 설치 등) → 종전 방식.
+        console.warn('[AppUpdate] 앱 안 업데이트 확인 불가 → 종전 방식:', e && e.message);
+        return false;
+    }
+    if (!info) return false;
+
+    // 쓰는 중에 내려받기가 끝나면 「다시 시작」 띠를 띄운다. 실패·취소면 다음 실행 때 다시 묻도록 기록을 지운다.
+    try {
+        AU.addListener('installState', (s) => {
+            if (!s) return;
+            if (s.downloaded) showUpdateReadyBar(AU);
+            else if (s.status === 'failed' || s.status === 'canceled') {
+                console.warn('[AppUpdate] 내려받기 ' + s.status + ' — 다음 실행 때 다시 묻는다');
+                try { localStorage.removeItem(IN_APP_UPDATE_ASKED_KEY); } catch (_) { /* 저장소를 못 쓰면 간격 기록도 없다 — 다음 실행 때 어차피 다시 묻는다 */ }
+            }
+        });
+    } catch (e) {
+        console.warn('[AppUpdate] 상태 리스너 등록 실패(다 받으면 다음 실행 때 띠가 뜬다):', e && e.message);
+    }
+
+    if (info.downloaded) { showUpdateReadyBar(AU); return true; }   // 이미 받아 둠 → 설치만 남았다
+    if (info.inProgress) return true;                               // 내려받는 중 → 리스너가 이어받는다
+    if (!info.updateAvailable) {                                    // Play 기준 최신
+        console.log('[AppUpdate] Play 기준 최신 버전입니다.');
+        return true;
+    }
+    if (!info.flexibleAllowed) return false;                        // 새 버전은 있는데 유연형 불가 → 종전 방식(스토어)
+
+    // 마지막으로 물은 지 하루가 안 됐으면 다시 묻지 않는다.
+    let askedAt = 0;
+    try { askedAt = Number(localStorage.getItem(IN_APP_UPDATE_ASKED_KEY)) || 0; } catch (_) { askedAt = 0; }
+    if (askedAt && Date.now() - askedAt < IN_APP_UPDATE_ASK_GAP_MS) return true;
+    try { localStorage.setItem(IN_APP_UPDATE_ASKED_KEY, String(Date.now())); } catch (_) { /* 저장소를 못 쓰면 다음 실행 때 다시 묻게 될 뿐이다 */ }
+
+    try {
+        const r = await AU.start(); // Play 확인 창 — 사용자가 고를 때까지 기다린다
+        console.log('[AppUpdate] 앱 안 업데이트 ' + (r && r.accepted ? '수락 — 뒤에서 내려받는다' : '보류(나중에)'));
+        return true;
+    } catch (e) {
+        // 창을 못 띄웠다 → 물은 기록을 지우고 종전 방식으로.
+        console.warn('[AppUpdate] 앱 안 업데이트 시작 실패 → 종전 방식:', e && e.message);
+        try { localStorage.removeItem(IN_APP_UPDATE_ASKED_KEY); } catch (_) { /* 위와 같다 */ }
+        return false;
+    }
+}
+
+/**
+ * 앱 시작 시 업데이트를 확인한다.
+ *   ① 앱 안 업데이트(유연형)를 먼저 시도하고(tryInAppUpdate),
+ *   ② 그 길을 못 쓰면 종전대로 서버에서 최신 버전을 확인해 팝업(스토어 이동)을 띄운다.
  */
 const checkAppUpdate = async () => {
     // 네이티브 앱에서만 동작 (브라우저에서는 무시)
     if (!window.Capacitor || !window.Capacitor.isNativePlatform()) return;
+
+    // ① 앱 안 업데이트 — 여기서 맡았으면 끝. 어떤 예외가 나도 종전 방식(②)은 그대로 돈다.
+    try {
+        if (await tryInAppUpdate()) return;
+    } catch (e) {
+        console.warn('[AppUpdate] 앱 안 업데이트 처리 중 예외 → 종전 방식:', e && e.message);
+    }
 
     try {
         // 현재 앱 버전 가져오기 (@capacitor/app 플러그인)

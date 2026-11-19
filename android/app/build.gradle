@@ -7,8 +7,8 @@ android {
         applicationId "com.seagnal.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 14
-        versionName "1.2.2"
+        versionCode 15
+        versionName "1.2.3"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -66,6 +66,9 @@ dependencies {
     //   앱 모듈 컴파일 클래스패스에 필요하다. capacitor.build.gradle 가 자동 포함하지만, 생성 순서·
     //   누락에 대비해 명시적으로 선언(중복 시 gradle 이 dedup, 무해).
     implementation project(':capacitor-push-notifications')
+    // [앱 안 업데이트] Google Play In-App Updates(유연형) — update/AppUpdatePlugin.java 가 쓴다.
+    //   Play 스토어에서 설치한 앱에서만 동작하고, 그 밖에서는 플러그인이 실패를 돌려줘 JS 가 종전 방식으로 간다.
+    implementation 'com.google.android.play:app-update:2.1.0'
 }
 
 apply from: 'capacitor.build.gradle'
