@@ -10,7 +10,7 @@
 | `image_compress.js` | 관리자 게시글 에디터(Quill) 의 이미지 자동 압축 유틸리티 | `_redraw`, `_tryEncode`, `compressImageToJpeg`, `blobToDataURL` |
 | `markdown_import.js` | 관리자 글쓰기 [마크다운 파일 불러오기] — .md 글·사진(파일 안 data URI)을 본문 HTML 로 바꿔 편집기에 채운다(저장은 관리자가 확인 뒤 [저장]). 규칙: 저장소 `NOTICE.md`. 목록 단계(ql-indent-1·2)·`==중요==` 노랑·`!!주의!!` 주황. 불러온 글은 `format:'md'` 로 저장되고 보기·편집기에 `.promo-md`(style.css — 단계별 글자 크기·간격)가 걸린다 | `toHtml` |
 | `promo.js` | ※ 마크다운 글 보기 칸의 줄 맞춤은 공용 `shared/ui/text_fit.js`(`textFit`)를 부른다(2026-11-18 — 처음엔 이 폴더 md_fit.js 였으나 해상 기상 전망·안내 팝업도 쓰게 되어 옮김). |  |
-| `promo.js` | 홍보 게시판 (렌더링, 검색, 파일첨부, 관리자 편집) | `renderAttachmentList`, `getFileIcon`, `formatFileSize`, `handleFileUpload`, `loadPromoPosts`, `renderPromoTabs` |
+| `promo.js` | 홍보 게시판 (렌더링, 검색, 파일첨부, 관리자 편집). 상세 팝업(2026-11-19 사용자 확정 시안 — artifact 6qqYwX14Hotmb3zz7JAi3i)은 머리(제목·날짜, 고정) · 몸통(`#promo-detail-scroll` — 본문·반응 줄·댓글 목록, 이 칸만 스크롤, 좌우 여백 최소) · 발(`#comment-input-area` — 댓글 입력, 고정) 세 칸이고, ❤️👍😮 반응 버튼은 제목 아래에서 본문 끝 「댓글 N개」 자리로 옮겼다(그 줄 오른쪽 끝 「작성 가이드라인」). 시험 `test_promo_detail_ui` | `renderAttachmentList`, `getFileIcon`, `formatFileSize`, `handleFileUpload`, `loadPromoPosts`, `renderPromoTabs` |
 
 ## 로드 순서
 

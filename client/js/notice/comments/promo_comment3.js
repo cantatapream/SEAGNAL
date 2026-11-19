@@ -6,7 +6,7 @@
  * [연계]
  *  - 사용하는 파일 : promo_comment1.js(isAdminMode·getCommentDeviceId·_currentCommentPostId), promo_comment5.js(refreshComments)
  *  - 서버 API      : /api/comments, /api/comments/* (등록·수정·삭제), /api/comment-reports (신고)
- *  - 마크업        : index2.html #comment-input-textarea, #comment-char-count, #comment-secret-check, #comment-report-modal
+ *  - 마크업        : index2.html #comment-input-area(게시글 팝업 아래 고정 칸 — 그 안에 #comment-input-textarea, #comment-char-count, #comment-secret-check), #promo-detail-scroll, #comment-report-modal
  *  - 나를 쓰는 곳  : promo_comment5.js(renderCommentInput 호출), promo_comment2.js(수정/삭제 버튼)
  * ============================================================================
  *
@@ -59,27 +59,29 @@ function renderCommentInput(inputWrapEl, allowComments) {
         ? '<div class="comment-disabled-notice"><i class="fa-solid fa-ban"></i> 댓글 기능이 비활성화된 게시글입니다. (관리자는 댓글 확인 가능)</div>'
         : '';
 
+    // [2026-11-19 사용자 확정 시안] 게시글 팝업 맨 아래 고정 칸에 들어가는 입력칸(index2.html #comment-input-area).
+    //   「댓글 입력창의 영역 상하를 1/3로 줄이고 등록버튼도 댓글입력창의 오른쪽에 배치 / 관리자 오른쪽 끝에 비밀댓글 체크박스와 텍스트를 붙이고」
+    //   → [닉네임 ……… ☐🔒비밀댓글] / [입력창(한 줄 높이, 오른쪽 아래 0/500) | 등록]. 모양은 style.css .promo-detail-comment-footer
+    var off = (!allowComments && isAdmin) ? ' disabled' : '';
     inputWrapEl.innerHTML = disabledNotice
         + '<div class="comment-input-wrap">'
         + '<div class="comment-input-header">'
         + '<span class="comment-nickname-badge" style="' + badgeStyle + '">' + escapeCommentHtml(myNickname) + '</span>'
-        + '</div>'
-        + '<textarea id="comment-input-textarea" class="comment-textarea" '
-        + 'placeholder="댓글을 입력하세요... (최대 500자)" maxlength="500" rows="3"'
-        + ((!allowComments && isAdmin) ? ' disabled' : '')
-        + '></textarea>'
-        + '<div class="comment-input-footer">'
-        // 비밀 댓글 체크박스
+        // 비밀 댓글 체크박스 — 닉네임 줄 오른쪽 끝
         + '<label class="comment-secret-label">'
         + '<input type="checkbox" id="comment-secret-check"> '
-        + '<i class="fa-solid fa-lock" style="color:#f59e0b;margin-right:3px;"></i>비밀 댓글'
+        + '<i class="fa-solid fa-lock" style="color:#f59e0b;margin-right:3px;"></i>비밀댓글'
         + '</label>'
-        + '<div style="display:flex;gap:6px;">'
-        + '<span id="comment-char-count" class="comment-char-count">0/500</span>'
-        + '<button class="comment-submit-btn" onclick="submitComment()" '
-        + ((!allowComments && isAdmin) ? 'disabled' : '')
-        + '><i class="fa-solid fa-paper-plane"></i> 등록</button>'
         + '</div>'
+        + '<div class="comment-input-row">'
+        + '<div class="comment-textarea-box">'
+        + '<textarea id="comment-input-textarea" class="comment-textarea" aria-label="댓글 입력" '
+        + 'placeholder="댓글을 입력하세요... (최대 500자)" maxlength="500" rows="1"' + off
+        + '></textarea>'
+        + '<span id="comment-char-count" class="comment-char-count">0/500</span>'
+        + '</div>'
+        + '<button class="comment-submit-btn" onclick="submitComment()"' + off
+        + '><i class="fa-solid fa-paper-plane"></i> 등록</button>'
         + '</div>'
         + '</div>';
 
@@ -141,6 +143,9 @@ window.submitComment = async function() {
             if (isSecretCheck) isSecretCheck.checked = false;
             // 댓글 목록 새로고침
             await refreshComments();
+            // 입력칸이 팝업 아래에 고정이라 목록은 위에 있다 — 방금 단 댓글이 보이게 몸통을 끝까지 내린다(2026-11-19)
+            var scrollEl = document.getElementById('promo-detail-scroll');
+            if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
         } else {
             alert('댓글 등록 실패: ' + (result.error || '알 수 없는 오류'));
         }

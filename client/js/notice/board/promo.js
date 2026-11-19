@@ -620,6 +620,9 @@ window.openPromoDetail = async function (postId) {
         });
 
         modal.classList.remove('hidden');
+        // 몸통(본문·댓글)만 스크롤된다 — 다른 글을 열면 맨 위부터(2026-11-19, 제목 머리·댓글 입력칸은 고정)
+        const scrollEl = document.getElementById('promo-detail-scroll');
+        if (scrollEl) scrollEl.scrollTop = 0;
         // 마크다운 글: 줄 끝 2~3글자 넘침을 그 줄 글자 간격으로 맞춘다(shared/ui/text_fit.js — 칸이 보인 뒤에 재야 해서 여기,
         //   글꼴이 늦게 오거나 폭이 바뀌면 그 파일이 다시 맞춘다). 편집기 칸에는 걸지 않는다.
         if (post.format === 'md' && window.textFit) window.textFit(contentEl, 'p, li, h2, h3, blockquote');
@@ -656,6 +659,8 @@ window.closePromoDetail = function () {
         // 리액션 영역 초기화
         const reactionsWrap = document.getElementById('promo-detail-reactions');
         if (reactionsWrap) reactionsWrap.innerHTML = '';
+        // 아래 고정 댓글 입력칸·가이드라인 단추도 비운다(다음 글에서 다시 그린다 — 2026-11-19 index2.html 로 옮김)
+        ['comment-input-area', 'comment-guideline-slot'].forEach((id) => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
     }
 };
 
