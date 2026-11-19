@@ -156,6 +156,9 @@ function makeBriefing() {
         const click = (sel) => pg.evaluate((s) => { const e = document.querySelector(s); if (!e) throw Error('없음: ' + s); e.click(); }, sel);
         const closePopup = () => pg.evaluate(() => { const x = document.querySelector('[data-sb-map-popup] [data-sb-map-close]'); if (x) x.click(); });
         const C = '#station-briefing-content ';
+        // 브리핑 칸(총평·연안·해상)은 한 번에 하나만 열린다(2026-11-19 사용자 요청 — station_briefing_render.js section()).
+        //   지도처럼 보여야 그려지는 것은 그 칸을 먼저 연다. 이미 열려 있으면 그대로(머리를 누르면 닫히므로).
+        const openSec = (key) => pg.evaluate((k) => { const r = document.querySelector('#station-briefing-content [data-sb-sec="' + k + '"]'); if (r && !r.classList.contains('open')) r.querySelector(':scope > .marine-forecast-sub-header').click(); }, key);
 
         // ── 1. 연안 안전 브리핑 아코디언 ──
         await check('[브리핑] 아코디언을 펼치면 1건(briefing.open) · 접으면 0건 · 다시 펼치면 또 1건', async () => {
@@ -221,6 +224,7 @@ function makeBriefing() {
             await pg.keyboard.press('Escape'); await pg.waitForTimeout(400); await pg.keyboard.press('Escape');
         });
         await check('[위험예측] 해상 근거 「위험이 높아진 해역」·「위험예보만」 펼침 지도 → risk.basis_map_from_briefing 각 1건 · 그 칸을 눌러 연 화면 시트 → risk.sheet.sea_from_briefing 1건', async () => {
+            await openSec('overview');   // 이 지도 단추는 「총평과 권고」 칸 안이다 — 앞 단계가 다른 칸을 열어 총평 칸이 닫혀 있다(한 칸만 열림)
             // 이 자료의 위험 예측 칸은 한림 관할 상자 밖이라, 관할 상자 요청에만 관할 안 칸 하나를 돌려준다(test_station_briefing_ui.js §11.10.24-UI4 와 같은 방법)
             await pg.route('**/api/risk-forecast/sea/area-frame?*', async (route) => { const u = new URL(route.request().url()); if (u.searchParams.get('mode') !== 'risk') return route.continue();
                 const res = await route.fetch(), j = await res.json(); j.cells = j.cells.concat([{ id: IN_CELL.id, lon: IN_CELL.lon, lat: IN_CELL.lat, n: 0.002, level: '주의', color: 0.3 }]); return route.fulfill({ response: res, json: j }); });
@@ -235,6 +239,7 @@ function makeBriefing() {
             await pg.unroute('**/api/risk-forecast/sea/area-frame?*');
         });
         await check('[위험예측] 연안 카드 [위험구역] 표 펼침 0건 · [위치 보기](위험예측 위험구역 자료 지도) → risk.hazard_map_from_briefing 1건', async () => {
+            await openSec('land');
             let r = await keysOf(() => click(C + '[data-sb-card="land"] button[data-sb-x="land-hazard"]')); assert.deepEqual(r.ours, [], '표 펼침');
             r = await keysOf(() => click(C + '[data-sb-card="land"] button[data-sb-x="land-hazard-map"]')); assert.deepEqual(r.ours, ['risk.hazard_map_from_briefing']);
         });
