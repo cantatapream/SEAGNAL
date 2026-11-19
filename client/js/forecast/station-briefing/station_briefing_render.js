@@ -1591,6 +1591,54 @@
         marks.forEach(function (k) { appendText(node, t.slice(at, k.a)); var b = el('b', 'sb-hl sb-fv', t.slice(k.a, k.b)); b.setAttribute('data-sb-wx-k', k.k); if (k.k === 'warn') { if (k.r === 3) b.classList.add('sb-hl-red'); else b.style.color = colorOf(k.r); b.setAttribute('data-rank', String(k.r)); } else b.classList.add('sb-hl-b'); node.appendChild(b); at = k.b; });
         appendText(node, t.slice(at)); return node;
     }
+    // 「기상 현황」·「특이사항」·「물때」 머리 아이콘(선 아이콘 — 구름 · 경고 삼각형 · 물결) — B안(2026-11-19 사용자 「b안이 좋겠어」, 시안 artifact 1ie8YztA16qs46cxeFGJyj)
+    var WX_HEAD_ICON = {
+        weather: ['M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9z'],
+        notes: ['M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z', 'M12 9v4', 'M12 17h.01'],
+        tide: ['M2 12c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2', 'M2 18c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2']
+    };
+    /**
+     * (기상)·(물때) 칸의 머리 한 줄 — 색 아이콘 상자 + 굵은 제목 + 오른쪽으로 이어지는 옅은 선(B안). 글자 모양(크기·굵기·색)은 결론 줄(.sb-headline)과 같다(§11.10.9 — 그대로).
+     * 예: wxHead('제주도서부앞바다 기상 현황', 'weather') → <p class="sb-headline sb-wx-head sb-wx-head-weather"><span class="sb-wx-ico"><svg…/></span><span class="sb-wx-title">제주도서부앞바다 기상 현황</span><span class="sb-wx-rule"></span></p>
+     *     textContent 는 제목 글 그대로(아이콘·선은 글이 없다 — 시험·읽어 주기 그대로).
+     * [2026-11-19 사용자] 「00앞바다 기상현황, 특이사항, 물때 이 부분이 어떻게 보면 헤더잖아 ? 뱃지라던지 아니면 유사한 방식으로 구분이 잘 지어지도록」 → 시안 셋 중 「b안이 좋겠어」.
+     * @param {string} text @param {'weather'|'notes'|'tide'} kind @returns {HTMLElement} [연계] ← weatherPart·tidePart / 모양: station_briefing.css .sb-wx-head·.sb-wx-ico·.sb-wx-rule
+     */
+    function wxHead(text, kind) {
+        var h = el('p', 'sb-headline sb-wx-head sb-wx-head-' + kind), ico = el('span', 'sb-wx-ico'), NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg');
+        ico.setAttribute('aria-hidden', 'true');
+        [['width', '15'], ['height', '15'], ['viewBox', '0 0 24 24'], ['fill', 'none'], ['stroke', 'currentColor'], ['stroke-width', '2'], ['stroke-linecap', 'round'], ['stroke-linejoin', 'round']].forEach(function (a) { svg.setAttribute(a[0], a[1]); });
+        (WX_HEAD_ICON[kind] || []).forEach(function (d) { var pth = document.createElementNS(NS, 'path'); pth.setAttribute('d', d); svg.appendChild(pth); });
+        ico.appendChild(svg); h.appendChild(ico); h.appendChild(el('span', 'sb-wx-title', text)); h.appendChild(el('span', 'sb-wx-rule'));
+        return h;
+    }
+    /**
+     * 「○○앞바다 기상 현황」 표 — 때(내일 오전 …) | 천기 | 파고 | 풍향·풍속. 풍향과 풍속은 한 칸에 두 줄(풍속 흰 굵게), 파고 흰 굵게.
+     * [2026-11-19 사용자] 「여기서는 한줄로 잘 나오는데 휴대폰에서는 두줄로 나오거든 ? 글자 크기를 크게 설정하면 두줄로 나오거든 ? 차라리 표로 천기 | 파고 | 풍향·속」
+     *   — 칸마다 자리가 정해져 글자를 키워도 낱말이 엉뚱한 데서 끊기지 않는다(천기는 어절 단위로 칸 안에서 줄바꿈).
+     * 자료: 서버 summary.weather.rows[].cells({sky, wave, dir, speed} — station_briefing_rules.js periodCells). 칸이 없는 줄(그 때 자료 없음)은 「자료 없음」.
+     * 예: wxTable([{label:'내일 오전', cells:{sky:'흐리고 가끔 비', wave:'2.0~4.0m', dir:'북서→북', speed:'10~16m/s'}}]) → <table class="sb-wx-table" data-sb-wx-table>…
+     * @param {Object[]} rows @returns {HTMLElement} [연계] ← weatherPart / 모양: station_briefing.css .sb-wx-table
+     */
+    function wxTable(rows) {
+        var t = el('table', 'sb-wx-table'), hd = el('thead'), hr = el('tr'), tb = el('tbody');
+        t.setAttribute('data-sb-wx-table', '');
+        ['', '천기', '파고', '풍향·풍속'].forEach(function (x, i) { var th = el('th', i ? 'sb-wx-c' + i : 'sb-wx-c0', x); th.setAttribute('scope', 'col'); hr.appendChild(th); });
+        hd.appendChild(hr); t.appendChild(hd);
+        rows.forEach(function (r) {
+            var tr = el('tr'), c = r.cells, lab = el('th', 'sb-wx-when'); lab.setAttribute('scope', 'row');
+            // 「내일 오전」 → 「내일」 / 「오전」 두 줄(때 칸을 좁게)
+            String(r.label || '').split(' ').forEach(function (w, i) { if (i) lab.appendChild(document.createElement('br')); lab.appendChild(document.createTextNode(w)); });
+            tr.appendChild(lab);
+            if (!c) { var no = el('td', 'sb-wx-none', '자료 없음'); no.colSpan = 3; tr.appendChild(no); tb.appendChild(tr); return; }
+            tr.appendChild(el('td', 'sb-wx-sky', c.sky || '—'));
+            tr.appendChild(el('td', 'sb-wx-num', c.wave || '—'));
+            var wd = el('td', 'sb-wx-wind'); wd.appendChild(document.createTextNode(c.dir || '—')); wd.appendChild(document.createElement('br')); wd.appendChild(el('b', 'sb-wx-num', c.speed || '—')); tr.appendChild(wd);
+            tb.appendChild(tr);
+        });
+        t.appendChild(tb);
+        return t;
+    }
     /**
      * (기상) 칸 — 가장 가까운 앞바다 단기 해상예보 오전·오후 두 줄 + 출처 + 특이사항(§11.10.1·§11.10.2). summaryBodyV2(§11.10.1)·summaryBodyV3(§11.10.4) 공용.
      * 2026-10-17 사용자 결정(§11.10.9): 머리 「{구역} 기상 현황」을 결론 줄(.sb-headline 「… 해상의 단계는 "평소 수준"입니다」)과 같은 모양으로 — 원문 *"그 텍스트 크기와 스타일과 동일한 크기로 그 헤더 … 경북북부앞바다 기상 현황"*.
@@ -1603,10 +1651,12 @@
      * @param {function(string,string):HTMLElement} part - 이름표 칸 만들기 @param {Object} S - summary @returns {void} [연계] ← summaryBodyV2·summaryBodyV3 / → wxNodes(줄·특이사항 칠하기 — §11.10.27)
      */
     function weatherPart(part, S) {
-        var W = S.weather || {}, wp = part('weather', null), head = function (text, key) { var h = el('p', 'sb-headline sb-wx-head', text); h.setAttribute('data-sb-wx-head', key); wp.appendChild(h); };
+        var W = S.weather || {}, wp = part('weather', null), head = function (text, key) { var h = wxHead(text, key === 'notes' ? 'notes' : 'weather'); h.setAttribute('data-sb-wx-head', key); wp.appendChild(h); };
         head((W.zone ? W.zone + ' ' : '') + '기상 현황', 'weather');
         if (!W.missing && Array.isArray(W.rows) && W.rows.length) {
-            var wl = el('ul', 'sb-list sb-wx-rows'); W.rows.forEach(function (r) { var li = el('li'); li.appendChild(el('b', '', r.label + ' ')); li.appendChild(document.createElement('br')); wxNodes(li, r.text); wl.appendChild(li); }); wp.appendChild(wl);   // 수치 흰 굵게(§11.10.27) · 머리말 다음 줄에서 날씨 내용(§11.10.32 — 빈칸은 <br> 앞에 남아 textContent 그대로)
+            // 서버가 칸별 값(cells — 2026-11-19)을 주면 표, 옛 판(cells 없음)은 종전 「•」 줄
+            if (W.rows.some(function (r) { return r.cells; })) wp.appendChild(wxTable(W.rows));
+            else { var wl = el('ul', 'sb-list sb-wx-rows'); W.rows.forEach(function (r) { var li = el('li'); li.appendChild(el('b', '', r.label + ' ')); li.appendChild(document.createElement('br')); wxNodes(li, r.text); wl.appendChild(li); }); wp.appendChild(wl); }   // 수치 흰 굵게(§11.10.27) · 머리말 다음 줄에서 날씨 내용(§11.10.32 — 빈칸은 <br> 앞에 남아 textContent 그대로)
             if (W.source) wp.appendChild(el('p', 'sb-small', W.source));
         } else { var wm = el('p', 'sb-miss', '기상예보 자료를 확인하지 못했습니다.'); wm.setAttribute('data-sb-wx-missing', ''); wp.appendChild(wm); }
         if (!W.bulletinMissing && Array.isArray(W.notes) && W.notes.length) {
@@ -1628,7 +1678,7 @@
         // (고립 주의) 줄(§11.10.3)은 물때 줄 아래 — 「과거 고립 사고(N개소 M건)」를 누르면 지점 표(§11.10.10). 「잠기는 바위(간출암) N곳」은 팝업 지도 링크(rocksLine)
         var iso = land && S.isolation && Array.isArray(S.isolation.rows) && S.isolation.rows.length ? S.isolation : null;
         if (!((Array.isArray(S.tide) && S.tide.length) || iso)) return;
-        var tp = part('tide', null), h = el('p', 'sb-headline sb-wx-head', '물때'), ul = el('ul', 'sb-list sb-tide-rows'), item = function (node) { var li = el('li'); li.appendChild(node); ul.appendChild(li); };   /* §11.10.20 덧붙임 10 — 사용자 *"물때에서 괄호는 빼자."*(「(고립 주의)」 머리는 그대로) */
+        var tp = part('tide', null), h = wxHead('물때', 'tide'), ul = el('ul', 'sb-list sb-tide-rows'), item = function (node) { var li = el('li'); li.appendChild(node); ul.appendChild(li); };   /* §11.10.20 덧붙임 10 — 사용자 *"물때에서 괄호는 빼자."*(「(고립 주의)」 머리는 그대로) */
         h.setAttribute('data-sb-tide-head', ''); tp.appendChild(h); tp.appendChild(ul);
         (S.tide || []).forEach(function (t) { item(rocksLine('sb-sum-tide', t, b)); }); if (iso) item(isolationLine(iso));
     }

@@ -454,7 +454,7 @@ function makeBriefings() {
                 const con = qa('.sb-conclusion').map((e) => ({ chip: e.querySelector('.sb-chip').textContent, head: e.querySelector('.sb-headline').textContent, w: getComputedStyle(e.querySelector('.sb-headline')).fontWeight }));
                 const wx = q('[data-sb-part="weather"]');
                 return { secs: qa('[data-sb-sec]').map((e) => e.dataset.sbSec), land: blk('land'), sea: blk('sea'), parts: qa('[data-sb-part]').map((e) => e.dataset.sbPart), con, oldPara: qa('[data-sb-overview]').length, cms: qa('[data-sb-commentary]').length,
-                    wx: { title: wx.querySelector('[data-sb-wx-head="weather"]').textContent, notesHead: (wx.querySelector('[data-sb-wx-head="notes"]') || {}).textContent || null, rows: [...wx.querySelectorAll('.sb-wx-rows li')].map((x) => x.textContent), notes: [...wx.querySelectorAll('.sb-wx-notes li')].map((x) => x.textContent), text: wx.textContent },
+                    wx: { title: wx.querySelector('[data-sb-wx-head="weather"]').textContent, notesHead: (wx.querySelector('[data-sb-wx-head="notes"]') || {}).textContent || null, rows: [...wx.querySelectorAll('.sb-wx-rows li')].map((x) => x.textContent), table: [...wx.querySelectorAll('[data-sb-wx-table] tbody tr')].map((tr) => [...tr.children].map((td) => [...td.childNodes].map((n) => n.nodeName === 'BR' ? ' ' : n.textContent).join(''))), tableHead: [...wx.querySelectorAll('[data-sb-wx-table] thead th')].map((x) => x.textContent), icons: [...wx.querySelectorAll('.sb-wx-head .sb-wx-ico svg')].length, notes: [...wx.querySelectorAll('.sb-wx-notes li')].map((x) => x.textContent), text: wx.textContent },
                     tideLines: qa('[data-sb-part="tide"] .sb-sum-tide').map((x) => x.textContent),
                     now: (q('[data-sb-summary="sea"] [data-sb-now]') || {}).textContent || '', basisOld: !!q('details.sb-basis'), source: (q('[data-sb-source]') || {}).dataset ? q('[data-sb-source]').dataset.sbSource : null,
                     special: qa('.sb-special-title').map((e) => e.textContent), wxbox: (() => { const x = q('[data-sb-summary="sea"] [data-sb-warnbox="basis"]'); return x ? { rows: x.querySelectorAll('tbody tr').length } : null; })(), slots: qa('.sb-slot').length, flags: qa('.sb-slot[data-event]').length, seaCards: qa('[data-sb-card="sea"]').length,
@@ -478,7 +478,11 @@ function makeBriefings() {
             const s = await grab();
             assert.deepEqual([s.land.exp, s.land.hidden, s.sea.exp, s.sea.hidden], ['true', false, 'true', false]);
             assert.equal(s.wx.title, '제주도서부앞바다 기상 현황'); assert.equal(s.wx.notesHead, '특이사항');
-            assert.deepEqual(s.wx.rows, ['오늘 오전 구름많음 · 파고 0.5~1.5m · 풍속 7~11m/s · 풍향 동→남동', '오늘 오후 구름많음 · 파고 0.5~1.5m · 풍속 7~11m/s · 풍향 남동']);
+            // 2026-11-19 사용자 「차라리 표로 — 천기 | 파고 | 풍향·속」: 서버가 칸별 값(cells)을 주면 「•」 줄 대신 표(때 | 천기 | 파고 | 풍향·풍속) · 머리마다 아이콘(B안)
+            assert.deepEqual(s.wx.rows, [], '표로 바뀌어 「•」 줄은 없다');
+            assert.deepEqual(s.wx.tableHead, ['', '천기', '파고', '풍향·풍속']);
+            assert.deepEqual(s.wx.table, [['오늘 오전', '구름많음', '0.5~1.5m', '동→남동 7~11m/s'], ['오늘 오후', '구름많음', '0.5~1.5m', '남동 7~11m/s']]);
+            assert.equal(s.wx.icons, 2, '「기상 현황」·「특이사항」 머리에 아이콘');
             assert.deepEqual(s.wx.notes, B.h.summary.weather.notes); assert.ok(s.wx.notes.length >= 1, '특이사항 글은 서버 규칙 값 그대로(§11.10.2 — 문구는 test_station_briefing.js 가 고정)');
             assert.ok(s.wx.text.includes('제주지방기상청 단기 해상예보 (10.17 05:00 발표)') && s.wx.text.includes('제주지방기상청 단기 전망 (10.17 04:40 발표)'), s.wx.text);
             assert.ok(!s.wx.text.includes('(기상)') && !s.wx.text.includes('(특이사항)') && !s.wx.text.includes('가장 가까운 특보구역'), '§11.10.9 — 「(기상)」·거리 줄 없음: ' + s.wx.text);
@@ -536,6 +540,36 @@ function makeBriefings() {
             const wide = await page.evaluate(() => ({ doc: document.documentElement.scrollWidth, vw: innerWidth })); assert.ok(wide.doc <= wide.vw + 1, JSON.stringify(wide));
             await page.evaluate(() => { const x = document.querySelector('#station-briefing-content button[data-sb-x="basis-sea"]'); if (x.getAttribute('aria-expanded') === 'true') x.click(); });
             await page.setViewportSize({ width: 412, height: 915 });
+        });
+        // 2026-11-19 사용자 「휴대폰에서는 두줄로 나오거든 ? 글자 크기를 크게 설정하면 두줄로 나오거든 ? 차라리 표로」 + 머리 B안(아이콘 + 제목 + 선)
+        await check('[2026-11-19] 기상 현황 표 — 360px·글자 「크게」에서도 표가 칸 밖으로 안 나가고 파고·풍속은 한 줄 · 풍향/풍속 두 줄 · 머리 셋(기상 현황·특이사항·물때)은 아이콘 + 제목 + 선', async () => {
+            const before = await page.evaluate(() => ({ fs: document.documentElement.style.fontSize, attr: document.documentElement.getAttribute('data-font-size') }));   // 뒤 시험이 같은 글자 크기에서 돌게 그대로 돌려놓는다
+            await page.setViewportSize({ width: 360, height: 780 }); await openAcc(page); await clean(page);
+            const sizes = {};
+            for (const fs of ['medium', 'large']) {
+                await page.evaluate((f) => window.FontSizeManager && window.FontSizeManager.apply(f), fs); await page.waitForTimeout(250);
+                sizes[fs] = await page.evaluate(() => {
+                    const p = document.querySelector('#station-briefing-content [data-sb-part="weather"]'), t = p.querySelector('[data-sb-wx-table]'), box = p.getBoundingClientRect();
+                    const nums = [...t.querySelectorAll('.sb-wx-num')].map((e) => e.getClientRects().length);
+                    const wind = [...t.querySelectorAll('td.sb-wx-wind')].map((td) => td.innerText.split('\n').filter(Boolean).length);
+                    const heads = [...document.querySelectorAll('#station-briefing-content .sb-wx-head')].map((h) => ({ kind: (h.className.match(/sb-wx-head-(\w+)/) || [])[1], ico: !!h.querySelector('.sb-wx-ico svg'), rule: h.querySelector('.sb-wx-rule').getBoundingClientRect().width, text: h.textContent }));
+                    p.scrollIntoView({ block: 'start' }); window.scrollBy(0, -80);
+                    return { fit: t.getBoundingClientRect().right <= box.right + 1 && t.scrollWidth <= t.clientWidth + 1, nums, wind, heads, page: document.documentElement.scrollWidth };
+                });
+                await page.waitForTimeout(150); await clean(page);
+                await page.locator('#station-briefing-content [data-sb-part="weather"]').screenshot({ path: path.join(SHOT, 'briefing_wx_table_360_' + fs + '.png') });
+            }
+            for (const fs of ['medium', 'large']) {
+                const r = sizes[fs];
+                assert.ok(r.fit && r.page <= 360, fs + ' 표가 넘친다: ' + JSON.stringify(r));
+                assert.ok(r.nums.every((n) => n === 1), fs + ' 수치가 두 줄로 끊겼다: ' + JSON.stringify(r.nums));
+                assert.ok(r.wind.every((n) => n === 2), fs + ' 풍향/풍속 두 줄: ' + JSON.stringify(r.wind));
+                assert.deepEqual(r.heads.map((h) => h.kind), ['weather', 'notes', 'tide'], JSON.stringify(r.heads));
+                assert.ok(r.heads.every((h) => h.ico && h.rule >= 10), '아이콘·선: ' + JSON.stringify(r.heads));
+            }
+            await page.setViewportSize({ width: 412, height: 915 });
+            await page.evaluate((b) => { document.documentElement.style.fontSize = b.fs; if (b.attr === null) document.documentElement.removeAttribute('data-font-size'); else document.documentElement.setAttribute('data-font-size', b.attr); }, before);
+            await page.waitForTimeout(200);
         });
         await check('[§11.10.9] 사용자 결정 — 분석 근거 알약 배지(오른쪽·꺾쇠 뒤집힘·aria-expanded) · 「평소보다 위험이 높아진 곳 N곳」 표(전부) · 「○○ 기상 현황」 머리 = 결론 줄 모양 · 거리 줄 없음 · 특이사항 없으면 칸째 없음 · 맨 아래 출처 줄 없음 · 지금 밀집 두 줄', async () => {
             await page.setViewportSize({ width: 380, height: 844 }); await openAcc(page);

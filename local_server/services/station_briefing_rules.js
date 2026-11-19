@@ -1083,6 +1083,16 @@ function periodText(p) {
     const has = (v) => v && v !== '-', w = has(p.wind) ? String(p.wind).split('/').map((x) => x.trim()) : [];
     return [has(p.weather) ? String(p.weather).replace(/\s+/g, ' ').trim() : null, has(p.waveHeight) ? '파고 ' + p.waveHeight + 'm' : null, has(w[1]) ? '풍속 ' + w[1] + 'm/s' : null, has(w[0]) ? '풍향 ' + w[0].replace(/~/g, '→') : null].filter(Boolean).join(' · ') || '자료 없음';
 }
+/**
+ * 단기 해상예보 한 칸을 표 칸으로(화면 「○○앞바다 기상 현황」 표 — 천기 | 파고 | 풍향·풍속, 2026-11-19 사용자 「차라리 표로」).
+ * periodText 와 같은 값을 칸별로 나눠 둔다(없는 칸은 null). 한 줄 글(text)은 옛 화면·시험이 그대로 쓰도록 남긴다.
+ * 예: {weather:'구름많음', waveHeight:'0.5~1.5', wind:'동~남동 / 7~11'} → {sky:'구름많음', wave:'0.5~1.5m', dir:'동→남동', speed:'7~11m/s'}
+ * @param {object} p @returns {{sky:?string, wave:?string, dir:?string, speed:?string}} [연계] ← weatherSummary / 화면 station_briefing_render.js weatherPart
+ */
+function periodCells(p) {
+    const has = (v) => v && v !== '-', w = has(p.wind) ? String(p.wind).split('/').map((x) => x.trim()) : [];
+    return { sky: has(p.weather) ? String(p.weather).replace(/\s+/g, ' ').trim() : null, wave: has(p.waveHeight) ? p.waveHeight + 'm' : null, dir: has(w[0]) ? w[0].replace(/~/g, '→') : null, speed: has(w[1]) ? w[1] + 'm/s' : null };
+}
 /** 통보문 마크업({{loc:…}}·{{num:…}}·{{warn:…}} — regional_bulletin_collector 의 AI 색칠)을 벗긴다. 예: '{{loc:제주도}}에는' → '제주도에는'. @param {string} t @returns {string} [연계] ← bulletinNotes */
 // 닫는 괄호를 띄어 쓴 꼴(「{{warn:물결이} }」 — AI 가 가끔 만든다, 2026-11-18 운영에서 3곳)도 벗긴다
 function stripMarkup(t) { return String(t || '').replace(/\{\{(?:loc|num|warn):([^}]*)\}\s*\}/g, '$1'); }
@@ -1300,7 +1310,7 @@ function bulletinNotes(text, issuedDate, targetDate, dayWord, nearZone) { return
  * 자료가 없으면 지어내지 않고 missing·bulletinMissing 으로 밝힌다(화면 「기상예보 자료를 확인하지 못했습니다」).
  * notesFound(독립 검토 3): 통보문에 대상일 토막이 있었는지(자료로만 남긴다). 화면은 §11.10.11(2026-10-17 사용자 결정)부터 notes 가 비면 이유(없음·bulletinMissing·notesFound)와 상관없이 특이사항 칸째 그리지 않는다.
  * 예: weatherSummary(b, {zone:'제주도서부앞바다', distKm:0.5, office:'184', coastal:{officeName:'제주지방기상청',publishTime:'10.17. 05:00',periods:[…]}, bulletin:{officeName,publishTime:'2026.10.17 04:40',text}}, win)
- *     → {zone:'제주도서부앞바다', kind:'coastal', note:null, rows:[{label:'오늘 오전',text:'구름많음 · 파고 0.5~1.5m · …'},{label:'오늘 오후',…}], source:'제주지방기상청 단기 해상예보 (10.17 05:00 발표)', notes:[…], notesFound:true, notesSource:'제주지방기상청 단기 전망 (10.17 04:40 발표)', missing:false, bulletinMissing:false}
+ *     → {zone:'제주도서부앞바다', kind:'coastal', note:null, rows:[{label:'오늘 오전',text:'구름많음 · 파고 0.5~1.5m · …',cells:{sky:'구름많음',wave:'0.5~1.5m',dir:'동→남동',speed:'7~11m/s'}},{label:'오늘 오후',…}], source:'제주지방기상청 단기 해상예보 (10.17 05:00 발표)', notes:[…], notesFound:true, notesSource:'제주지방기상청 단기 전망 (10.17 04:40 발표)', missing:false, bulletinMissing:false}
  * @param {object} b @param {object|null} wx - station_briefing_inputs.collectZoneWeather 결과 @param {object} win @returns {object}
  * [연계] ← buildSummary / → weatherSlotsFor·periodText·bulletinScan·pickNotes
  */
@@ -1308,7 +1318,7 @@ function weatherSummary(b, wx, win) {
     const out = { zone: wx?.zone || null, distKm: wx?.distKm ?? null, kind: wx?.kind || (wx ? 'coastal' : null), note: wx?.note || null, rows: [], source: null, notes: [], notesFound: false, notesSource: null, missing: true, bulletinMissing: true };
     const periods = wx?.coastal?.periods || [];
     if (wx?.coastal && periods.length) {
-        out.rows = weatherSlotsFor(win).map((s) => { const p = periods.find((q) => q.date === s.date && q.period === s.period); return { label: dayLabel(s.date, b.generatedAt) + ' ' + PERIOD_WORD[s.period], text: p ? periodText(p) : '자료 없음', ok: !!p }; });
+        out.rows = weatherSlotsFor(win).map((s) => { const p = periods.find((q) => q.date === s.date && q.period === s.period); return { label: dayLabel(s.date, b.generatedAt) + ' ' + PERIOD_WORD[s.period], text: p ? periodText(p) : '자료 없음', cells: p ? periodCells(p) : null, ok: !!p }; });
         out.missing = !out.rows.some((r) => r.ok);
         out.source = (wx.coastal.officeName || '지방기상청') + ' 단기 해상예보' + (wx.coastal.publishTime ? ' (' + String(wx.coastal.publishTime).replace(/(\d{2}\.\d{2})\.\s*/, '$1 ') + ' 발표)' : '');
     }
