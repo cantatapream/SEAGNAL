@@ -111,14 +111,15 @@ index.html 의 script 태그 순서를 따름 — 변경 금지 (번들러 없�
   | `raw` | 「해상 기상 — 요약을 만들지 못해 원문 그대로」 + 뽑아 둔 원문 바다 줄(「없음」과 다르게 보여야 한다) |
   | 없음(null) | 상자를 그리지 않는다(새 통보문이 들어와 아직 요약 전 · 본문이 없는 옛 자료) |
   꼴이 어긋난 자료(null 줄·빈 글·숫자 없는 해역)는 그 줄만 건너뛰고, 상자를 그리다 실패해도 카드의 나머지는 그린다.
-  줄 규칙은 본문과 같다(어절 단위 `word-break:keep-all` · `textFit` 자간 줄이기). 딱지 색 = `SEA_CHIP`(특보 가능성·이안류·해일 빨강 · 천둥·번개 노랑 · 너울 보라 · 조고 초록 · 바다 안개 회색).
+  줄 규칙은 본문과 같다(어절 단위 `word-break:keep-all` · `textFit` 자간 줄이기). 딱지 색 = `SEA_CHIP`(특보 가능성·이안류·해일 빨강 · 천둥·번개 노랑 · 너울 보라 · 조고·**해제 예고** 초록 · 바다 안개 회색).
+  「해제 예고」 딱지(2026-11-19 오후 추가): 바다 글에 「충남앞바다(해제예고: 19일 밤(21~24시))」가 있으면 서버가 요약에 꼭 싣게 한다 — 운영 「시험 요약」에서 그 말이 빠진 요약이 통과한 것을 사용자가 보고 「둘다 진행」. 상세 = ⑲ 「해제 예고」 절.
 - **「분포도」 줄**: 서버가 뺀다(`regional_bulletin_collector.dropFigureCaption` — 새로 받는 글은 수집 때, 이미 저장된 글은 `/api/regional-forecast` 가 내려줄 때).
 - **만드는 쪽**: `local_server/services/regional_sea_summary.js`(바다 항목 뽑기 → AI 요약 → 원문 대조) · AI 순서는 관리자 「AI 모델 설정」 ⑥(먼저 Gemma → ⑥ 순서) ·
   원문 PDF 는 `services/bulletin_docs.syncExtra`. 조사·설계·한계 = `local_server/analysis/bulletin_survey/README.md` ⑲.
 - **회귀 시험**: `local_server/scripts/test_regional_sea_ui.js`(실제 Chromium — 머리줄 자리·📋 팝업·상자 네 상태·들여쓰기 없음·꺾쇠 글) · `test_regional_sea_summary.js`(서버).
 - 실제 Gemma 로 불러 봄(2026-11-19, 임시 키 — ⑲): 5~15초 · 걸러 낸 답은 모두 실제로 틀린 답(해역 빼먹음·숫자 빼먹음·이름 틀림). 「수요 과다」가 잦다.
 - ⚠확인 못 한 것: 실제 휴대폰 앱 · Gemini 등 순서 쪽 AI 가 요약하는 길(임시 키로는 그 모델이 안 불렸다). 운영에서는 관리자 ⑥ 칸 「시험 요약」으로 본다.
-- `index2.html` 의 `style.css`·`marine_forecast.js` 버전 꼬리표를 `SeaSum_20261119` 로 올렸다(옛 CSS 에 새 화면이 얹히지 않게).
+- `index2.html` 의 `style.css`·`marine_forecast.js` 버전 꼬리표를 `SeaSum_20261119` 로 올렸다(옛 CSS 에 새 화면이 얹히지 않게). 해제 예고 딱지를 넣으며 `marine_forecast.js` 만 `SeaSum_20261119b`.
 
 ## 줄 정렬 (2026-11-18 사용자 확정 — 저장소 NOTICE.md 「줄 정렬」)
 

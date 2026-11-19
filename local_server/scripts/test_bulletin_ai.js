@@ -222,6 +222,16 @@ gemini.callGemini = async (a) => { calls.push({ id: 'gemini', model: a.model });
       seen.length = 0;
       const s3 = await bai.call('seasummary', 'P', { accept: () => false });
       ok('⑥ 어느 AI 의 답이든 검사에 걸리면 실패로 돌려준다(지어낸 숫자가 든 답이 「성공」이 되지 않게) — 던지지 않는다', s3.success === false && s3.tried.map((t) => t.id + ':' + t.ok).join() === 'gemma:false,gemini:false' && /부르는 쪽 검사에 걸림/.test(s3.error), JSON.stringify(s3));
+      // 못 쓴 답은 시도 기록에 전체(raw)를 남긴다 — 오류 문구는 앞 120자뿐이라 까닭을 알 수 없었다(운영 「시험 요약」 2026-11-19)
+      { const LONG = '```json\n{ "zones": [ { "zone": "' + '가'.repeat(300) + '" } ], "notes": [ }\n```';   // 깨진 JSON(120자를 넘는다)
+        gemmaAnswer = () => ({ success: true, text: LONG });
+        const r1 = await bai.call('seasummary', 'P', { accept: () => true });
+        ok('⑥ 못 쓴 답 전체를 시도 기록에 남긴다: Gemma 답이 JSON 이 아닐 때 — error 는 앞 120자, raw 는 답 전체 · 성공한 AI 줄에는 raw 가 없다', r1.provider === 'gemini' && r1.tried[0].id === 'gemma' && /JSON 이 아니다/.test(r1.tried[0].error) && r1.tried[0].raw === LONG && !('raw' in r1.tried[1]), JSON.stringify(r1.tried).slice(0, 300));
+        gemmaAnswer = () => ({ success: true, text: '{"zones":[],"notes":[],"by":"gemma"}' });
+        const r2 = await bai.call('seasummary', 'P', { accept: () => false });
+        ok('⑥ 검사에 걸린 답도 전체를 남긴다(Gemma·순서 쪽 AI 모두) · 호출 자체가 실패하면 raw 가 없다 · 4,000자에서 자른다', r2.success === false && r2.tried.length === 2 && r2.tried.every((t) => typeof t.raw === 'string' && t.raw.length > 10)
+          && (gemmaAnswer = () => ({ success: false, error: '503 수요 과다' }), !('raw' in (await bai.call('seasummary', 'P', { accept: () => true })).tried[0]))
+          && (gemmaAnswer = () => ({ success: true, text: 'x'.repeat(9000) }), (await bai.call('seasummary', 'P', { accept: () => true })).tried[0].raw.length === 4000), JSON.stringify(r2.tried).slice(0, 300)); }
       gemmaAnswer = () => ({ success: true, text: '{"zones":[],"notes":[{"kind":"너울","text":"{{period:내일까지}} {{loc:제주도해안}} 너울"}]}' });
       const s4 = await bai.call('seasummary', 'P', { accept: () => true });
       ok('⑥ 색 표시 꼴은 여기서 보지 않는다(부르는 쪽이 벗겨 내고 본다 — 실제 Gemma 답의 `{{period:…}}`) · 배열·글 답은 여전히 못 쓰는 답', s4.provider === 'gemma'

@@ -38,7 +38,7 @@ const SEA_LABEL = /해상|풍랑|너울|조고|바다\s*안개|해일|이안류|
 //   「특보 가능성」은 「가능성」만으로는 안 된다 — 조고 항목의 「침수 가능성」뿐인 글 96편 중 95편에서 지어낸 「풍랑경보로 강화될 가능성」이 통과했다(별도 에이전트 검토 2026-11-19).
 const KINDS = {
     '특보 가능성': /(?:특보|경보|주의보)[^.\n]{0,40}가능성/, '천둥·번개': /천둥|번개/, '너울': /너울/, '바다 안개': /안개/, '조고': /조고|만조|해수면|바닷물/,
-    '이안류': /이안류/, '기상해일': /기상해일/, '폭풍해일': /폭풍해일/,
+    '이안류': /이안류/, '기상해일': /기상해일/, '폭풍해일': /폭풍해일/, '해제 예고': /해제\s*예고/,
 };
 // 기간 칸에 써도 되는 낱말(글에 없어도 되는 것) — 그 밖의 한글은 글에 있어야 한다
 //   날을 가리키는 말(오늘·내일·모레·글피·당분간)은 여기 없다 — 그 해역의 숫자가 놓인 줄에 있어야 한다(없어도 받으면 「내일 오전까지」가 「오늘」로 나가도 못 잡는다 — 검토에서 1,072편 전부 통과).
@@ -50,6 +50,31 @@ const HEAVY_WORDS = ['없음', '없겠', '않겠', '안전', '해제', '금지',
 const ZONE_TOKEN = /[가-힣.]*[가-힣](?:먼바다|앞바다|연안바다|해상|해안)/g;
 const zoneTokens = (text) => (String(text || '').match(ZONE_TOKEN) || []).map((t) => t.replace(/\./g, '')).filter((t) => t.length >= 4);
 const NUM = /^\d+(?:\.\d+)?(?:~\d+(?:\.\d+)?)?$/;
+// 「해제예고」 — 바다 글에 「서해중부해상은 당분간(충남앞바다(해제예고: 19일 밤(21~24시)))」처럼 괄호 곁말로 적힌다.
+//   조사(3,954편)에서는 특보 현황 줄(○ 풍랑주의보: A(해제 예고: T) — 1,790번, 바다 항목으로 안 뽑는 줄)에만 있었고 바다 항목 안에는 0편이었다.
+//   운영 「시험 요약」(2026-11-19 대전청)에서 처음 나왔는데 요약이 그 말을 빼도 검사가 못 잡았다 → 종류 「해제 예고」로 꼭 싣게 한다.
+const LIFT = /해제\s*예고/;
+const LIFT_PAREN = /\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*\)/g;   // 괄호 한 덩어리(세 겹까지)
+/**
+ * 바다 글 줄들에서 해제 예고를 뽑는다 — 어느 해역(그 말 바로 앞의 해역 이름), 언제(「해제예고:」 뒤, 괄호가 닫히기 전까지).
+ * 예: liftNotices(['… 서해중부해상은 당분간(충남앞바다(해제예고: 19일 밤(21~24시))) 바람이 …']) → [{ zone:'충남앞바다', time:'19일밤(21~24시)' }]
+ *   시점이 「N일 …」 꼴이 아니거나 너무 길면 time 은 ''(그때는 종류가 있는지와 해역만 본다). 앞에 해역 이름이 없으면 zone 은 ''.
+ * @param {string[]} lines @returns {Array<{zone:string, time:string}>} time 은 공백을 걷은 꼴
+ * [연계] ← check
+ */
+function liftNotices(lines) {
+    const out = [];
+    for (const line of lines) {
+        const re = /해제\s*예고\s*[:：,]?\s*((?:[^(),\n]|\([^()\n]*\))*)/g;
+        for (let m; (m = re.exec(line));) {
+            let before = line.slice(0, m.index).replace(/[(（,\s]+$/, '');
+            for (let k = 0; k < 4 && /\([^()]*\)$/.test(before); k++) before = before.replace(/\([^()]*\)$/, '').trim();   // 「A(○○ 제외)(해제예고 …)」의 A
+            const toks = zoneTokens(before), time = bare(m[1]);
+            out.push({ zone: toks.length ? toks[toks.length - 1] : '', time: /^(?:[가-힣]{2,3}\()?(?:\d{1,2}월)?\d{1,2}일/.test(time) && time.length <= 30 ? time : '' });   // 「19일 밤(…)」「오늘(19일) 밤(…)」
+        }
+    }
+    return out;
+}
 
 /** 견주기 쉽게: 색 표시·공백을 걷고 물결표 꼴을 하나로. 예: bare('9 ∼ 18m/s') → '9~18m/s' */
 const bare = (s) => String(s || '').replace(/\{\{(?:loc|num|warn):([^{}]*)\}\}/g, '$1').replace(/[∼〜～]/g, '~').replace(/\s+/g, '');
@@ -116,14 +141,18 @@ const PROMPT = (seaText) => `너는 기상청 지방청 날씨해설의 「바�
 - 숫자가 적힌 문장의 해역은 하나도 빼지 않는다. 한 문장에서 여러 해역이 같은 숫자를 함께 쓰면(「A는 내일까지, B는 당분간 바람이 …」) 그 숫자를 A·B 모두에 적는다.
 - 한 줄 = 한 해역(묶음) × 한 기간. 기간과 숫자가 같은 해역들은 " · " 로 이어 한 줄에 쓴다. 같은 해역이 기간별로 숫자가 다르면 줄을 나눈다.
 - zone: 글에 적힌 이름 그대로(「(○○ 제외)」도 그대로). 줄이거나 풀어 쓰지 않는다.
+- 「(해제예고: …)」 괄호는 zone·period 에 넣지 않는다. notes 의 "해제 예고" 로 쓴다.
 - period: 글의 시점을 짧게. 「…까지」는 "~모레(21일) 오전", 「…부터」는 "내일(20일) 새벽~", 하루면 "오늘(19일)", 「당분간」은 "당분간". 날짜 괄호는 글에 있을 때만 쓴다.
 - wind: 괄호 안 m/s 값만. "30~65km/h(9~18m/s)" → "9~18". 없으면 null.
 - wave: 물결 높이 m 값만. "1.5~4.0m" → "1.5~4.0". 「최대 5.0m 이상」 같은 덧붙임은 zones 에 쓰지 않는다. 없으면 null.
 
 ## notes — 그 밖의 바다 얘기, 종류마다 한 줄
-- kind 는 다음 중에서만: "특보 가능성", "천둥·번개", "너울", "바다 안개", "조고", "이안류", "기상해일", "폭풍해일". 글에 없는 종류는 쓰지 않는다.
+- kind 는 다음 중에서만: "특보 가능성", "해제 예고", "천둥·번개", "너울", "바다 안개", "조고", "이안류", "기상해일", "폭풍해일". 글에 없는 종류는 쓰지 않는다.
   · "특보 가능성" = 풍랑특보·풍랑경보·태풍특보가 발표되거나 변경·연장될 「가능성」이 있다고 글에 적혀 있을 때만. 한 줄에 「가능성」이라는 말을 그대로 쓴다.
     특보가 「발효 중」「발표된」이라는 말은 쓰지 않는다(이미 다른 화면에 있다).
+  · "해제 예고" = 글에 「해제예고」(「해제 예고」)가 적혀 있으면 반드시 쓴다. 해역 이름 바로 뒤에 글의 시점을 한 글자도 바꾸지 않고 적는다: "{{loc:충남앞바다}} 19일 밤(21~24시)".
+    여러 곳이면 " · " 로 잇고, 해역마다 제 시점을 바로 뒤에 적는다(해역과 시점 사이에 다른 말을 넣지 않는다). 해역 이름은 괄호 곁말(「(○○ 제외)」) 없이 이름만 쓴다.
+    해제 예고가 붙지 않은 해역(그 괄호를 품은 더 넓은 해역 포함)과 해제 시점이 아닌 숫자(바람·물결)는 이 줄에 쓰지 않는다.
 - text: 언제·어디·무엇을 60자 안팎으로. 「~하기 바랍니다」 같은 당부는 뺀다. 같은 종류가 여러 번 나오면 " · " 로 이어 한 줄로.
 - text 안의 해역·지역 이름은 {{loc:이름}}, 숫자와 단위는 {{num:1.5~3.0m}}, 위험 표현은 {{warn:풍랑경보 변경 가능성}} 으로 감싼다(겹치지 않게).
   표시는 loc·num·warn 세 가지뿐이다(다른 이름의 표시를 만들지 않는다). 날짜·시점(「모레(21일)까지」)과 숫자가 없는 말은 num 으로 감싸지 않는다.
@@ -180,6 +209,7 @@ function normalize(p) {
 /**
  * 글이 받쳐 주지 않는 군더더기를 버린다(버려도 틀린 답이 맞는 답이 되지는 않는 것만 — 빠뜨림은 뒤에서 check 가 따로 본다).
  *   ①숫자가 없는 해역 줄(wind·wave 둘 다 없음) ②그 종류의 낱말이 바다 글에 없는 한 줄 ③「가능성」이라는 말이 없는 「특보 가능성」 줄(실제 Gemma 답: 「풍랑특보 발효 중」)
+ *   ④해역·기간 칸에 딸려 온 「(…해제예고…)」 괄호(그 말은 「해제 예고」 한 줄로 따로 실린다)
  *   그리고 기간을 원문대로 고친다: 원문에서 그 시점 바로 뒤가 늘 「까지」(또는 「부터」)인데 답이 그 말을 뺐으면 붙인다
  *   (실제 Gemma 답: 원문 「모레(21일) 오전까지」 → 답 「모레(21일) 오전」 — 「그때까지」가 「그때」로 읽힌다).
  * 예: trim({ zones:[{ zone:'A', period:'당분간', wind:null, wave:null }], notes:[{ kind:'너울', text:'…' }] }, items) → { p:{ zones:[], notes:[] }, dropped:['해역 줄(숫자 없음): A', '한 줄(글에 없는 종류): 너울'] }
@@ -191,6 +221,16 @@ function trim(p, items) {
     if (!p || typeof p !== 'object' || Array.isArray(p) || !Array.isArray(p.zones) || !Array.isArray(p.notes)) return { p, dropped };
     const all = items.map((i) => bare(i.lines.join('\n'))).join('\n');
     const zones = p.zones.filter((z) => { if (z && typeof z === 'object' && z.wind == null && z.wave == null) { dropped.push('해역 줄(숫자 없음): ' + z.zone); return false; } return true; });
+    // 해역·기간 칸에 딸려 온 「(…해제예고…)」 괄호는 뺀다 — 그 말은 「해제 예고」 한 줄로 따로 실려야 하고(없으면 check 가 거절), 칸에 남으면 이름이 한 줄을 넘긴다
+    //   (실제 Gemma 답 2026-11-19: zone 「서해중부해상(충남앞바다(해제예고: 19일 밤(21~24시)))」).
+    for (const z of zones) {
+        if (!z || typeof z !== 'object') continue;
+        for (const k of ['zone', 'period']) {
+            if (typeof z[k] !== 'string' || !LIFT.test(z[k])) continue;
+            const cut = z[k].replace(LIFT_PAREN, (m) => (LIFT.test(m) ? '' : m)).trim();
+            if (cut !== z[k]) { dropped.push('해역·기간 칸의 해제 예고 곁말을 뺌: ' + z[k].slice(0, 60)); z[k] = cut; }
+        }
+    }
     const notes = p.notes.filter((n) => {
         if (!n || typeof n !== 'object' || !Object.prototype.hasOwnProperty.call(KINDS, n.kind)) return true;   // 꼴이 틀린 것은 check 가 걸러 낸다
         if (!KINDS[n.kind].test(all)) { dropped.push('한 줄(글에 없는 종류): ' + n.kind); return false; }
@@ -221,8 +261,10 @@ function trim(p, items) {
  *   보는 것(겉꼴을 고른 뒤 — normalize): ①칸 꼴 ②해역 이름의 한글이 모두 바다 글에 있다(글의 다른 곳에 온전한 이름이 있고 바다 글의 해역 낱말 하나가 통째로 그 끝이면 풀어 쓴 이름도 받는다 — 「남쪽안쪽먼바다」→「제주도남쪽안쪽먼바다」) ③바람·물결 숫자가 글에 「9~18m/s」「1.5~4.0m」 꼴로 있다(「최대 5.0m 이상」의 5.0 은 물결 값으로 안 친다) ④그 해역·숫자가 같은 줄(○ 줄이나 「- 한편 …」 줄 하나) 안에 함께 있고, 그 줄에 적힌 바람·물결을 빼고 적지 않았다 — ⚠한 줄 안에서 오늘·내일 숫자를 서로 바꿔 적은 것은 못 잡는다
  *            ⑤기간의 숫자와 날을 가리키는 말(오늘·내일·모레…)이 그 줄에 있다 ⑥종류는 정해진 것만, 그 종류의 낱말이 글에 있다
  *            ⑦한 줄 글의 숫자·해역 이름({{loc}} 안팎)이 글에 있다 · 뜻을 뒤집거나 부풀리는 낱말(없음·안전·금지·경보·태풍 …)은 글에 있을 때만 · 색 표시 꼴이 온전하다
- *            ⑧빠뜨림: 숫자가 적힌 해상 항목이 있는데 zones 가 비었다 / 글에 있는 종류(너울·조고·안개·이안류·해일·천둥·특보 가능성)의 한 줄이 없다 /
+ *            ⑧빠뜨림: 숫자가 적힌 해상 항목이 있는데 zones 가 비었다 / 글에 있는 종류(너울·조고·안개·이안류·해일·천둥·특보 가능성·해제 예고)의 한 줄이 없다 /
  *              바람 숫자(m/s)가 적힌 줄의 해역(괄호 밖)이 그 줄의 숫자를 단 해역 줄로 없다(실제 Gemma 답: 「A는 내일까지, B는 당분간 바람이 …」에서 A 를 숫자 없이 적음)
+ *            ⑨해제 예고(2026-11-19): 글의 「A(해제예고: T)」마다 한 줄에 A 바로 뒤 T 가 글 그대로 있다 · 그 짝과 군말(풍랑특보·해제 예고) 말고는 그 줄에 아무것도 못 쓴다 ·
+ *              해역이나 시점을 못 읽은 해제 예고가 있으면 요약하지 않는다 · 해역·기간 칸에는 못 넣는다
  * @param {any} p AI 답(꺼낸 JSON) @param {Array<{label:string, lines:string[]}>} items extractSeaItems 결과 @param {string} [rawText] 글 전체(풀어 쓴 해역 이름을 확인할 때만 쓴다)
  * @returns {string}
  * [연계] ← summarize(bulletin_ai.call 의 accept) / 검사 test_regional_sea_summary
@@ -237,6 +279,7 @@ function check(p, items, rawText) {
     const per = items.map((i) => bare(i.lines.join('\n')));
     const all = per.join('\n'), whole = bare(rawText);
     const rows = items.reduce((a, i) => a.concat(i.lines.map(bare)), []);   // 줄 하나하나 — 해역과 숫자가 같은 줄(문장)에 있는지 볼 때
+    const lifts = liftNotices(items.reduce((a, i) => a.concat(i.lines), []));
     // 이름 한 덩어리가 글에 있는가 — 바다 글에 그대로 있거나, 글 전체에 있고 바다 글의 **해역 낱말 하나가 통째로** 그 이름의 끝이다(「남쪽안쪽먼바다」→「제주도남쪽안쪽먼바다」).
     //   끝 몇 글자만 맞으면 받던 것을 고쳤다 — 「강원북부앞바다」가 바다 글의 「강원남부앞바다」 속 「부앞바다」로 통과했다(검토: 글 다른 곳에만 있는 형제 해역을 덧붙인 답 1,193개 중 354개 통과).
     const toks = zoneTokens(items.reduce((a, i) => a.concat(i.lines), []).join('\n'));
@@ -249,6 +292,7 @@ function check(p, items, rawText) {
         if (!str(z.zone, 160)) return '해역 이름이 없거나 너무 길다';
         if (!str(z.period, 40)) return '기간이 없다: ' + z.zone;
         if (/\{\{|\}\}/.test(z.zone + z.period)) return '해역·기간 칸에 색 표시가 들어 있다: ' + z.zone;
+        if (LIFT.test(z.zone + z.period)) return '해역·기간 칸에 해제 예고가 들어 있다: ' + z.zone;
         const wind = z.wind, wave = z.wave;
         if (wind === null && wave === null) return '바람·물결 숫자가 둘 다 없다: ' + z.zone;
         if (wind !== null && !NUM.test(wind)) return '바람 숫자 꼴이 아니다: ' + wind;
@@ -276,6 +320,24 @@ function check(p, items, rawText) {
         for (const t of zoneTokens(plain)) if (!named(t, all)) return '한 줄의 해역 이름이 글에 없다: ' + t;
         const heavy = HEAVY_WORDS.find((w) => plain.includes(w) && !all.includes(w));
         if (heavy) return '한 줄에 글에 없는 말이 있다: ' + heavy;
+        // 해제 예고: 글의 해제 예고마다 그 해역 바로 뒤(몇 글자 안)에 그 시점이 글 그대로 있어야 한다 — 빠뜨림·다른 해역의 시점과 바꿔 적음·시점 고쳐 적음을 잡는다.
+        //   해제 예고가 없는 해역과 해제 시점이 아닌 숫자는 이 줄에 못 쓴다(「서해중부해상 19일 밤 해제」처럼 넓혀 적지 못하게).
+        if (n.kind === '해제 예고') {
+            // 읽지 못한 해제 예고(해역이나 시점을 못 뽑음 — 「해제\n예고」처럼 줄이 갈렸거나 시점 꼴이 낯섦)가 있으면 요약하지 않는다(원문 줄이 그대로 나간다).
+            //   못 읽은 채 받으면 해역 이름만 맞아도 통과해 틀린 시각이 나간다(검토: 「새벽」→「오전」, 시점 빼기가 통과했다).
+            if (!lifts.length || lifts.some((L) => !L.zone || !L.time)) return '글의 해제 예고를 읽지 못했다(해역이나 시점 꼴이 낯설다) — 요약하지 않는다';
+            // 이 줄에는 「해역 + 그 시점」 짝과 군말(풍랑특보·해제 예고·시점)만 쓸 수 있다. 짝을 하나씩 지우고 남는 글이 있으면 걸린다 —
+            //   빠뜨림·짝 바꾸기·시점 고치기·넓혀 적기·지어낸 짝 덧붙이기·뜻 뒤집는 곁말(「해제 안함」「까지 유지」「아님」)을 한꺼번에 막는다(검토에서 뒤 둘이 통과했다).
+            const rx = (x) => String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            let rest = nd(bare(n.text));
+            for (const L of lifts) {
+                const re = new RegExp(rx(nd(L.zone)) + '(?:풍랑|특보|해제예고|시점|[:：는은의])*' + rx(nd(L.time)));
+                if (!re.test(rest)) return '해제 예고가 빠졌거나 글과 다르다(해역 바로 뒤에 글의 시점 그대로): ' + L.zone + ' ' + L.time;
+                rest = rest.replace(re, ' ');
+            }
+            rest = rest.replace(/풍랑|특보|해제예고|해제|예고|[·,.\s]/g, '');
+            if (rest) return '해제 예고 줄에 해역·시점 말고 다른 말이 있다: ' + rest.slice(0, 30);
+        }
     }
     // 빠뜨림
     const kinds = new Set(notes.map((n) => n.kind));
@@ -299,6 +361,7 @@ function check(p, items, rawText) {
     for (const [k, re] of must) if (!kinds.has(k) && items.some((i) => re.test(i.label))) return '글에 있는 종류가 빠졌다: ' + k;
     if (!kinds.has('천둥·번개') && /천둥/.test(all)) return '글에 있는 종류가 빠졌다: 천둥·번개';
     if (!kinds.has('특보 가능성') && /(?:특보|경보|주의보)[^.\n]{0,40}가능성/.test(all)) return '글에 있는 종류가 빠졌다: 특보 가능성';
+    if (!kinds.has('해제 예고') && LIFT.test(all)) return '글에 있는 종류가 빠졌다: 해제 예고';
     return '';
 }
 
@@ -346,4 +409,4 @@ async function trial(rawText) {
     return { ms: Date.now() - t0, seaText: extractSeaItems(rawText).reduce((a, i) => a.concat(i.lines), []).join('\n'), result };
 }
 
-module.exports = { extractSeaItems, normalize, trim, check, summarize, trial, PROMPT, SEA_LABEL, KINDS };
+module.exports = { extractSeaItems, normalize, trim, check, summarize, trial, liftNotices, PROMPT, SEA_LABEL, KINDS };

@@ -1001,7 +1001,7 @@ function regionalDocOf(item) {
 }
 
 // 「해상 기상 요약」 딱지 색 — 종류별(서버 regional_sea_summary.KINDS 의 종류). 모르는 종류는 회색.
-const SEA_CHIP = { '특보 가능성': 'red', '이안류': 'red', '기상해일': 'red', '폭풍해일': 'red', '천둥·번개': 'yellow', '너울': 'purple', '조고': 'green', '바다 안개': 'grey' };
+const SEA_CHIP = { '특보 가능성': 'red', '해제 예고': 'green', '이안류': 'red', '기상해일': 'red', '폭풍해일': 'red', '천둥·번개': 'yellow', '너울': 'purple', '조고': 'green', '바다 안개': 'grey' };
 
 /**
  * 「해상 기상 요약」 상자의 HTML — 기온 박스 아래. 서버가 만든 seaSummary 의 상태대로 그린다.
