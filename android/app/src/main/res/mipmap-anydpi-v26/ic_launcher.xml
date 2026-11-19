@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 적응형 앱 아이콘(안드로이드 8+). 2026-11-20 새 아이콘(물결 + 맥박선, 사용자 제공)으로 교체.
+     앞 레이어 = 아이콘 그림 전체를 16.7% 안쪽으로 넣어 "보이는 영역(72dp)"에 딱 맞춘다 — 런처가 원·둥근 사각으로 잘라도 그림이 안 잘린다.
+     뒤 레이어 = 아이콘 가장자리와 같은 남색 단색. 안쪽으로 넣지 않는다(런처가 아이콘을 움직일 때 가장자리가 비어 보이지 않게). -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background>
-        <inset android:drawable="@mipmap/ic_launcher_background" android:inset="16.7%" />
-    </background>
+    <background android:drawable="@color/ic_launcher_background" />
     <foreground>
         <inset android:drawable="@mipmap/ic_launcher_foreground" android:inset="16.7%" />
     </foreground>
