@@ -38,6 +38,9 @@
  *  ⑥ 거꾸로 **대기 중인 카드라도 이번 점검에서 우리 사본이 현행으로 확인되면 자동으로 닫는다**
  *     (2026-11-03 사장님 결정 · 3-97, `closeNowFresh()`). 원문을 다시 받아도 사람이 누를 때까지
  *     카드가 남아 있어, 화면 숫자가 「아직 낡은 것」이 아니라 「아무도 안 닫은 카드」가 됐었다.
+ *  ⑦ **고친 원문이 배포되면 서버가 스스로 한 번 다시 점검한다**(2026-11-20 사장님 요청, `rescanIfFixesDeployed()`).
+ *     서버가 켜질 때(배포 직후) 대기 카드의 raw 파일에 카드가 기다리는 새 판 번호가 들어 있으면 전수 점검을 돌려
+ *     ⑥으로 카드를 닫고, 닫힌 수·남은 수를 관리자 푸시로 알린다. 종전에는 3일 뒤 차례나 「지금 점검」을 기다렸다.
  *
  * [저장 위치 — 재배포해도 안 지워지는 곳에 쓴다]
  *  결과·큐를 `local_server/data/` 밑에 둔다. 이 디렉토리만 fly.io 볼륨으로 마운트돼 있어
@@ -46,6 +49,7 @@
  *  통째로 사라진다.
  *
  * [연계]
+ *  - server.js → app.listen 뒤 `rescanIfFixesDeployed()`(배포 직후 고친 원문이 보이면 점검 1회 · 2026-11-20)
  *  - server.js → runNariyaNightly 새벽 03:00 KST, **3일에 한 번**(개정감지 → 원문결손 → 원문신선도 하루 하나씩) `runFreshnessScan()`
  *    (2026-11-16 사용자 확정 — 종전 매주 일요일 03:00. 셋 다 law.go.kr 을 두드려 한 밤에 하나만 돌린다.
  *     실측 2026-11-15 수동 점검: 1,504건 대조에 약 12분)
@@ -509,6 +513,120 @@ function closeNowFresh(rows, file = QUEUE_FILE) {
   return closed;
 }
 
+/**
+ * 카드에 적힌 raw 경로(법령은 `raw/*\/수산업법/법률.txt` 처럼 `*` 칸이 있다)를 실제 파일 경로로 펼친다.
+ * 예: expandRel('raw/*\/수산업법/법률.txt', LEGAL) → ['/…/raw/05_수산어업/수산업법/법률.txt']
+ * @param {string} rel 지식 폴더(knowledge/legal) 기준 경로. `*` 는 한 칸 전체만 뜻한다.
+ * @param {string} root 지식 폴더 경로
+ * @returns {string[]} 있는 파일 경로들(없으면 빈 배열)
+ * [연계] ← fixedOnDisk
+ */
+function expandRel(rel, root) {
+  let cur = [root];
+  for (const seg of String(rel).split(/[\\/]/).filter(Boolean)) {
+    const next = [];
+    for (const dir of cur) {
+      if (seg !== '*') { next.push(path.join(dir, seg)); continue; }
+      try { for (const d of fs.readdirSync(dir)) next.push(path.join(dir, d)); } catch (_) { /* 폴더가 없으면 그 갈래는 끝 */ }
+    }
+    cur = next;
+  }
+  return cur.filter((p) => { try { return fs.statSync(p).isFile(); } catch (_) { return false; } });
+}
+
+/**
+ * 대기 중인 카드 가운데 **고친 원문이 이미 이 서버에 올라와 있는 것**을 고른다.
+ * 예: 카드가 새 판 2100000288232 를 기다리는데 그 카드의 raw 파일(또는 같은 폴더 `_admrul.json`·`_meta.json`)에
+ *     '2100000288232' 가 적혀 있으면 → 그 카드 id 를 돌려준다
+ * @param {string} [file] 큐 파일(기본은 볼륨의 원문신선도 큐 — 시험이 임시 파일을 준다)
+ * @param {string} [root] 지식 폴더(기본 knowledge/legal — 시험이 임시 폴더를 준다)
+ * @returns {string[]} 고친 원문이 올라온 대기 카드 id
+ * [왜 있나 — 2026-11-20 사장님 요청 「지금점검도 자동으로 하는 로직을 만들면 좋겠는데?」]
+ *   자동 반영 PR 이 머지·배포돼도 카드는 다음 원문신선도 차례(3일 뒤)나 사람이 「지금 점검」을 눌러야 닫혔다.
+ *   배포는 곧 서버 재시작이고 raw 는 배포로만 바뀌므로, **켜질 때 파일을 보면** 고친 것이 올라왔는지 알 수 있다.
+ * [판정 — 숫자 문자열이 들어 있나만 본다]
+ *   기다리는 번호 = 카드의 현행 번호(current.serial) 또는 이름바뀜 후보 번호. 번호가 없는 카드·파일이 없는 카드는 고르지 않는다.
+ *   카드의 파일 **전부**에서(파일 본문·같은 폴더 `_admrul.json`·`_meta.json` 중 하나에) 그 번호가 보여야 고른다.
+ *   잘못 골라도 점검이 한 번 더 돌 뿐이고 카드를 닫는 것은 여전히 점검의 판정(closeNowFresh)이다 — 여기서 카드를 닫지 않는다.
+ *   못 골라도(번호를 다른 꼴로 적은 파일) 다음 정기 점검이 닫는다.
+ * [연계] ← rescanIfFixesDeployed · 시험 test_fresh_rescan_on_deploy.js
+ */
+function fixedOnDisk(file = QUEUE_FILE, root = LEGAL) {
+  const read = (p) => { try { return fs.readFileSync(p, 'utf8'); } catch (_) { return ''; } };
+  const out = [];
+  const seen = new Set();
+  for (const e of adminQueues.readJsonl(file)) {
+    if (!e || !e.id || seen.has(e.id) || (e.status || 'pending') !== 'pending') continue;
+    seen.add(e.id);
+    const want = [String((e.current || {}).serial || '')]
+      .concat((e.rename_candidates || []).map((c) => String((c || {}).serial || '')))
+      .filter(Boolean);
+    const rels = e.files || [];
+    if (!want.length || !rels.length) continue;
+    const ok = rels.every((rel) => {
+      const paths = expandRel(rel, root);
+      return paths.length > 0 && paths.every((p) => {
+        const dir = path.dirname(p);
+        const text = read(p) + '\n' + read(path.join(dir, '_admrul.json')) + '\n' + read(path.join(dir, '_meta.json'));
+        return want.some((w) => text.includes(w));
+      });
+    });
+    if (ok) out.push(e.id);
+  }
+  return out;
+}
+
+/** 배포 뒤 다시 점검을 이미 돌린 카드 id 기록(카드마다 한 번만 — 볼륨에 둬 재배포해도 남는다). */
+const RESCAN_FILE = path.join(DATA, 'admrul_fresh_rescan.json');
+
+/**
+ * 서버가 켜질 때(= 배포 직후) 부른다 — 고친 원문이 올라온 대기 카드가 있으면 **원문신선도 점검을 스스로 한 번 돌리고**
+ * 결과(닫힌 수·남은 수)를 관리자 푸시로 알린다. 사람이 「지금 점검」을 누르는 것과 같은 점검이다.
+ * 예: await rescanIfFixesDeployed() → {started:false, why:'고친 원문 없음'} 또는 {started:true, ok:true, ids:[…], closed:1, left:0}
+ * @param {object} [o] 시험용으로 바꿔 끼우는 것들(평소엔 비워 둔다)
+ * @param {string} [o.queueFile] @param {string} [o.root] @param {string} [o.stateFile]
+ * @param {boolean} [o.prod] 운영 서버인가(기본: FLY_APP_NAME === 'seagnal-server')
+ * @param {Function} [o.scan] 점검 함수(기본 runFreshnessScan) @param {Function} [o.push] 푸시 함수(기본 admin_push.sendAdminPush)
+ * @returns {Promise<object>}
+ * [언제 기록하나] 점검이 **끝까지 성공한 뒤에만** 그 카드 id 를 적는다. 점검 도중 또 배포돼 서버가 꺼지거나
+ *   점검이 실패하면 적지 않아, 다음에 켜질 때 다시 돈다. 성공했는데 카드가 안 닫혔으면(판정이 아직 낡음 등)
+ *   같은 카드로는 다시 돌리지 않는다 — 배포가 잦아 같은 카드로 전수 점검을 되풀이하지 않게. 그 카드는 정기 점검이 다시 본다.
+ * [운영에서만] 스테이징·개발 서버는 law.go.kr 을 두드리지도, 푸시를 보내지도 않는다(nariya_autorun 과 같은 기준).
+ * [연계] ← server.js app.listen 뒤 setImmediate · → fixedOnDisk · runFreshnessScan · admin_push.sendAdminPush
+ */
+async function rescanIfFixesDeployed(o = {}) {
+  const queueFile = o.queueFile || QUEUE_FILE;
+  const stateFile = o.stateFile || RESCAN_FILE;
+  const prod = o.prod !== undefined ? o.prod : process.env.FLY_APP_NAME === 'seagnal-server';
+  if (!prod) return { started: false, why: '운영 아님' };
+  let done = {};
+  try { done = JSON.parse(fs.readFileSync(stateFile, 'utf8')).ids || {}; } catch (_) { done = {}; }
+  const ids = fixedOnDisk(queueFile, o.root || LEGAL).filter((id) => !done[id]);
+  if (!ids.length) return { started: false, why: '고친 원문 없음' };
+  console.log(`[AdmrulFresh] 고친 원문이 올라온 카드 ${ids.length}건 — 원문신선도 점검을 스스로 한 번 돌립니다.`);
+  const st = await (o.scan || runFreshnessScan)();
+  if (!st || !st.ok) return { started: true, ok: false, ids, error: (st && st.error) || '점검 결과 없음' };
+  const at = new Date().toISOString();
+  for (const id of ids) done[id] = at;
+  try {
+    fs.mkdirSync(path.dirname(stateFile), { recursive: true });
+    fs.writeFileSync(stateFile, JSON.stringify({ ids: done }, null, 1));
+  } catch (e) { console.error('[AdmrulFresh] 배포 뒤 점검 기록 실패:', e && e.message); }
+  const q = adminQueues.readJsonl(queueFile);
+  const isPending = (id) => q.some((e) => e && e.id === id && (e.status || 'pending') === 'pending');
+  const left = ids.filter(isPending).length;
+  const closed = ids.length - left;
+  const allPending = adminQueues.countPending(queueFile);
+  const body = `고친 원문 ${ids.length}건이 서버에 올라와 다시 대조했습니다 — 닫힘 ${closed}건`
+    + (left ? ` · 아직 대기 ${left}건(다음 원문신선도 점검에서 다시 봅니다)` : '')
+    + ` · 지금 원문신선도 대기 ${allPending}건.`;
+  try {
+    await (o.push || require('./admin_push').sendAdminPush)('AI 챗봇 원문신선도 — 배포 뒤 다시 점검 끝', body,
+      { type: 'admrul_fresh_rescan', closed: String(closed), left: String(left) });
+  } catch (e) { console.error('[AdmrulFresh] 관리자 푸시 실패:', e && e.message); }
+  return { started: true, ok: true, ids, closed, left };
+}
+
 /** 마지막 점검 결과를 기록한다 — 화면 위에 "언제 검사했고 어떻게 끝났나"를 보여주기 위해. */
 function writeStatus(obj) {
   try {
@@ -671,4 +789,4 @@ function startFreshnessScan() {
 
 module.exports = { runFreshnessScan, startFreshnessScan, readStatus, QUEUE_FILE, REPORT_FILE, reopenStillStale,
   closeNowFresh, toQueueEntry, ORDIN_SCRIPT, ORDIN_REPORT_FILE, partFailure,
-  getScanProgress, parseProgressLine };
+  getScanProgress, parseProgressLine, fixedOnDisk, rescanIfFixesDeployed, RESCAN_FILE };

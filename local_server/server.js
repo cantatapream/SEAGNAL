@@ -515,6 +515,14 @@ app.listen(PORT, '0.0.0.0', () => {
         } catch (e) {
             console.error('[startup] 승인 이력 다시 맞추기 실패:', e && e.message);
         }
+        // 원문신선도 — 배포로 고친 원문이 올라왔으면 점검을 스스로 한 번 돌려 카드를 닫는다(services/admrul_fresh_scanner.js · 2026-11-20)
+        //   사장님 「지금점검도 자동으로 하는 로직을 만들면 좋겠는데?」. 운영 서버에서만 돈다. 실패해도 서버는 그대로.
+        try {
+            require('./services/admrul_fresh_scanner').rescanIfFixesDeployed()
+                .catch((e) => console.error('[startup] 원문신선도 배포 뒤 점검 오류:', e && e.message));
+        } catch (e) {
+            console.error('[startup] 원문신선도 배포 뒤 점검 시작 실패:', e && e.message);
+        }
         // VM 대신 이 서버 안에서 Codex(ChatGPT) 작업자 띄우기 — 시크릿 CODEX_AUTH_JSON 이 있을 때만 (services/codex_inproc.js)
         try {
             require('./services/codex_inproc').start(PORT);

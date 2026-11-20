@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 164 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 165 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -308,6 +308,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_amend_applied` | 개정검토 「위키 반영 완료」 장부가 제대로 읽히고 쓰이는지, 그리고 「📋 승인분 전체 지시문」이 |
 | `test_review_marker_registered` | 위키 본문에 `⚠REVIEW-<식별자>` 마커를 달아 놓고 **승인 대기열 |
 | `test_stale_reopen` | 관리자가 닫아 둔 「원문신선도」 카드라도 **원문이 아직 낡아 있으면 다시 대기로 |
+| `test_fresh_rescan_on_deploy` | 고친 원문이 배포되면 서버가 **원문신선도 점검을 스스로 한 번** 돌리는지 확인한다. |
 | `test_review_card_view` | 관리자 「⚠수치검증」 카드를 사람이 **보고 판단할 수 있게** 만든 것들이 살아 있는지 확인한다. |
 | `test_mok_audit_scanner` | 「원문결손」 스캐너(조문 목 누락 · 고시 별표 누락)의 배선이 **살아 있는지** 확인한다. |
 | `test_add_other_law_refresh` | `add_other_law_article.js --refresh` 가 **raw 원문을 안전하게 갈아 끼우는지** |
