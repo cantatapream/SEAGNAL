@@ -2071,7 +2071,7 @@ const WIN = R.editionWindow('morning', T0);
         assert.equal(w2.body, '특보 변경 10-17 판 18곳 모두 AI 분석 · 오류 0\n10-18 판 18곳 — AI 17 · 규칙 분석 1(고현) · 오류 2');
         assert.equal(SB.runPushText({ kind: 'warning', method: 'chatgpt', results: [] }).body, '특보 변경 — 다시 만든 판 없음(오늘·내일 브리핑이 아직 없음)');
     });
-    await check('[§11.10.8-3] 특보 변경 판(표 ③): 디바운스 뒤 다시 만들면 결과 푸시 1통 · 대기 중 점검 0통 · 걸치는 관할이 없는 특보 변경은 실행이 아니라 0통', async () => {
+    await check('[§11.10.8-3·§11.10.60] 특보 변경 판: 디바운스 뒤 다시 만들어도 푸시 0통(사용자 「정기판만」) · 대기 중 점검 0통 · 걸치는 관할이 없는 특보 변경도 0통', async () => {
         const d = fs.mkdtempSync(path.join(tmp, 'pushw-')), af = path.join(d, 'alerts.json'); let clock = Date.parse(at(10)), stamp = Date.now(); const push = pushSpy();
         const put = (lvl) => { fs.writeFileSync(af, JSON.stringify({ current: tree(lvl) })); stamp += 1000; fs.utimesSync(af, new Date(stamp), new Date(stamp)); };
         I.writeJson(path.join(d, 'briefings_2026-10-17.json'), { date: '2026-10-17', stations: {} });
@@ -2079,9 +2079,8 @@ const WIN = R.editionWindow('morning', T0);
         const s = mkSvc(d, () => clock, { alertsFile: af, adminPush: push });
         put('주의보'); assert.deepStrictEqual(await s.tick(), { pending: ['제주도서부앞바다'] }); assert.equal(push.sent.length, 0, '디바운스 대기는 0통');
         clock += 3 * 60000; const r = await s.tick(); assert.deepStrictEqual(r.warning, [HL]);
-        assert.equal(push.sent.length, 1);
-        const lr = s.status().lastRun.results[0];
-        assert.deepStrictEqual([push.sent[0].title, push.sent[0].body, push.sent[0].data.run], ['연안 안전 브리핑 특보 변경 판 결과', '특보 변경 1곳 — AI 0 · 규칙 분석 1(한림) · 오류 ' + lr.errors, 'warning']);
+        assert.equal(push.sent.length, 0, '특보 변경 판은 다시 만들어도 푸시 없음(§11.10.60)');
+        assert.equal(s.status().lastRun.kind, 'warning', '실행은 그대로 — 관리자 탭 기록에 남음');
         // 걸치는 관할이 없음 — 실행 없이 서명만 받아들인다
         const d2 = fs.mkdtempSync(path.join(tmp, 'pushw0-')), af2 = path.join(d2, 'alerts.json'); fs.writeFileSync(af2, JSON.stringify({ current: tree('경보') }));
         I.writeJson(path.join(d2, 'state.json'), { done: ['2026-10-17|morning'], warnSig: SB.warnSignatures(tree(null)), stationZones: {} });
@@ -2111,10 +2110,11 @@ const WIN = R.editionWindow('morning', T0);
         I.writeJson(path.join(d2, 'state.json'), { done: ['2026-10-17|morning'], warnSig: SB.warnSignatures(tree(null)), stationZones: { [HL]: ['제주도서부앞바다'] } });
         const s2 = mkSvc(d2, () => c2, { alertsFile: af, adminPush: pw, risk: { spots: boom } });
         await s2.tick(); c2 += 3 * 60000; assert.deepStrictEqual(await s2.tick(), { failed: 'warning' });
-        assert.deepStrictEqual([pw.sent.length, pw.sent[0].title, pw.sent[0].data.phase], [1, '연안 안전 브리핑 특보 변경 판 분석 실패', 'fail']);
+        assert.equal(pw.sent.length, 0, '특보 변경 판 실패도 푸시 없음(§11.10.60)');
+        assert.equal(s2._state().failures.warning.count, 1, '실패는 기록(백오프)에 남음');
         c2 += 10 * 60000; await s2.tick(); c2 += 10 * 60000; await s2.tick();
-        assert.equal(pw.sent[2].body, '분석 실패(3번째) — ENOSPC · 이 특보 변경은 더 다시 만들지 않음 · 자세한 이유는 관리자 → AI 브리핑');
-        c2 += 10 * 60000; assert.deepStrictEqual(await s2.tick(), { warningGaveUp: ['제주도서부앞바다'] }); assert.equal(pw.sent.length, 3, '포기 점검은 0통');
+        assert.equal(s2._state().failures.warning.count, 3);
+        c2 += 10 * 60000; assert.deepStrictEqual(await s2.tick(), { warningGaveUp: ['제주도서부앞바다'] }); assert.equal(pw.sent.length, 0, '3번 실패·포기까지 0통');
     });
     await check('[§11.10.8-5] 실행 중이라 건너뜀(표 ⑥): 관리자 실행 중 07:10 점검은 busy — 0통, 끝난 뒤 점검이 아침 판을 만들면 그때 1통', async () => {
         const d = fs.mkdtempSync(path.join(tmp, 'pushb-')); let clock = kt('07:05'), release; const gate = new Promise((r0) => { release = r0; }); const push = pushSpy();

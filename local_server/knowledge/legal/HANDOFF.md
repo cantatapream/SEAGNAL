@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-20 15:38 KST] ✅완료 — 연안 브리핑 관리자 푸시 — 정시 판만
+사용자 「정기판만 보내줄 수 있도록 푸시알림 로직을 수정해줘」. station_briefing.tick 이 특보 변경 판(warning) 실행 뒤 결과 푸시·실패 푸시를 보내지 않음(실패는 failures.warning 백오프·누적 오류·관리자 탭에 기록). 정시 판 푸시 그대로. 설계서 §11.10.60. 시험 test_station_briefing 254/0 · test_silent_catch 22/0.
+
+
 ### [2026-11-20 13:49 KST] ✅완료 — 원문신선도 — 고친 원문이 배포되면 서버가 스스로 다시 점검
 완료(브랜치 claude/wonderful-fermi-9qv0d8 · PR 은 사용자 지시 대기). admrul_fresh_scanner.js fixedOnDisk()·rescanIfFixesDeployed()·waitIdle() + server.js 시작부 호출 · 새벽 점검이 setHold 전에 waitIdle. 설계 nariya_autorun.design.md §8.11. 확인: test_fresh_rescan_on_deploy 23/0 · test_stale_reopen 41/0 · test_fresh_progress 21/0 · test_nariya_autorun 49/0 · verify_all.sh 전체 「✅ 전체 검증 통과」(로컬 서버를 먼저 띄우고 NODE_PATH=/opt/node-tools/node_modules 로 playwright-core 를 찾게 해서 돌림 — 첫 실행은 서버 미기동·playwright-core 부재로 스모크 21·화면 스위트 22 실패였고 재실행으로 이번 변경과 무관함을 확인). 총정리의 ❌ 줄은 분류 표시이고 같은 날 PR #1540 CI 로그와 같은 수치. 운영 카드 76장 재판정 73장 고름 · 낙동강 카드 main 안 고름/PR #1543 파일 고름. 독립 검토 반영(M1·M3·M4·L1·L2), M2·L3 남김(사유 설계 메모). 점검용 로컬 서버가 바꾼 data 파일 3개·새 파일 1개는 파일 단위로 되돌림. 다음: 사용자가 PR 을 지시하면 올림 → 머지·배포 뒤부터 작동. ARCHITECTURE.md 는 생성기 출력이 이번 변경과 무관한 트리 기호 35줄 차이를 내 손대지 않음(별건).
 
