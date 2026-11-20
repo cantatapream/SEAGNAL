@@ -3758,8 +3758,12 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual(kzs('동해가짜 쪽 먼바다에 바람이 강합니다.', ['동해남부남쪽먼바다']), ['place:동해가짜쪽먼바다'], '바다 이름 뒤에 다른 말이 붙으면 실패');
         // G02 — AI 가 어긴 숫자(md 의 허용 숫자 가운데 관련 값)
         const nn = (o, keys) => AI.validateOverview(o, si49({ land: o.land ? {} : null, allowed_number_keys: keys })).errors.filter((e) => /^number:/.test(e));
-        assert.deepStrictEqual(nn({ land: '이들 장소는 위험구역이 8~9곳이고 과거 익수·표류 등 연안사고 이력이 있어 연안 활동에 유의해야 합니다.', sea: '해상은 평소 수준입니다.' }, ['8|곳', '9|곳', '14|곳']), ['number:8~9곳'], '임원 — 관광지별 수를 범위로(새 범위)');
-        assert.deepStrictEqual(nn({ land: '위험구역이 4~5곳씩 있어 연안 활동에 유의해야 합니다.', sea: '해상은 평소 수준입니다.' }, ['4|곳', '5|곳', '19|곳']), ['number:4~5곳'], '울릉');
+        // 사용자 「(가) 허용 … 이것으로 진행」(2026-11-20): 장소 수 범위는 양 끝이 둘 다 허용 숫자이고 작은 수~큰 수일 때만 통과
+        assert.deepStrictEqual(nn({ land: '이들 장소는 위험구역이 8~9곳이고 과거 익수·표류 등 연안사고 이력이 있어 연안 활동에 유의해야 합니다.', sea: '해상은 평소 수준입니다.' }, ['8|곳', '9|곳', '14|곳']), [], '임원 운영 글 — 8곳·9곳 둘 다 있음 → 통과');
+        assert.deepStrictEqual(nn({ land: '위험구역이 7~9곳입니다.', sea: '해상은 평소 수준입니다.' }, ['8|곳', '9|곳']), ['number:7~9곳'], '없는 숫자(7곳)가 끼면 실패');
+        assert.deepStrictEqual(nn({ land: '위험구역이 9~8곳입니다.', sea: '해상은 평소 수준입니다.' }, ['8|곳', '9|곳']), ['number:9~8곳'], '거꾸로는 실패');
+        assert.deepStrictEqual(nn({ land: '위험구역이 8~9개입니다.', sea: '해상은 평소 수준입니다.' }, ['8|곳', '9|곳']), ['number:8~9개'], '단위가 다르면 실패');
+        assert.deepStrictEqual(nn({ land: '위험구역이 4~5곳씩 있어 연안 활동에 유의해야 합니다.', sea: '해상은 평소 수준입니다.' }, ['4|곳', '5|곳', '19|곳']), [], '울릉 — 4곳·5곳 둘 다 있음 → 통과');
         assert.deepStrictEqual(nn({ land: null, sea: '이 바람과 물결은 18일 21시부터 높아지기 시작해 6~9시부터 낮아질 것으로 예상됩니다.' }, ['18|일', '21|시', '0|시', '3|시', '6|시', '9|시', '12|시', '15|시', '18|시']), ['number:6~9시'], '완도 — 허용 칸(x~y시)이 없는 새 범위');
         assert.deepStrictEqual(nn({ land: null, sea: '과거 접촉 1건·침수 2건의 사고 이력이 있습니다.' }, ['1|건', '3|곳']), ['number:2건'], '영광');
         assert.deepStrictEqual(nn({ land: '이들 장소에는 사망사고 발생구역이 3곳씩 포함되어 있습니다.', sea: '해상은 평소 수준입니다.' }, ['3|', '3|건', '8|곳', '9|곳', '10|곳', '11|곳']), ['number:3곳'], '축산');

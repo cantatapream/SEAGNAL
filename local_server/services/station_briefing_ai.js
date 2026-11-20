@@ -537,7 +537,10 @@ function validateOverview(o, si) {
                 return a < b ? reach(a, b) : a > b && a >= 21 && b > 0 && reach(a, 24) && reach(0, b); })();   // 자정 너머는 21시 이후 시작만(밤 창 — 독립 검토 중2)
             // 연안 문단의 풍속 범위(「해안 바람이 8~10m/s」 — 여러 관광지 값을 한 범위로, 누적 오류 G03): 양 끝이 둘 다 허용 숫자이고 작은 수~큰 수일 때만. 해상 문단은 S24(해구마다 따로) 그대로 막는다.
             const windRangeOk = k === 'land' && n.range && n.unit === 'm/s' && /^\d+(?:\.\d+)?\s*(?:m\/s)?\s*[~∼〜–-]/.test(n.text) && n.ends.length === 2 && n.ends.every((e) => allowedN.has(e)) && Number(n.ends[0].split('|')[0]) < Number(n.ends[1].split('|')[0]);
-            if (!allowedN.has(n.key) && !yearOk && !chainOk && !windRangeOk) errors.push('number:' + n.text);
+            // 장소 수 범위(「위험구역이 8~9곳」 — 관광지마다 다른 수를 한 범위로, 누적 오류 E20261120-110944 G02 임원·울릉, 사용자 「(가) 허용 … 이것으로 진행」 2026-11-20 §11.10.58):
+            //   풍속 범위와 같이 양 끝이 둘 다 그 관할 허용 숫자(「8곳」·「9곳」)이고 작은 수~큰 수일 때만. 「7~9곳」(7곳 없음)·「9~8곳」은 그대로 실패.
+            const countRangeOk = n.range && n.unit === '곳' && n.ends.length === 2 && n.ends.every((e) => allowedN.has(e)) && Number(n.ends[0].split('|')[0]) < Number(n.ends[1].split('|')[0]);
+            if (!allowedN.has(n.key) && !yearOk && !chainOk && !windRangeOk && !countRangeOk) errors.push('number:' + n.text);
         }
         const paraCount = si.count_keys ? new Set(si.count_keys[k] || []) : allowedN;   // 셈말은 그 문단 결론·근거에 있는 수만(독립 검토 7)
         const countNames = Object.keys((si.levels && si.levels[k]) || {}).concat(k === 'land' && si.land && Array.isArray(si.land.constant) ? si.land.constant : []);   // §11.10.47: 상시 위험 장소 이름도 센다
