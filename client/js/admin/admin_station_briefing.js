@@ -424,7 +424,7 @@
         if (s.pendingWarn) { var pw = elc('div', 'sba-line warn', '특보 변경 대기 · ' + (s.pendingWarn.zones || []).join(', ') + ' — 마지막 변경 ' + at(s.pendingWarn.lastChangeAt)); pw.setAttribute('data-sb-pending-warn', ''); box.appendChild(pw); }
         Object.keys(s.failures || {}).forEach(function (k) { var f = s.failures[k], d = elc('div', 'sba-line bad', '실행 실패 · ' + k + ' ' + f.count + '번 · 마지막 ' + at(f.lastAt) + ' · ' + (f.reason || '')); d.setAttribute('data-sb-failure', ''); box.appendChild(d); });
         var errCard = drawErrorCard(v.errors, s, function () { drawStatus(v); });
-        drawAutofix(v.autofix, function () { drawStatus(v); });
+        drawAutofix(v.autofix, function () { drawStatus(v); }).catch(function (e) { console.warn('[AI 브리핑 관리] 오류 자동 처리 칸 그리기 실패:', e && e.message); });
         drawEditionTimes(v.times, s, function (runAt) { errCard.show('run', runAt); });
     }
     /** 밀리초 → 「분:초」. 예: 754000 → '12:34' · 59000 → '0:59' · 숫자 아님 → '—'. @param {number} ms @returns {string} [연계] ← drawEditionTimes */
@@ -805,7 +805,7 @@
      * 예: lastRun {at:'2026-11-21T05:58:10+09:00', outcome:'pr', fixed:['G01'], left:['G02']} → 「마지막 세션 검사 11-21 05:58 · PR 을 올렸습니다 · 고친 유형 G01 · 그대로 G02」
      * @param {HTMLElement} box @param {Function} refresh - 상태 카드 전체 다시 그리기 @returns {Promise<void>} [연계] ← drawStatus · GET/POST /api/admin/station-briefing/autofix(·/prs/:n/merge·dismiss)
      */
-    async function drawAutofix(box, refresh) {
+    async function drawAutofix(box, refresh, note) {
         var r = await call('/autofix');
         box.textContent = '';
         var ct = elc('div', 'sba-ct'); ct.appendChild(el('span', '', '오류 자동 처리')); var sub = el('small', '', '매일 05:48 세션이 검사기 오판을 고쳐 PR — 조건이 맞으면 자동 머지'); ct.appendChild(sub); box.appendChild(ct);
@@ -817,29 +817,36 @@
             : '마지막 세션 검사: 아직 없음(예약 작업이 아직 돌지 않았거나 결과를 보내지 못함)';
         box.appendChild(last);
         if (lr && lr.summary) { var sm = elc('div', 'sba-line sba-muted', lr.summary); sm.setAttribute('data-sb-autofix-summary', ''); box.appendChild(sm); }
+        // 며칠째 안 돌면 알린다(독립 검토 (F4) — 마지막 시각만 보이면 멈춘 것을 모른다, L-291). 매일 05:48 이라 36시간이 넘으면 하루를 건넌 것.
+        var lastMs = lr ? Date.parse(lr.at) : NaN;
+        if (lr && Number.isFinite(lastMs) && Date.now() - lastMs > 36 * 3600000) { var stl = elc('div', 'sba-line bad', '세션이 ' + Math.floor((Date.now() - lastMs) / 86400000) + '일 넘게 결과를 보내지 않았습니다 — 예약 작업이 멈췄는지 확인해 주세요.'); stl.setAttribute('data-sb-autofix-stale', ''); box.appendChild(stl); }
         if (s.saveError) box.appendChild(elc('div', 'sba-line bad', '기록 저장 실패: ' + s.saveError));
         if (s.prError) box.appendChild(elc('div', 'sba-line bad', 'PR 목록을 읽지 못함: ' + s.prError));
         if (s.tokenConfigured === false) box.appendChild(elc('div', 'sba-line warn', '서버에 GitHub 열쇠가 없어 자동 머지·머지 버튼을 쓸 수 없습니다(관리자 센터 → 설정 확인).'));
         var msg = elc('div', 'sba-line'); msg.setAttribute('aria-live', 'polite'); msg.hidden = true;
         (s.prs || []).forEach(function (p) {
             var row = elc('div', 'sba-line'); row.setAttribute('data-sb-autofix-pr', String(p.number));
-            var st = p.status === 'waiting' ? (p.mode === 'auto' ? '검사 기다리는 중 — 통과하면 자동 머지' : '검사 기다리는 중 — 통과하면 머지 버튼 알림') : (AF_PR[p.status] || p.status);
+            var st = p.status === 'waiting' ? (p.mode === 'auto' ? '검사 기다리는 중 — 통과하면 자동 머지' : '검사 기다리는 중 — 통과하면 머지 버튼 알림')
+                : p.status === 'needs_human' && p.how && p.how !== 'button' ? '확인 필요(앱 버튼으로 못 풂)' : (AF_PR[p.status] || p.status);
             row.appendChild(document.createTextNode('PR #' + p.number + ' · ' + st + (p.status === 'merged' ? ' (' + (p.mergedBy === 'auto' ? '자동' : (p.mergedBy || '')) + (p.mergedAt ? ' · ' + at(p.mergedAt) : '') + ') — 배포가 끝나면 「처리 안 된 오류」가 자동으로 줄어듭니다' : '')));
             if (p.why && p.status !== 'merged') row.appendChild(elc('span', 'sba-muted', ' · ' + p.why));
             if (p.status === 'needs_human' && p.howText) row.appendChild(elc('div', 'sba-muted', p.howText));
+            // 무엇을 보고 누르는지(독립 검토 (E)) — PR 요약·결정 필요·자동 범위 밖 파일
+            if (p.summary) { var ps = elc('div', 'sba-muted', p.summary); ps.setAttribute('data-sb-autofix-pr-summary', ''); row.appendChild(ps); }
+            (p.needs || []).forEach(function (q, i) { var nq = elc('div', '', '결정 필요 ' + (i + 1) + ' · ' + q); nq.style.color = '#fcd34d'; nq.setAttribute('data-sb-autofix-need', ''); row.appendChild(nq); });
+            if ((p.outside || []).length) { var ou = elc('div', 'sba-muted', '자동 범위 밖 파일: ' + p.outside.join(', ') + (p.outsideCount > p.outside.length ? ' 외' : '')); ou.setAttribute('data-sb-autofix-outside', ''); row.appendChild(ou); }
             var acts = el('div', 'display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;');
             if (p.status !== 'merged' && p.status !== 'closed') {
                 var mb = elc('button', 'sba-btn primary', '머지'); mb.type = 'button'; mb.setAttribute('data-sb-autofix-merge', String(p.number)); mb.disabled = !p.canMerge;
                 if (!p.canMerge) mb.title = '검사가 끝나 초록일 때 눌립니다';
                 mb.addEventListener('click', async function () {
-                    if (!window.confirm('PR #' + p.number + ' 을 머지할까요? 머지하면 곧바로 배포가 시작됩니다.')) return;
+                    if (!window.confirm('PR #' + p.number + ' 을 머지할까요? 머지하면 곧바로 배포가 시작됩니다.' + (p.summary ? '\n\n' + p.summary : '') + ((p.needs || []).length ? '\n\n결정 필요 ' + p.needs.length + '건 — 내용을 확인하셨으면 확인을 눌러 주세요.' : ''))) return;
                     mb.disabled = true; msg.hidden = false; msg.style.color = '#94a3b8'; msg.textContent = '머지 요청 중…';
                     try {
                         var m = await call('/autofix/prs/' + p.number + '/merge', { method: 'POST' });
                         if (m.status === 200) {
-                            msg.style.color = '#34d399'; msg.textContent = '머지했습니다 — 배포(약 3~5분)가 끝나면 「처리 안 된 오류」가 자동으로 갱신됩니다.';
                             [3, 6, 10].forEach(function (min) { setTimeout(function () { if (document.body.contains(box)) refresh(); }, min * 60000); });   // 배포 뒤 처리 완료 목록 적용을 화면에 반영
-                            drawAutofix(box, refresh);
+                            drawAutofix(box, refresh, '머지했습니다 — 배포(약 3~5분)가 끝나면 「처리 안 된 오류」가 자동으로 갱신됩니다.');   // 다시 그려도 안내가 남게(독립 검토 (G))
                         } else { msg.style.color = '#fca5a5'; msg.textContent = '머지하지 못했습니다: ' + ((m.body && m.body.why) || ('HTTP ' + m.status)); mb.disabled = false; }
                     } catch (e) { console.warn('[AI 브리핑 관리] 자동 처리 PR 머지 요청 실패:', e && e.message); msg.style.color = '#fca5a5'; msg.textContent = '요청 실패: ' + (e && e.message); mb.disabled = false; }
                 });
@@ -852,6 +859,7 @@
             var gl = el('a', 'font-size:.76rem;color:#67e8f9;align-self:center;', 'GitHub 에서 보기'); gl.href = p.pr_url; gl.target = '_blank'; gl.rel = 'noopener noreferrer'; acts.appendChild(gl);
             row.appendChild(acts); box.appendChild(row);
         });
+        if (note) { msg.hidden = false; msg.style.color = '#34d399'; msg.textContent = note; }
         box.appendChild(msg);
     }
     /**

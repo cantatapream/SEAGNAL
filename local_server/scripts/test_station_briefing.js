@@ -3747,6 +3747,15 @@ const WIN = R.editionWindow('morning', T0);
         assert.deepStrictEqual(sp('바깥쪽 먼바다는 바람이 강할 것으로 예상됩니다.'), ['place:바깥쪽먼바다'], '「바깥쪽」은 해구에만 — 먼바다·앞바다는 그대로');
         assert.deepStrictEqual(sp('가짜보여도 해역은 바람이 강할 것으로 예상됩니다.'), ['place:가짜보여도'], '「보여도」는 띄어 쓴 낱말째일 때만');
         assert.deepStrictEqual(sp('기상청 해상 전망에서는 동해 쪽 먼바다에 바람이 강하고 물결이 높아질 수 있다고 해, 이후 해상 상황의 변화를 살펴야 합니다.', ['울산앞바다']), ['place:동해쪽먼바다'], '진하 「동해 쪽 먼바다」 — 공식 이름이 아닌 줄임(사용자 결정 전까지 그대로 실패)');
+        // 사용자 「1- 허용」(2026-11-20): 바다 이름 + 쪽 + 먼바다 — 그 관할 기상청 해역에 「동해…먼바다」가 있을 때만
+        const kzs = (t, kz) => errs49({ land: null, sea: t }, si49({ allowed_places: ['울산앞바다'], kma_zones: kz }), /^place:/);
+        const JH = '기상청 해상 전망에서는 동해 쪽 먼바다에 바람이 강하고 물결이 높아질 수 있다고 해, 이후 해상 상황의 변화를 살펴야 합니다.';
+        assert.deepStrictEqual(kzs(JH, ['동해남부남쪽먼바다']), [], '진하 운영 글 — 동해…먼바다 해역이 있으면 통과');
+        assert.deepStrictEqual(kzs(JH, ['남해동부먼바다']), ['place:동해쪽먼바다'], '그 바다 해역이 없으면 실패');
+        assert.deepStrictEqual(kzs('동해 쪽 앞바다에 바람이 강합니다.', ['동해남부남쪽먼바다']), ['place:동해쪽앞바다'], '꼬리(앞바다·먼바다)가 다르면 실패');
+        assert.deepStrictEqual(kzs('동해 쪽 안쪽먼바다에 바람이 강합니다.', ['동해남부남쪽먼바다']), ['place:동해쪽안쪽먼바다'], '안쪽·바깥을 품은 해역이 없으면 실패');
+        assert.deepStrictEqual(kzs('가짜 쪽 먼바다에 바람이 강합니다.', ['동해남부남쪽먼바다']), ['place:가짜쪽먼바다'], '바다 이름이 아니면 실패');
+        assert.deepStrictEqual(kzs('동해가짜 쪽 먼바다에 바람이 강합니다.', ['동해남부남쪽먼바다']), ['place:동해가짜쪽먼바다'], '바다 이름 뒤에 다른 말이 붙으면 실패');
         // G02 — AI 가 어긴 숫자(md 의 허용 숫자 가운데 관련 값)
         const nn = (o, keys) => AI.validateOverview(o, si49({ land: o.land ? {} : null, allowed_number_keys: keys })).errors.filter((e) => /^number:/.test(e));
         assert.deepStrictEqual(nn({ land: '이들 장소는 위험구역이 8~9곳이고 과거 익수·표류 등 연안사고 이력이 있어 연안 활동에 유의해야 합니다.', sea: '해상은 평소 수준입니다.' }, ['8|곳', '9|곳', '14|곳']), ['number:8~9곳'], '임원 — 관광지별 수를 범위로(새 범위)');
@@ -3935,6 +3944,10 @@ const WIN = R.editionWindow('morning', T0);
         await a.done({ outcome: 'failed', summary: 'x' }); assert.equal(pushes.length, 0, '운영 아님 — 푸시 없음');
         await mk({ FLY_APP_NAME: 'seagnal-server' }).done({ outcome: 'failed', summary: '저장소 clone 실패' });
         assert.equal(pushes.length, 1); assert.ok(/세션 실패/.test(pushes[0][0]) && /저장소 clone 실패/.test(pushes[0][1]) && /「오류 자동 처리」 칸/.test(pushes[0][1]));
+        // 독립 검토 (D) — 서버에 GitHub 열쇠가 없어 머지 담당이 지켜보지 못하는 PR(how secrets)도 푸시
+        const sec = AF.createAutofix({ file: f, now: () => t, merger: { ...merger, track: () => ({ tracked: true, mode: 'human', how: 'secrets', status: 'needs_human' }) }, push: async (a, b, c) => pushes.push([a, b, c]), env: { FLY_APP_NAME: 'seagnal-server' } });
+        sec.started('E20261122-054812'); await sec.done({ outcome: 'pr', export_id: 'E20261122-054812', pr_url: 'https://github.com/cantatapream/SEAGNAL/pull/12' });
+        assert.equal(pushes.length, 2); assert.ok(/자동 머지 불가/.test(pushes[1][0]) && /GitHub 열쇠/.test(pushes[1][1]), pushes[1][1]);
     });
     await check('[§11.10.48-7] 화면 md — 누적 md(내보내기 번호·처리 완료 기록 방법·저장소 파일 경로·유형별 요약·날짜별·유형 번호 칸·탈락 글) · 서버 유형 열쇠가 모두 한글로 풀림 · 실행별 md 에 「(처리 완료)」', () => {
         const sandbox = { window: {} }; require('vm').runInNewContext(fs.readFileSync(path.join(__dirname, '../../client/js/admin/admin_station_briefing.js'), 'utf8'), sandbox);

@@ -97,14 +97,35 @@ function outsideAuto(files) {
 }
 /** 브리핑 오류 자동 처리의 허용 파일 밖. 예: outsideBriefing(['local_server/services/station_briefing_ai.js', 'local_server/routes/x.js']) → ['local_server/routes/x.js'] @param {string[]} files @returns {string[]} */
 function outsideBriefing(files) { return (files || []).filter((f) => typeof f !== 'string' || !BRIEFING_ALLOW_FILES.has(f)); }
+// 브리핑 검사기 고침에 있으면 안 되는 새 줄(독립 검토 2026-11-20 (A) — 허용 파일 이름만 보면 검사기에 외부 호출·파일 접근을 끼워도 자동 배포된다).
+//   검사기는 글을 거르는 순수 함수라 새 require·process·네트워크·eval 이 들 일이 없다. 없으면: 세션이 받은 AI 글(간접 지시 주입 가능)에 휘둘린 변경이 사람 눈 없이 배포될 수 있다.
+const BRIEFING_RISKY_ADD_RE = /\brequire\s*\(|\bimport\s*\(|\bprocess\.|child_process|\bfetch\s*\(|\beval\s*\(|\bnew\s+Function\b|\bFunction\s*\(|https?:\/\/|\bfs\.|\bXMLHttpRequest\b/;
+/**
+ * 브리핑 PR 의 바뀐 내용 검사(자동 머지 전) — 걸리면 사람 몫. 순수 함수.
+ * ①검사기 파일의 더한 줄에 BRIEFING_RISKY_ADD_RE ②시험 파일에서 지운 단언(assert) 줄이 더한 단언 줄보다 많음(시험 약화) ③이 둘의 patch 를 못 받음(너무 큼 — 못 보면 자동 아님).
+ * 예: briefingContentIssues([{filename:'local_server/services/station_briefing_ai.js', patch:'+const x = require(\'fs\');'}]) → ['검사기에 새 외부 호출·파일 접근 줄']
+ * @param {{filename:string, patch?:string}[]} details @returns {string[]}
+ */
+function briefingContentIssues(details) {
+    const out = [];
+    for (const x of details || []) {
+        if (!x || (x.filename !== 'local_server/services/station_briefing_ai.js' && x.filename !== 'local_server/scripts/test_station_briefing.js')) continue;
+        if (typeof x.patch !== 'string') { out.push('바뀐 내용을 다 보지 못함(' + x.filename.split('/').pop() + ')'); continue; }
+        const lines = x.patch.split('\n'), add = lines.filter((l) => l.startsWith('+') && !l.startsWith('+++')), del = lines.filter((l) => l.startsWith('-') && !l.startsWith('---'));
+        if (x.filename.endsWith('station_briefing_ai.js') && add.some((l) => BRIEFING_RISKY_ADD_RE.test(l))) out.push('검사기에 새 외부 호출·파일 접근 줄');
+        if (x.filename.endsWith('test_station_briefing.js') && del.filter((l) => /\bassert\b/.test(l)).length > add.filter((l) => /\bassert\b/.test(l)).length) out.push('시험 단언이 줄어듦');
+    }
+    return out;
+}
 
 /**
  * 자동 머지 종류(§11.10.59) — 같은 머지 담당을 위키 자동 반영(nariya)과 브리핑 오류 자동 처리(briefing)가 함께 쓴다.
  * 종류마다 다른 것: 상태 파일 · PR 본문 표식 · 허용 파일 · 푸시·카드 글 · 푸시 종류. 조건(검사 초록·충돌 없음·결정 필요 0·최신 main·그 sha 만 머지)은 같다.
  */
 const PROFILES = {
-    nariya: { key: 'nariya', file: DEFAULT_FILE, marker: 'nariya-run: ', name: 'AI 챗봇 자동 반영', where: '앱 → 관리자 → 「자동반영」 방', scopeWhy: '위키·원문 밖 파일을 고침', scopeShort: '위키·원문 밖 파일(프로그램 코드 등)을 고침', outside: outsideAuto, push: 'nariya_pr' },
-    briefing: { key: 'briefing', file: path.join(__dirname, '..', 'data', 'briefing_autofix_pr_state.json'), marker: 'briefing-autofix: ', name: 'AI 브리핑 오류 자동 처리', where: '앱 → 관리자 → AI → 「AI 브리핑」 탭 「오류 자동 처리」 칸', scopeWhy: '자동 처리가 고칠 수 있는 파일 밖을 고침', scopeShort: '자동 처리가 고칠 수 있는 파일 밖을 고침', outside: outsideBriefing, push: 'briefing_pr' },
+    nariya: { key: 'nariya', file: DEFAULT_FILE, marker: 'nariya-run: ', card: '앱 「자동반영」 방 카드', name: 'AI 챗봇 자동 반영', where: '앱 → 관리자 → 「자동반영」 방', scopeWhy: '위키·원문 밖 파일을 고침', scopeShort: '위키·원문 밖 파일(프로그램 코드 등)을 고침', outside: outsideAuto, push: 'nariya_pr' },
+    // briefing: 표식은 「한 줄 전체」가 그 번호일 때만(독립 검토 (C) — 부분 일치면 E…054812 가 E…054812-2 의 앞부분이라 통과했다) · 내용 검사(content)
+    briefing: { key: 'briefing', file: path.join(__dirname, '..', 'data', 'briefing_autofix_pr_state.json'), marker: 'briefing-autofix: ', markerLine: true, content: briefingContentIssues, card: '앱 「AI 브리핑」 탭 「오류 자동 처리」 칸', name: 'AI 브리핑 오류 자동 처리', where: '앱 → 관리자 → AI → 「AI 브리핑」 탭 「오류 자동 처리」 칸', scopeWhy: '자동 처리가 고칠 수 있는 파일 밖을 고침', scopeShort: '자동 처리가 고칠 수 있는 파일 밖을 고침', outside: outsideBriefing, push: 'briefing_pr' },
 };
 
 /**
@@ -132,9 +153,11 @@ function judge(pr, runs, ctx) {
         const created = Date.parse(pr.created_at || '');
         if (!Number.isFinite(created) || !Number.isFinite(c.runSince) || created < c.runSince) return { ok: false, state: 'foreign', why: '이 PR 이 그 세션이 일을 시작한 뒤에 만들어진 것인지 확인하지 못함', sha, how: 'button' };
         // PR 본문의 표식 「nariya-run: <run_id>」가 done 을 보낸 run 과 같아야 한다(재검토 중-D — 세션이 다른 PR 번호를 잘못 보고해도 자동 머지되지 않게).
-        if (typeof c.runId !== 'string' || !c.runId || String(pr.body || '').indexOf(P.marker + c.runId) < 0) return { ok: false, state: 'foreign', why: 'PR 본문에 이 세션의 표식(' + P.marker + String(c.runId || '?').slice(0, 64) + ')이 없음', sha, how: 'button' };
+        const markOk = typeof c.runId === 'string' && !!c.runId && (P.markerLine ? String(pr.body || '').split(/\r?\n/).some((l) => l.trim() === P.marker + c.runId) : String(pr.body || '').indexOf(P.marker + c.runId) >= 0);
+        if (!markOk) return { ok: false, state: 'foreign', why: 'PR 본문에 이 세션의 표식(' + P.marker + String(c.runId || '?').slice(0, 64) + ')이 없음', sha, how: 'button' };
         if (c.filesTruncated) return { ok: false, state: 'scope', why: '바뀐 파일이 너무 많아 다 보지 못함', sha, how: 'button' };
         const out = P.outside(c.files);
+        if (P.content) { const bad = P.content(c.details); if (!Array.isArray(c.details) || bad.length) return { ok: false, state: 'scope', why: '자동 머지하지 않는 변경: ' + (bad.join(', ') || '바뀐 내용을 못 읽음'), sha, how: 'button' }; }
         if (!Array.isArray(c.files) || out.length) return { ok: false, state: 'scope', why: P.scopeWhy + ': ' + (out.slice(0, 3).join(', ') || '(목록 없음)') + (out.length > 3 ? ` 외 ${out.length - 3}개` : ''), sha, how: 'button' };
     }
     // mergeable 은 GitHub 가 늦게 채워 null 로 오래 남을 수 있다 — mergeable_state 「dirty」(충돌)도 충돌로 본다(2026-11-18 PR #1485: 충돌인데 앱이 「계산 중」으로 보였다).
@@ -260,20 +283,20 @@ function createMerger({
             if (!m.ok) return httpFail('main 과 비교', m);
             behindBy = m.json && Number.isInteger(m.json.behind_by) ? m.json.behind_by : NaN;
         }
-        let files = null, filesTruncated = false;
+        let files = null, filesTruncated = false, details = null;
         if (opt.auto || opt.withFiles) {
-            files = [];
+            files = []; details = [];
             for (let page = 1; page <= 30; page++) {
                 const f = await gh('GET', API + '/pulls/' + n + '/files?per_page=100&page=' + page);
                 if (!f.ok) return httpFail('바뀐 파일 조회', f);
                 const got = Array.isArray(f.json) ? f.json : [];
                 // 이름 바꾸기는 옛 경로도 본다 — 기준선·검사 도구를 wiki/ 로 「옮기는」 것은 그 자리에서 지우는 것과 같다(재검토 중-A).
-                for (const x of got) { if (!x) continue; files.push(x.filename); if (x.previous_filename) files.push(x.previous_filename); }
+                for (const x of got) { if (!x) continue; files.push(x.filename); if (x.previous_filename) files.push(x.previous_filename); details.push({ filename: x.filename, patch: typeof x.patch === 'string' ? x.patch : undefined }); }
                 if (got.length < 100) break;
                 if (page === 30) filesTruncated = true;   // GitHub 는 3,000개까지만 준다
             }
         }
-        const r = judge(p.json, runs, { behindBy, auto: !!opt.auto, files, filesTruncated, runSince: opt.runSince, owner: opt.owner, runId: opt.runId, profile });
+        const r = judge(p.json, runs, { behindBy, auto: !!opt.auto, files, filesTruncated, runSince: opt.runSince, owner: opt.owner, runId: opt.runId, profile, details });
         const outside = files ? profile.outside(files) : null;
         return Object.assign(r, { title: String((p.json && p.json.title) || '').slice(0, 200), ref: p.json && p.json.head && typeof p.json.head.ref === 'string' ? p.json.head.ref.slice(0, 200) : null }, outside ? { outside: outside.slice(0, 5), outsideCount: outside.length + (filesTruncated ? '+' : '') } : {});
     }
@@ -300,7 +323,7 @@ function createMerger({
     /** 사람에게 넘길 때 무엇을 해야 하나 — 푸시·카드에 같은 글을 쓴다(적대검증 C#중-3). */
     const HOW_TEXT = {
         button: profile.where + '에서 내용을 확인하고 [머지] 버튼을 눌러 주세요(검사가 끝나 초록이면 눌립니다)',
-        github: '앱 버튼으로는 풀 수 없습니다 — GitHub 에서 PR 을 직접 확인해 주세요(' + profile.where + ' 카드의 「GitHub 에서 보기」)',
+        github: '앱 버튼으로는 풀 수 없습니다 — GitHub 에서 PR 을 직접 확인해 주세요(' + profile.card + '의 「GitHub 에서 보기」)',
         secrets: '서버의 GitHub 열쇠(Fly secrets GITHUB_MERGE_TOKEN)의 값·권한을 확인해 주세요',
     };
     /**
@@ -663,7 +686,7 @@ function forDefault() {
 function forBriefing() { return defBriefing || (defBriefing = createMerger({ profile: PROFILES.briefing })); }
 
 module.exports = {
-    createMerger, forDefault, forBriefing, judge, outsideAuto, outsideBriefing, PROFILES, BRIEFING_ALLOW_FILES, REQUIRED_CHECK, PR_URL_RE, AUTO_ALLOW,
+    createMerger, forDefault, forBriefing, judge, outsideAuto, outsideBriefing, briefingContentIssues, PROFILES, BRIEFING_ALLOW_FILES, REQUIRED_CHECK, PR_URL_RE, AUTO_ALLOW,
     track: (d, o) => forDefault().track(d, o),
     mergeNow: (n, by) => forDefault().mergeNow(n, by),
     refresh: () => forDefault().refresh(),

@@ -1550,21 +1550,29 @@ function makeBriefings() {
             assert.ok(/아직 없음/.test(await page.textContent('[data-sb-autofix-last]')), '기록 없으면 0 처럼 보이지 않게(L-291)');
             afState.lastRun = { at: '2026-10-17T05:58:10+09:00', outcome: 'pr', export_id: 'E20261017-054812', fixed: ['G01'], left: ['G02'], summary: '지명 오판 1유형 고침 · 숫자 1유형은 AI 실제 어김' };
             afState.prs = [{ number: 9, pr_url: 'https://github.com/cantatapream/SEAGNAL/pull/9', status: 'waiting', mode: 'auto', canMerge: false },
-                { number: 8, pr_url: 'https://github.com/cantatapream/SEAGNAL/pull/8', status: 'needs_human', mode: 'human', how: 'button', howText: '앱 → 관리자 → AI → 「AI 브리핑」 탭 「오류 자동 처리」 칸에서 내용을 확인하고 [머지] 버튼을 눌러 주세요', why: '자동 처리가 고칠 수 있는 파일 밖을 고침', canMerge: true }];
+                { number: 8, pr_url: 'https://github.com/cantatapream/SEAGNAL/pull/8', status: 'needs_human', mode: 'human', how: 'button', howText: '앱 → 관리자 → AI → 「AI 브리핑」 탭 「오류 자동 처리」 칸에서 내용을 확인하고 [머지] 버튼을 눌러 주세요', why: '자동 처리가 고칠 수 있는 파일 밖을 고침', canMerge: true,
+                    summary: '지명 오판 유형 하나를 고쳤습니다', needs: ['「동해 쪽 먼바다」를 허용할까요'], outside: ['local_server/routes/station_briefing.js'], outsideCount: 1 }];
             await page.evaluate(() => document.querySelector('[data-sb-refresh]').click());
             await page.waitForFunction(() => document.querySelectorAll('[data-sb-autofix-pr]').length === 2);
             const last = await page.textContent('[data-sb-autofix-last]');
             assert.ok(/^마지막 세션 검사 .*05:58 · PR 을 올렸습니다 · 내보내기 E20261017-054812 · 고친 유형 G01 · 그대로 G02$/.test(last), last);
             assert.ok(/지명 오판 1유형 고침/.test(await page.textContent('[data-sb-autofix-summary]')));
             assert.ok(/검사 기다리는 중 — 통과하면 자동 머지/.test(await page.textContent('[data-sb-autofix-pr="9"]')));
+            const r8 = await page.textContent('[data-sb-autofix-pr="8"]');   // 독립 검토 (E) — 무엇을 보고 누르는지
+            assert.ok(/지명 오판 유형 하나를 고쳤습니다/.test(r8) && /결정 필요 1 · 「동해 쪽 먼바다」를 허용할까요/.test(r8) && /자동 범위 밖 파일: local_server\/routes\/station_briefing\.js/.test(r8), r8);
+            assert.equal(await page.$('[data-sb-autofix-stale]'), null, '하루 안이면 경고 없음');
             assert.deepEqual(await page.$$eval('[data-sb-autofix-merge]', (bs) => bs.map((b) => b.getAttribute('data-sb-autofix-merge') + ':' + b.disabled)), ['9:true', '8:false'], '검사 초록(canMerge)일 때만 눌림');
             const w = await page.evaluate(() => { const c = document.querySelector('[data-sb-autofix]'); return [c.scrollWidth, c.clientWidth]; }); assert.ok(w[0] <= w[1] + 1, '넘침 없음 ' + w);
-            page.once('dialog', (d) => d.accept());
+            let dlg = ''; page.once('dialog', (d) => { dlg = d.message(); d.accept(); });
             await page.click('[data-sb-autofix-merge="8"]');
             await page.waitForSelector('[data-sb-autofix-dismiss="8"]');
-            assert.deepEqual(afMerges, [8]);
+            assert.deepEqual(afMerges, [8]); assert.ok(/지명 오판 유형 하나를 고쳤습니다/.test(dlg) && /결정 필요 1건/.test(dlg), '확인창에 요약·결정 필요 ' + dlg);
+            assert.ok(/머지했습니다 — 배포/.test(await page.textContent('[data-sb-autofix]')), '다시 그려도 머지 안내가 남음');
             assert.ok(/머지됨/.test(await page.textContent('[data-sb-autofix-pr="8"]')) && /처리 안 된 오류」가 자동으로 줄어듭니다/.test(await page.textContent('[data-sb-autofix-pr="8"]')));
             await page.click('[data-sb-autofix-dismiss="8"]'); await page.waitForFunction(() => !document.querySelector('[data-sb-autofix-pr="8"]'));
+            afState.lastRun = { ...afState.lastRun, at: '2026-10-15T05:58:10+09:00' };   // 시험 시계 10-17 10:05 — 이틀 넘게 결과 없음
+            await page.evaluate(() => document.querySelector('[data-sb-refresh]').click()); await page.waitForSelector('[data-sb-autofix-stale]');
+            assert.ok(/2일 넘게 결과를 보내지 않았습니다/.test(await page.textContent('[data-sb-autofix-stale]')));
             afState.lastRun = null; afState.prs = [];
         });
         await page.context().close();

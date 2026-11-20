@@ -549,7 +549,14 @@ function validateOverview(o, si) {
         // 허용 이름이 이 낱말에서 시작해 다음 낱말까지 이어지면 통과(「신도해안도로 갯바위」 — §11.10.54).
         // 「남쪽 먼바다」(누적 오류 G01 성산 — 기상청 전망을 줄여 쓴 꼴): 방위 + (안쪽·바깥) + 먼바다·앞바다 는 그 방위를 품고 같은 꼬리로 끝나는 이 관할 기상청 해역 이름(kma_zones)이 있을 때만 통과.
         //   방위는 낱자 경계로(「동쪽」이 「남동쪽」 안에서 맞지 않게) · 앞에 이름다운 낱말이 붙은 후보(「가짜 동쪽 먼바다」)는 이 길로 통과하지 않는다 — 가장 긴 후보가 방위 꼴일 때만(독립 검토 상2·중1).
-        const dirZoneOk = (x) => { const m = /^(동|서|남|북|남동|남서|북동|북서)쪽(안쪽|바깥)?(먼바다|앞바다)$/.exec(x); if (!m) return false; const re = new RegExp('(?<![동서남북])' + m[1] + '쪽' + (m[2] || '')); return [...kz].some((z) => re.test(z) && z.endsWith(m[3])); };
+        //   「동해 쪽 먼바다」(누적 오류 E20261120-110944 G01 진하 — 사용자 「1- 허용」 2026-11-20, §11.10.58): 바다 이름(서해·남해·동해·제주도) + 쪽 + (안쪽·바깥) + 먼바다·앞바다 는
+        //   그 바다 이름으로 시작하고 같은 꼬리로 끝나는(안쪽·바깥이 있으면 그것도 품은) 이 관할 기상청 해역 이름이 있을 때만 통과. 앞에 이름다운 낱말이 붙은 후보는 위와 같이 통과하지 않는다.
+        const dirZoneOk = (x) => {
+            const m = /^(동|서|남|북|남동|남서|북동|북서)쪽(안쪽|바깥)?(먼바다|앞바다)$/.exec(x);
+            if (m) { const re = new RegExp('(?<![동서남북])' + m[1] + '쪽' + (m[2] || '')); return [...kz].some((z) => re.test(z) && z.endsWith(m[3])); }
+            const n = /^(서해|남해|동해|제주도)쪽(안쪽|바깥)?(먼바다|앞바다)$/.exec(x);
+            return !!n && [...kz].some((z) => z.startsWith(n[1]) && z.endsWith(n[3]) && (!n[2] || z.includes(n[2])));
+        };
         const continuesName = (pc) => { const w0 = compact(pc.word || ''), fw = compact(pc.fwd || ''); return !!(w0 && fw) && names.some((a) => a.length > w0.length && a.startsWith(w0) && fw.startsWith(a)); };
         for (const pc of placeCandidates(t)) if (!pc.cands.some((x) => stems.has(x) || kz.has(x) || names.some((a) => x.endsWith(a))) && !dirZoneOk(pc.cands[pc.cands.length - 1]) && !withParticle(compact(pc.raw || '')) && !continuesName(pc)) errors.push('place:' + pc.cands[pc.cands.length - 1]);
         for (const w of FORBIDDEN) if (c.includes(compact(w))) errors.push('forbidden:' + w);

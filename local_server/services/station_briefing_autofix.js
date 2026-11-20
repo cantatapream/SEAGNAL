@@ -121,9 +121,13 @@ function createAutofix({
         }
         st.runs = st.runs.concat([run]).slice(-KEEP_RUNS); save();
         // 세션 실패는 조용히 지나가면 안 된다(CLAUDE.md L-291 — 조용한 것이 이상 없는 것처럼 보임). PR·없음·건너뜀은 머지 담당·Claude 앱 알림이 맡는다.
-        if (d.outcome === 'failed' && env.FLY_APP_NAME === PROD_APP) {
-            try { await push('AI 브리핑 오류 자동 처리 — 세션 실패', (d.summary || '까닭 없음').slice(0, 200) + ' — 앱 → 관리자 → AI → 「AI 브리핑」 탭 「오류 자동 처리」 칸에서 확인해 주세요.', { type: 'briefing_autofix_failed' }); }
-            catch (e) { console.error('[station_briefing_autofix] 실패 푸시 오류:', e && e.message); }
+        //   서버에 GitHub 열쇠가 없어 머지 담당이 지켜보지도 못하는 PR(how secrets)도 머지 담당이 푸시를 안 보내므로 여기서 보낸다(독립 검토 (D)).
+        const where = ' — 앱 → 관리자 → AI → 「AI 브리핑」 탭 「오류 자동 처리」 칸에서 확인해 주세요.';
+        const msg = d.outcome === 'failed' ? ['AI 브리핑 오류 자동 처리 — 세션 실패', (d.summary || '까닭 없음').slice(0, 200) + where, 'briefing_autofix_failed']
+            : tracked && tracked.how === 'secrets' ? ['AI 브리핑 오류 자동 처리 — 자동 머지 불가 · 확인 필요', '서버에 GitHub 열쇠가 없어 자동 머지도 머지 버튼도 쓸 수 없습니다. GitHub 에서 PR 을 직접 머지하거나 서버 열쇠를 확인해 주세요' + where, 'briefing_autofix_secrets'] : null;
+        if (msg && env.FLY_APP_NAME === PROD_APP) {
+            try { await push(msg[0], msg[1], { type: msg[2] }); }
+            catch (e) { console.error('[station_briefing_autofix] 푸시 오류:', e && e.message); }
         }
         return { ok: true, tracked, owner: d.outcome === 'pr' ? !!start && !dupPr : undefined };
     }
@@ -133,7 +137,7 @@ function createAutofix({
      * @returns {object} [연계] ← routes GET /api/admin/station-briefing/autofix → 관리자 「오류 자동 처리」 칸
      */
     function status() {
-        const st = load(), runs = st.runs.slice().reverse().slice(0, 10).map((r) => ({ at: iso(r.at), export_id: r.export_id, outcome: r.outcome, pr_url: r.pr_url, fixed: r.fixed, left: r.left, needs: r.needs, summary: r.summary, errors: r.errors, track: r.track }));
+        const st = load(), runs = st.runs.slice().reverse().slice(0, 10).map((r) => ({ at: iso(r.at), export_id: r.export_id, outcome: r.outcome, pr_url: r.pr_url, fixed: Array.isArray(r.fixed) ? r.fixed : [], left: Array.isArray(r.left) ? r.left : [], needs: Array.isArray(r.needs) ? r.needs : [], summary: r.summary, errors: r.errors, track: r.track }));
         let prs = { prs: [], counts: { needs_human: 0, waiting: 0 }, tokenConfigured: false }, prError = null;
         try { prs = M().list(); } catch (e) { prError = String((e && e.message) || e).slice(0, 80); }
         const lastStart = st.starts.length ? st.starts[st.starts.length - 1] : null;
