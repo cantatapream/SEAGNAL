@@ -26,7 +26,10 @@ const SHOT = process.env.SEA_SHOT_DIR || fs.mkdtempSync(path.join(os.tmpdir(), '
 fs.mkdirSync(SHOT, { recursive: true });
 
 const BODY = '<특보 현황>\n○ 대설주의보: 제주도산지\n○ 풍랑주의보: {{loc:제주도남쪽안쪽먼바다}}(해제 예고: 21일 밤(21~24시))\n<중점 사항>\n○ 내일까지 {{loc:제주도}}에는 {{warn:바람이}} 매우 강하게 부는 곳이 있겠습니다.';
-const base0 = (code, name) => ({ officeCode: code, officeName: name, summary: BODY, bulletinPublishTime: '2026.11.19 04:50', bulletinReportId: 'cmt:202611190450:37', publishTime: '11.19. 05:00', temperature: { low: null, high: '12 ~ 13' } });
+// 기온 상자는 「오늘 발표분」일 때만 그려진다(isPdfTemperatureForToday) — 발표 날짜를 고정해 두면 다음 날부터 이 시험이 걸린다(2026-11-20 에 실제로 걸렸다).
+//   그래서 시험을 돌리는 날(한국 시각)의 날짜로 만든다.
+const TODAY_PUB = (() => { const d = new Date(Date.now() + 9 * 3600e3); return String(d.getUTCMonth() + 1).padStart(2, '0') + '.' + String(d.getUTCDate()).padStart(2, '0') + '. 05:00'; })();
+const base0 = (code, name) => ({ officeCode: code, officeName: name, summary: BODY, bulletinPublishTime: '2026.11.19 04:50', bulletinReportId: 'cmt:202611190450:37', publishTime: TODAY_PUB, temperature: { low: null, high: '12 ~ 13' } });
 const REGIONAL = {
     // 요약됨 + 원문 있음 — 같은 해역(남부앞바다)이 기간별 두 줄, 긴 딱지 줄
     184: Object.assign(base0('184', '제주지방기상청'), {
