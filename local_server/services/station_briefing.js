@@ -9,7 +9,7 @@
  *         오류는 누적 오류 기록(station_briefing_errlog — data/station_briefing/error_log.json)에도 번호를 붙여 처리 완료 전까지 최대 90일 남기고, 관리자가 처리 안 된 오류 전부를 누적 md 로 내보내며(유형 번호 G01…)
  *         유형별로 처리 완료한다 — 관리자 버튼, 또는 그 md 로 고친 PR 에 함께 넣은 config/station_briefing_resolved.json 이 머지·배포된 뒤 서버가 읽어 자동으로(§11.10.48).
  *         실행 요약에는 관광지 자료 확인 불가(spotFailOf — 실행 기록은 수만, 마지막 실행·마지막 정시 판(lastEdition)은 관할·관광지 이름까지)도 남긴다(§11.10.21 — 관리자 「상태」 상자·정시 판 소요 표).
- *         자동 실행(정시 판·특보 변경 판)이 끝날 때마다 관리자 휴대폰에 결과 푸시 1통(오류가 없어도), 던지면 「분석 실패」 1통(§11.10.8 — 관리자 즉시 실행은 보내지 않음).
+ *         정시 판(자동 실행)이 끝날 때마다 관리자 휴대폰에 결과 푸시 1통(특보 변경 판은 보내지 않음 — §11.10.60)(오류가 없어도), 던지면 「분석 실패」 1통(§11.10.8 — 관리자 즉시 실행은 보내지 않음).
  *         세션 정시 판(§11.10.56): 만들기 시작 19~21분 전(06:31·16:31·21:59 — §11.10.57) 예약 작업이 띄운 Claude Code 세션이 일감(session_job.json — 판 종류는 서버가 정함)을 받아 분석 문단을 쓰고 한 번 내면,
  *         정시 판 실행이 관할 입력이 그대로이고 검사를 통과한 관할만 그 글을 쓰고 나머지는 AI 사슬로 쓴다(답이 아직이면 시작을 10분까지 미룬다).
  *         해역 기상은 소해구 예보(§11.10.19): 모으기 전에 저장된 소해구 판(smallzone_forecast — 대해구 예보가 새 판을 받을 때 미리 받아 둠)을 찾기 함수로 넘기고,
@@ -257,9 +257,9 @@ function historyRow(s, now) {
     return { ...base, status: 'ok', lastError: null, detail: null };
 }
 
-// ── 자동 실행 결과 관리자 푸시(§11.10.8) ── 사용자 원문 *"고정적으로는 하루에 세 번을 분석하게 되어 있잖아. 그리고 고정적이 아닌 것은 특보 내용이 변경됐을 때 … 그 분석을 자동으로 했을 때
+// ── 자동 실행 결과 관리자 푸시(§11.10.8 · §11.10.60 — 2026-11-20 사용자 *"정기 특보 결과만 나오고 수시로바뀌는 특보 판은 푸시알림을 안보내줘도될것같아 … 정기판만 보내줄 수 있도록"* → 지금은 정시 판(morning·evening·night)만 보낸다, 특보 변경 판은 결과·실패 모두 보내지 않음) ── 사용자 원문 *"고정적으로는 하루에 세 번을 분석하게 되어 있잖아. 그리고 고정적이 아닌 것은 특보 내용이 변경됐을 때 … 그 분석을 자동으로 했을 때
 //    관리자에게 분석 결과가 푸시 알림으로 왔으면 좋겠거든. 예를 들면 몇시 분석 결과 해서 오류 그 분석 도구 오류 몇번 뭐 이런 내용이 조금 정리돼서 간략하게"* · 언제 → *"매번 보내기"*(오류가 없어도).
-//    정시 판(morning·evening·night)·특보 변경 판(warning)을 1분 점검(tick)이 만들고 끝날 때마다 1통, 던지면 「분석 실패」 1통. 관리자 즉시 실행(manual)은 보내지 않는다(관리자가 화면을 보고 있다).
+//    정시 판(morning·evening·night)을 1분 점검(tick)이 만들고 끝날 때마다 1통(특보 변경 판 warning 은 §11.10.60 부터 보내지 않음), 던지면 「분석 실패」 1통. 관리자 즉시 실행(manual)은 보내지 않는다(관리자가 화면을 보고 있다).
 //    숫자는 그 실행의 results[].stats·errors — 관리자 「AI 브리핑」 상태 카드 칩(AI·재사용·규칙 분석·시간 초과·Gemini·오류)과 같은 값이다.
 /**
  * 판 이름. 정시 판은 공개 시각(EDITIONS — 관리자 탭 「07:30 판」과 같은 이름), 특보 변경은 「특보 변경 판」.
@@ -924,7 +924,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
             (e) => console.error('[station_briefing] 관리자 푸시 발송 예외 — ' + msg.title + ':', e && e.message));
     }
     /**
-     * 자동 실행(정시 판·특보 변경) 하나가 끝났을 때 결과 푸시 1통(§11.10.8 — 오류가 없어도). 같은 실행 결과(seq)를 두 번 받으면 두 번째는 보내지 않는다.
+     * 정시 판 하나가 끝났을 때 결과 푸시 1통(특보 변경 판은 부르지 않음 — §11.10.60)(§11.10.8 — 오류가 없어도). 같은 실행 결과(seq)를 두 번 받으면 두 번째는 보내지 않는다.
      * 예: pushResult('morning', {ok:true, seq:3, method:'chatgpt', results:[…], rule:[['고현파출소']]}) → '연안 안전 브리핑 07:30 판 결과' 1통 · 같은 것을 다시 → 없음(false)
      * @param {string} kind - morning|evening|night|warning @param {object} r - run 반환값 @param {string|null} [key] - 판 열쇠(정시 '날짜|판' · 특보 변경 'warning|마지막 변경 시각') — 같은 열쇠는 두 번 보내지 않음 @returns {boolean} 보냈으면 true [연계] ← tick / → runPushText·notifyAdmin
      */
@@ -944,7 +944,7 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
      * 특보 변경은 마지막 변경 뒤 WARN_DEBOUNCE_MS(3분) 조용할 때 한 번 — 그 사이 바뀐 구역은 합친다(마지막으로 만든 서명과 비교하므로 누적, C9).
      * 서명이 같은 채 파일 시각만 바뀌면 대기를 늘리지 않고, 계속 바뀌어도 첫 변경 뒤 WARN_MAX_WAIT_MS(15분)면 만든다.
      * 실행이 던지면 실패 시각·횟수를 남기고 10분 기다린다, 같은 판(특보 변경은 'warning')은 3번까지 — 매분 AI 를 다시 부르지 않는다(B9·ops1). 3번 실패한 특보 변경은 그 서명을 받아들이고 멈춘다.
-     * 관리자 푸시(§11.10.8): 정시 판·특보 변경 실행이 끝나면 결과 1통(pushResult), 던지면 실패를 기록한 뒤 「분석 실패」 1통. 실행 중이라 건너뛴 점검·백오프·디바운스 대기·
+     * 관리자 푸시(§11.10.8·§11.10.60): 정시 판 실행이 끝나면 결과 1통(pushResult), 던지면 실패를 기록한 뒤 「분석 실패」 1통. 특보 변경 판은 결과·실패 모두 보내지 않는다(기록만). 실행 중이라 건너뛴 점검·백오프·디바운스 대기·
      * 걸리는 관할이 없는 특보 변경·3번 실패 뒤 포기는 실행이 아니라 보내지 않는다. 푸시는 기다리지 않는다(notifyAdmin).
      * 예: await tick() → {edition:'2026-10-17|morning'} · {warning:['…|한림파출소'], zones:['제주도서부앞바다']} · {pending:[…]}(디바운스 대기) · {backoff:'2026-10-17|morning'} · {}
      * @returns {Promise<object>} [연계] ← start(1분) · 시험(가짜 시계)
@@ -997,9 +997,9 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
         const hit = Object.entries(state().stationZones).filter(([, z]) => z.some((k) => pw.zones.includes(k))).map(([k]) => k);
         if (hit.length) {
             let r = null;
-            try { r = await run({ kind: 'warning', keys: hit, zones: pw.zones }); } catch (e) { const n = reportFailure('warning', e, now); out.failed = (out.failed ? out.failed + ',' : '') + 'warning'; notifyAdmin(failPushText({ kind: 'warning', error: e, count: n }), { kind: 'station_briefing', run: 'warning', phase: 'fail' }); return out; }
+            // §11.10.60(2026-11-20 사용자 「정기판만 보내줄 수 있도록」): 특보 변경 판은 결과·실패 모두 관리자 푸시를 보내지 않는다 — 실패는 상태(백오프)·누적 오류 기록·관리자 「AI 브리핑」 탭에 그대로 남는다.
+            try { r = await run({ kind: 'warning', keys: hit, zones: pw.zones }); } catch (e) { reportFailure('warning', e, now); out.failed = (out.failed ? out.failed + ',' : '') + 'warning'; return out; }
             if (!r.ok) return out;   // 실행 중(busy)이라 건너뜀 — 결과가 아니다(푸시 없음), 대기가 남아 다음 점검에 다시
-            pushResult('warning', r, 'warning|' + pw.lastChangeAt);
             out.warning = hit; out.zones = pw.zones;
         }
         const s4 = state(); s4.warnSig = pw.sig; s4.pendingWarn = null; delete s4.failures.warning; saveState(s4);
