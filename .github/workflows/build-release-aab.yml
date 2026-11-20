@@ -141,6 +141,12 @@ jobs:
             echo "::error::마이크·음성 모델 권한이 병합 매니페스트에 남아 있다"; exit 1
           fi
           echo "✅ 마이크·음성 모델 권한 없음"
+          # ★2026-11-20 백그라운드 위치·전경 서비스 권한이 있으면 Play 가 정식 출시 전에 신고서를 요구한다(위치 기반 기능은 관리자 전용이라 검토 통과가 어렵다).
+          #   사용자 지시로 뺐다 — 일반 공개할 때 신고서와 함께 되살리면서 이 검사도 고친다.
+          if echo "$PERMS" | grep -E 'ACCESS_BACKGROUND_LOCATION|FOREGROUND_SERVICE'; then
+            echo "::error::백그라운드 위치·전경 서비스 권한이 병합 매니페스트에 남아 있다 — Play 신고서 없이는 정식 출시가 막힌다"; exit 1
+          fi
+          echo "✅ 백그라운드 위치·전경 서비스 권한 없음"
           grep -A2 'com.google.firebase.messaging.default_notification_channel_id' "$M" | grep -q 'seagnal_push_high' \
             || { echo "::error::헤드업 기본 채널 meta-data(seagnal_push_high)가 없다"; exit 1; }
           echo "✅ 헤드업 기본 채널 meta-data 있음"

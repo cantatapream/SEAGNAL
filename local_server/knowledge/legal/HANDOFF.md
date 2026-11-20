@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-20 17:02 KST] 🟢착수 — 백그라운드 위치·위치 전경 서비스 권한 제거 + versionCode 17 (Play 신고서 2건 회피)
+16 을 내부 테스트에 올린 뒤(사용자 확인: 1.1.1→1.3.0 업데이트 정상, 새 아이콘, 앱 끈 상태 헤드업 정상) Play 앱 콘텐츠에 '선언 2개에 주의 필요'(포그라운드 서비스 권한·위치 정보 액세스 권한)가 떴다. 신고서 없이는 정식 출시 불가. 위치 기반 기능은 관리자 전용이라 검토 통과가 어렵다고 보고 선택지를 드렸고 사용자가 '위치기반 빼자.(2개 기능)' 로 결정. 할 일: ACCESS_BACKGROUND_LOCATION·FOREGROUND_SERVICE_LOCATION·FOREGROUND_SERVICE 를 tools:node=remove, background-geolocation 플러그인 제거(npm uninstall + cap update), versionCode 17, 빌드 절차 검사 추가, 운영 문서 §4-3, 가지에서 서명 AAB(17) 빌드 → 사용자 전달 → PR.
+
+
 ### [2026-11-20 15:38 KST] ✅완료 — 연안 브리핑 관리자 푸시 — 정시 판만
 사용자 「정기판만 보내줄 수 있도록 푸시알림 로직을 수정해줘」. station_briefing.tick 이 특보 변경 판(warning) 실행 뒤 결과 푸시·실패 푸시를 보내지 않음(실패는 failures.warning 백오프·누적 오류·관리자 탭에 기록). 정시 판 푸시 그대로. 설계서 §11.10.60. 시험 test_station_briefing 254/0 · test_silent_catch 22/0.
 
