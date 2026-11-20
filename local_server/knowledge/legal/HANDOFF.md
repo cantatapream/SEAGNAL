@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-20 22:33 KST] ✅완료 — 푸시 발송·발송 기록 삭제 주소에 관리자 확인 — 자동 특보·태풍 푸시는 내부 열쇠로 통과
+다른 세션 지적(사용자 전달): /api/push-custom·/api/push-typhoon·DELETE /api/push-history(/:id) 에 관리자 확인 없음 — 코드로 확인함. 사용자: '이것 반영하고자 하는데, 주의할 점이 발생하지 않도록 그 부분에 대해서는 재검토 할 수 있도록 해줘.' 주의할 점 실재: push_sender.js(자동 특보, localhost:3001/api/push-custom)·services/typhoon_notifier.js(자동 태풍, /api/push-typhoon)가 서버 안에서 HTTP 로 부른다(scheduler 경유 같은 프로세스). 구현: services/internal_push_auth.js(프로세스 시작 때 32바이트 내부 열쇠, X-Seagnal-Internal, timingSafeEqual, requireAdminOrInternal = 내부 열쇠 또는 admin_auth.requireAdminToken). push.js 네 주소에 붙임. push_sender·typhoon_notifier 가 internalHeaders() 를 붙임(typhoon 은 거절을 '성공 0'으로 삼키지 않게 res.ok 검사 추가). admin.js fetch 래퍼가 push-custom·push-typhoon·push-history 에도 X-Admin-Token 을 붙임, index2.html admin.js 캐시 번호 PushAuth_20261120. 시험 test_push_route_auth.js 27 PASS(verify_all 등록, _RULES 재생성). 관련 시험 6종 통과. 실제 라우터 e2e: 내부 열쇠 → 태풍 200 · 특보 문지기 통과 / 열쇠 없음 → 401. 브라우저 e2e: 로그인 전 401, 로그인 뒤 직접 발송 200·기록 삭제 200, 열쇠 자동 첨부. 남은 것: /api/test-push(한 대에만 발송, mockWarningData 는 아무도 안 읽음)·GET push-history 는 그대로. 다음: 독립 검토 2건 → 반영 → verify_all → PR(병합 전 사용자 확인).
+
+
 ### [2026-11-20 21:22 KST] ✅완료 — 앱 버전 정보를 관리자 [적용]만으로 끝나게 — 서버 볼륨에 저장
 사용자 요청(2026-11-20): '적용만으로 끝나게 고쳐놓고 진행하자. 그래야 만약에 문제있어서 1.1.1 버전 3으로 적용만 하면 바로 적용되는거잖아.' 원인: 관리자 [적용]이 client/app_version.json 에 써서 main 머지(자동 배포)마다 저장소 값으로 덮였다. 고침: services/app_version_store.js 신설 — local_server/data/app_version.json(볼륨, .dockerignore 제외)에 tmp+rename 으로 쓰고, 읽을 때 그것이 없으면 client/app_version.json(처음 값). routes/version.js GET 이 store.read(Cache-Control no-store), routes/admin.js POST 가 store.write(다른 칸 유지). .gitignore 에 data/app_version.json. 시험 test_app_version_store.js 21 PASS(처음 값·적용 즉시·배포 뒤 유지·되돌리기·깨진 파일 경고·둘 다 없음 404·연결) — verify_all SUITES 등록, _RULES.md 재생성. 관리자 화면 안내에 '[적용]하면 바로 반영, 배포해도 유지' 추가. 다음: PR → 검사 → 머지 → 사용자가 관리자 센터에서 1.3.0/17/메시지 [적용].
 

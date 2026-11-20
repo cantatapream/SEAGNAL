@@ -9,11 +9,11 @@
  * - GET /api/vapid-public-key → VAPID 공개키 제공 (클라이언트 구독용)
  * - POST /api/subscribe → 알림 구독 추가/갱신 (Web Push + FCM 이중 지원)
  * - POST /api/unsubscribe → 알림 구독 취소
- * - POST /api/push-custom → 커스텀/개인화 푸시 발송 (Broadcast + Personalized)
+ * - POST /api/push-custom → 커스텀/개인화 푸시 발송 (Broadcast + Personalized) — 관리자 또는 서버 내부만(2026-11-20)
  * - POST /api/admin/push-test-device → [관리자] 이 휴대폰 한 대에만 시험 발송(services/push_device_test.js)
  * - GET /api/push-history → 발송 이력 조회
- * - DELETE /api/push-history/:id → 개별 이력 삭제
- * - DELETE /api/push-history → 전체/선택 이력 삭제
+ * - DELETE /api/push-history/:id → 개별 이력 삭제 — 관리자만(2026-11-20)
+ * - DELETE /api/push-history → 전체/선택 이력 삭제 — 관리자만(2026-11-20)
  *
  * [연계 파일]
  * - services/push_helpers.js → 구역 매칭, 메시지 생성 로직
@@ -288,7 +288,9 @@ router.post('/api/unsubscribe', (req, res) => {
 // ============================================================================
 // 커스텀 푸시 발송 API (Broadcast + Personalized)
 // ============================================================================
-router.post('/api/push-custom', async (req, res) => {
+// ★2026-11-20 관리자 또는 서버 자신(자동 특보·태풍 푸시)만 — services/internal_push_auth.js. 종전에는 누구나 부를 수 있었다.
+const { requireAdminOrInternal } = require('../services/internal_push_auth');
+router.post('/api/push-custom', requireAdminOrInternal, async (req, res) => {
     const { title, content, targetZones, isManualGroupSend, payload, sendToAllSubscribers, adminToken } = req.body;
 
     // 수동 그룹 발송 모드 (개인화 필터링 적용)
@@ -656,7 +658,7 @@ router.post('/api/admin/push-test-device',
 //       nightCohort 'on'  → 야간수신 ON 사용자만 (야간 즉시 발송)
 //       nightCohort 'off' → 야간수신 OFF 사용자만 (아침 보류분 발송)
 //       (없음)            → 전원(옵트인) (주간 발송)
-router.post('/api/push-typhoon', async (req, res) => {
+router.post('/api/push-typhoon', requireAdminOrInternal, async (req, res) => {
     const { title, body, url, nightCohort } = req.body || {};
     if (!title || !body) return res.status(400).json({ error: 'title/body required' });
     const linkUrl = url || '/?assistant=ocean&layer=typhoon';
@@ -798,7 +800,7 @@ router.get('/api/push-history', (req, res) => {
 });
 
 // 이력 삭제 (개별)
-router.delete('/api/push-history/:id', (req, res) => {
+router.delete('/api/push-history/:id', requireAdminOrInternal, (req, res) => {
     try {
         const id = parseInt(req.params.id);
         if (!fs.existsSync(HISTORY_FILE)) return res.json({ success: true });
@@ -813,7 +815,7 @@ router.delete('/api/push-history/:id', (req, res) => {
 });
 
 // 이력 삭제 (전체 또는 선택)
-router.delete('/api/push-history', (req, res) => {
+router.delete('/api/push-history', requireAdminOrInternal, (req, res) => {
     try {
         const { ids } = req.body;
 

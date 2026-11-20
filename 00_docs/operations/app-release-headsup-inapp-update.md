@@ -146,6 +146,13 @@
 - 종전부터 서버에 있던 `/api/push-custom` 의 `adminToken`(그 토큰의 구독자로만 한정)은 쓰지 않았다 — 그 길은 값이 비면 전원 발송으로 떨어진다.
 - ⚠따로 남은 문제(이번에 고치지 않았다): `/api/push-custom`·`/api/push-typhoon`·`/api/test-push`·발송 이력 삭제에는 **관리자 인증이 없다**
   (`routes/push.js` 에 인증 참조 0건 — 코드로 확인, 운영 서버에 요청을 보내 본 것은 아니다). 별도 작업으로 제안해 뒀다.
+  - ✅**2026-11-20 고쳤다**(사용자 — *「이것 반영하고자 하는데, 주의할 점이 발생하지 않도록 그 부분에 대해서는 재검토 할 수 있도록 해줘.」*):
+    `/api/push-custom`·`/api/push-typhoon`·`DELETE /api/push-history(/:id)` 앞에 문지기(`services/internal_push_auth.js requireAdminOrInternal`).
+    관리자는 로그인 열쇠(X-Admin-Token — 관리자 화면 fetch 래퍼가 이 네 주소에도 붙인다), **서버 안의 자동 특보(push_sender.js)·자동 태풍(typhoon_notifier.js)
+    푸시는 서버가 켜질 때 만든 내부 열쇠**로 통과한다(같은 프로세스 메모리에만 있음). 시험 `test_push_route_auth.js`.
+    확인: 실제 라우터로 내부 열쇠 → 통과(태풍 200, 특보는 문지기 지나 처리 단계까지) · 열쇠 없음 → 401 · 브라우저에서 로그인 전 401 / 로그인 뒤 직접 발송·기록 삭제 200.
+  - 남은 것: `/api/test-push`(push_test.js)는 그대로 — 받는 토큰 **한 대**에만 보내고, 거기서 설정하는 `global.mockWarningData` 는 지금 아무 데서도 읽지 않는다(코드 확인).
+    조회(`GET /api/push-history`)도 그대로 열려 있다.
 
 ## 4. 검증 — 무엇을 확인했고 무엇을 못 했나
 

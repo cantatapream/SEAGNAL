@@ -139,7 +139,10 @@ window.fetch = function adminAwareFetch(input, init) {
     } catch (_) { /* 무시 */ }
 
     // /api/admin/* 외에, 관리자 전용으로 보호된 설문 백업/복구 라우트도 토큰 자동 첨부 대상.
-    const isAdminApi = url.indexOf('/api/admin/') !== -1 || url.indexOf('/api/surveys/backup/') !== -1;
+    // ★2026-11-20 푸시 발송·발송 기록 주소도 관리자 확인을 받게 됐다(routes/push.js requireAdminOrInternal) —
+    //   이름이 /api/admin/ 으로 시작하지 않아 여기서 따로 고른다. 조회(GET /api/push-history)에 붙어도 해가 없다.
+    const isPushAdminApi = url.indexOf('/api/push-custom') !== -1 || url.indexOf('/api/push-typhoon') !== -1 || url.indexOf('/api/push-history') !== -1;
+    const isAdminApi = url.indexOf('/api/admin/') !== -1 || url.indexOf('/api/surveys/backup/') !== -1 || isPushAdminApi;
     const isExempt = isAdminApi && (
         url.indexOf('/api/admin/login') !== -1 ||
         url.indexOf('/api/admin/maintenance-bypass-verify') !== -1

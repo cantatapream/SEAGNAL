@@ -189,9 +189,12 @@ async function postPush(msg, nightCohort) {
     try {
         const res = await fetch(PUSH_API, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            // 내부 열쇠 — /api/push-typhoon 은 관리자 또는 서버 자신만 받는다(services/internal_push_auth.js, 2026-11-20).
+            headers: Object.assign({ 'Content-Type': 'application/json' }, require('./internal_push_auth').internalHeaders()),
             body: JSON.stringify({ title: msg.title, body: msg.body, url: msg.url, nightCohort })
         });
+        // 거절(401 등)을 「성공 0」으로 조용히 넘기지 않는다 — 문지기가 생긴 뒤 열쇠가 어긋나면 여기서 드러난다.
+        if (!res.ok) { console.error(`[typhoon-notify] 발송 거절(${res.status}): ${msg.title}`); return; }
         const r = await res.json().catch(() => ({}));
         console.log(`[typhoon-notify] 발송(${nightCohort || 'all'}): ${msg.title} → 성공 ${r.successCount || 0} / 실패 ${r.failCount || 0}`);
     } catch (e) {
