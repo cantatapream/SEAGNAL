@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-20 11:35 KST] 🟢착수 — 스토어용 서명 AAB 를 깃허브에서 만드는 빌드 절차 추가(Build Release AAB)
+사용자 요청(2026-11-20): 시험 폰에서 앱을 끈 상태 헤드업 확인됨 → 스토어용 파일을 깃허브에서 만들게 해 달라. 할 일: .github/workflows/build-release-aab.yml 신설(workflow_dispatch). 디버그 빌드 절차(build-apk.yml)와 같은 준비(npm install → cap sync) 뒤 bundleRelease → 병합 매니페스트 검사(release) → 저장소의 apk_build/android.keystore(alias android, PKCS12)로 jarsigner 서명 → 서명 검증·지문 대조 → Artifacts 로 올림. 비밀번호는 깃허브 Secrets 의 ANDROID_KEYSTORE_PASSWORD(선택: ANDROID_KEY_PASSWORD)에서만 읽는다. build.gradle 은 안 건드린다. 병합 전 브랜치에서 임시 push 트리거로 release 빌드가 되는지 먼저 본다.
+
+
 ### [2026-11-20 10:39 KST] ✅완료 — 해상 기상 요약 — 배경 절 해역 오판 고침 · 날짜에 기대던 화면 시험 고침
 [원인·고침 1] 운영 「시험 요약」(수도권 2026-11-20): 「서해중부전해상에 풍랑특보가 발효된 가운데, 서해중부먼바다는 …, 인천.경기앞바다는 … 바람이 …」에서 다섯 AI 의 옳은 답을 check 가 「숫자가 적힌 줄의 해역이 해역 줄에 없다: 서해중부전해상」으로 전부 거절. regional_sea_summary.check: 「(특보·주의보·경보) … 가운데,」 절 뒤에 해역이 또 있으면 절 안의 해역은 요구하지 않는다(뒤에 해역이 없으면 종전대로). 조사 자료 바람 숫자 줄 3,639 중 이 꼴 137. 같이: 「인천·경기앞바다」 가운뎃점 이름 허용 · 기간 칸에 기간 둘(「A까지 · B까지」)이면 거절. 실제 답 다섯으로 회귀 시험(test_regional_sea_summary 84). 빈 답·없는 해역 답 6,564건은 옛·새 판 결과 같음. [원인·고침 2 — 내 시험의 결함] test_regional_sea_ui 가 발표 날짜를 '11.19.' 로 고정해 두어 11-20 부터 「기온 상자」를 못 찾아 걸렸다(기온 상자는 오늘 발표분일 때만 그린다 — isPdfTemperatureForToday). 저장소 규칙 「시각 의존 테스트 금지」를 내가 어긴 것. 발표 날짜를 시험 도는 날(KST)로 만들게 고침(21/0). ⚠이 시험은 본선에서도 11-20 KST 부터 걸리고 있을 것 — 이 PR 이 들어가야 풀린다. [확인] verify_all 에서 걸린 것은 이 화면 시험 1건뿐(나머지 통과, test_usage_briefing_risk_ui 도 지금 본선에서는 통과) — 그 시험을 고친 뒤 전체를 다시 돌리지는 않았다. [다음] PR → 사용자 머지.
 
