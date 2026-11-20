@@ -300,6 +300,7 @@ app.use(require('./routes/hazard_rocks'));  // 간출암 잠김경고 API (3시�
 app.use(require('./routes/navigational_warning'));  // 항행경보 현황 API (국립해양조사원)
 app.use(require('./routes/assistant'));     // AI 음성/텍스트 비서 (자연어 질문 → 실데이터 답변)
 app.use(require('./routes/legal'));          // 해양법령 챗봇 — 관리자 리뷰 검증 API + 현 DB 답변
+app.use(require('./routes/fishcond'));      // 뉴스·공지·어황 탭 — 국립수산과학원 어황정보 목록·PDF·쪽 그림 (services/fishcond_collector 가 받아 둠)
 
 // ============================================================================
 // 4. 정기 작업 (Daily Cloud Backup)
@@ -558,6 +559,9 @@ app.listen(PORT, '0.0.0.0', () => {
         // 기상청 해수욕장 단기예보·수온 — 운영에서만 발표 15분 뒤(02:15·05:15·…·23:15 KST) 419곳(설계서 §18, 2026-10-18)
         try { require('./services/beach_weather_collector').start(); }
         catch (_) { console.error('[startup] 해수욕장 날씨 수집기 시작 실패'); }
+        // 국립수산과학원 어황정보 — 운영에서만 시작 직후 한 번·매시 7분(KST) 확인, 새 글 PDF 를 받아 쪽 그림으로(services/fishcond_collector.js, 2026-11-21)
+        try { require('./services/fishcond_collector').start(); }
+        catch (_) { console.error('[startup] 어황정보 수집기 시작 실패'); }
         // 활동지점 안전 브리핑 — 운영에서만 1분 점검(08:00·17:30·23:00 KST + 특보 변경). 시작 때 계산·외부 호출은 없다(첫 점검 1분 뒤).
         try { require('./services/station_briefing').start(); }
         catch (_) { console.error('[startup] 활동지점 안전 브리핑 시작 실패'); }
