@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-21 08:47 KST] ✅완료 — 오늘의 뉴스 서버 + 관리자 AI ⑦ 완료 (뉴스·공지·어황 탭 2단계)
+만든 것: services/news_collector.js(매시 2분 KST, 검색어 46개 기본·data/news_config.json, 최신순 최대 3쪽, 창=지난 정상 확인 15분 전/처음 26시간, 겹침·seen 3일·마트 할인만 기계 제외, 20건씩 AI 판정·앞 묶음 카드를 다음 묶음에 줌, 3점 이상 카드, 같은 날 같은 사건 한 장(새 소식이면 머리 갱신)·다른 날 새 소식만 새 카드, 판정 실패 pending 26시간, og:image·og:site_name, 30일 정리, state.json), services/news_judge.js(지시문·답 검사·원문에 없는 숫자/주소 요약 막기), routes/news.js(GET /api/news?date · POST /api/news/:date/:id/open · GET /api/news/img 우리 카드 http 사진만), naver_search.searchNews, bulletin_ai ⑦ news(먼저 Gemma 26b→Gemini, 관리자 화면 칸). 검사 test_news_collector 45/45, test_bulletin_ai 81/81, test_bulletin_ai_ui 11/11. 실제 키 시험(GitHub Actions, 검색어 12개, 운영과 무관한 /tmp): 1차 52건 판정→11장(해광호 3장 갈라짐·유튜브 주소 요약·태안=전국) → 고침 → 3차 53건→8장(해광호 1장 외 20건·평택 1장·지역 충남/경북), Gemma 3묶음 154초, 뺀 기사 21건 판정 적절. 남은 것: AI 판정 흔들림(홍도 관광 기사 1차 2점→3차 3점 — 지시문 보강했으나 재시험 안 함, 관리자 숨기기로 처리 가능), 운영(Fly)에서 nifs·네이버·AI 실제 동작은 배포 뒤 확인. 다음: 앱 화면(탭 머리 B·날짜줄 B·카드 꼬리표 B·어황 목록 A·공지 정렬) → 관리자 화면(A).
+
+
 ### [2026-11-21 00:50 KST] ✅완료 — 어황정보 서버 수집기 완료 (뉴스·공지·어황 탭 1단계)
 사용자 답: 어황 글 별도 저장(추천대로)·댓글/반응 없음·법개정은 뉴스 보도분만·뉴스 카드에 펼친 횟수(시각 왼쪽). 만든 것: services/fishcond_collector.js(NIFS actionBoard0014 목록 첫 쪽 매시 7분 KST·최근 7일 새 글만 추가·PDF 받기·bulletin_docs.convertPdf 로 130dpi PNG·30일 지난 글 삭제·목록 못 읽으면 안 지움·state.json 에 결과), routes/fishcond.js(GET /api/fishcond · /:id/view · /:id/page/:n · /:id/pdf), server.js 연결(운영 FLY_ALLOC_ID 에서만 start), bulletin_docs 에 convertPdf 내보내기 1줄, 검사 test_fishcond_collector.js 33/33(verify_all SUITES 등록), 설계 기록 client/js/notice/news_hub.design.md. 실측: 실제 게시판 7건 받아 PNG 생성·재실행 0.8초·HTTP 경로 4개 정상·나쁜 ID 404. 미확인: Fly(도쿄)에서 nifs.go.kr 접속 가능 여부. 설계안 artifact 에 검토 기능(이 안으로·의견 32칸·자동 저장 db review/main·내보내기) 추가 — 사용자 작성 중: 탭머리 B·날짜줄 B(◀날짜▶ 가운데, [오늘]은 ▶ 바로 오른쪽, 달력 맨 오른쪽)·카드 꼬리표 B·어황 목록 A, 관리자 8-1 미선택. 다음: 사용자 '다 적었어' 후 반영 → 오늘의 뉴스 서버.
 

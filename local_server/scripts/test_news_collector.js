@@ -195,6 +195,7 @@ const mk = (f, dir) => N.createNews({ dir, configFile: path.join(dir, 'cfg.json'
         const fu = J.fixSummary('https://youtu.be/4xPMXU5Vf98', 'https://youtu.be/4xPMXU5Vf98', 'https://youtu.be/4xPMXU5Vf98?si=C1wh', '외국인 선원 55% 시대… 정부 개편에 어업현장 반발');
         ok('요약·원문 요약이 주소뿐이면 제목을 쓴다(실제 시험에서 유튜브 주소가 나갔다)', fu.fixed === true && fu.text === '외국인 선원 55% 시대… 정부 개편에 어업현장 반발', fu);
         ok('지시문: 시·군 이름이면 그 시·도(태안→충남)', /태안→충남/.test(J.prompt([{ title: 'T', desc: 'D', source: 's', time: 't' }], [])));
+        ok('지시문: 관광 개발은 수상레저가 함께 나와도 1점(실제 시험에서 홍도 관광 기사가 3점으로 실림)', /관광 개발·관광객 유치 계획은 수상레저·여객선이 함께 언급돼도 1점/.test(J.prompt([{ title: 'T', desc: 'D', source: 's', time: 't' }], [])));
         const calls = [];
         const good = await J.judge([{ title: 'A', desc: '12월 1일', source: 's', time: 't' }, { title: 'B', desc: 'b', source: 's', time: 't' }], [], { call: async (fName, prm, o) => {
             calls.push(fName); const text = JSON.stringify({ items: [{ i: 0, score: 4, cat: 'duty', region: '경북', group: 'g1', summary: '12월 1일부터 단속', reason: 'r' }, { i: 1, score: 1, cat: 'none' }] });
