@@ -1537,6 +1537,20 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-20 12:32 KST] ✅완료 — GPS 필수 선언 제거 + versionCode 16 — 서명 AAB(16) 사용자에게 전달
+한 것: AndroidManifest.xml 에 gps uses-feature 를 required=false + tools:replace 로 선언, versionCode 16(versionName 1.3.0 그대로), build-apk.yml·build-release-aab.yml 의 병합 매니페스트 검사에 '필수 기기 기능이 있으면 실패' 추가(주석을 걷어 낸 뒤 센다). 확인: Build Release AAB run #5 · Build Debug APK run #47 성공(커밋 9f55f5f1). 받은 번들을 직접 열어 15 와 견줌 — 15 는 gps 태그에 required 속성 없음(필수), 16 은 required=false. 서명 SHA-1 동일(9C:C8:DA:CA:…:2D:AD:2A), jar verified. SEAGNAL-1.3.0-16-release.aab 를 채팅으로 전달. 첫 시도(run #46·#4)는 새 검사가 소스 매니페스트 주석 속 태그 글자를 선언으로 세어 실패 → 고침. 15 는 Play 에 올리기만 하고 출시하지 않았다(사용자 지시). 남은 것(사용자): 16 을 Play 내부 테스트에 올려 ①지원 기기 수가 돌아왔는지 ②스토어판 1.1.1 → 1.3.0 업데이트 ③헤드업을 확인. 그 뒤 정식 출시. 관리자 센터의 버전 값은 정식 출시가 다 퍼진 뒤에 올린다(그 전에 올리면 닫기 버튼 없는 안내 창에 사용자가 갇힌다). 참고(사용자와 확인한 것): 저장소를 비공개로 돌리면 Actions 무료 할인이 사라진다 — 이번 달 20일까지 gross 49달러(전부 Actions Linux, 분당 0.006달러), 예산은 Actions 25달러. 공개 유지가 현재 결론. PR #1544 에 전부 들어 있다(검증 게이트 통과하면 병합 — 사용자 '진행').
+
+
+### [2026-11-20 12:22 KST] 🟢착수 — GPS 필수 선언 제거 + versionCode 16 — Play 내부 테스트 경고(태블릿 35% 지원 제외) 대응
+사용자가 1.3.0(15)을 Play 내부 테스트 화면에 올리자 '지원 기기 변경사항' 경고가 떴다: 전화 -223, 태블릿 -2,365(-35%), 크롬북 -77(-100%), 이유 '필요한 기능을 지원하지 않습니다(시스템 기능)'. 원인: 백그라운드 위치 플러그인 매니페스트의 uses-feature gps(필수). 사용자 지시: '고친 다음 버전을 만든 다음 내부 테스트에 올려보자. 지금 이 버전으로 올리지 말고. 그냥 진행.' 할 일: AndroidManifest 에 gps required=false(tools:replace), versionCode 16, 두 빌드 절차의 병합 매니페스트 검사에 '필수 기능 있으면 실패' 추가, 가지에서 디버그·릴리스 빌드로 병합 결과 확인, 서명 AAB(16)를 사용자에게 전달. PR #1544 에 함께 넣는다.
+
+
+### [2026-11-20 11:53 KST] ✅완료 — 스토어용 서명 AAB 를 깃허브에서 만드는 빌드 절차(Build Release AAB) — 가지에서 실제 서명본까지 확인
+한 것: .github/workflows/build-release-aab.yml 신설(workflow_dispatch). 준비(npm install → cap sync) → bundleRelease → 병합 매니페스트(release) 검사 → jarsigner 서명 → 서명 검증·지문 대조 → Artifacts(seagnal-release-aab). 서명 키는 저장소의 android/seagnal-release-key(PKCS12, alias key0, 2026-02-14 생성 — 사용자가 채팅으로 준 릴리즈 키와 sha256 일치), 비밀번호는 깃허브 Secrets 의 ANDROID_KEYSTORE_PASSWORD(사용자가 등록함). 실행 기록: run #1(push, 서명 없이) 빌드·매니페스트 검사 통과 / run #2 실패 — 내가 apk_build/android.keystore 를 릴리즈 키로 잘못 봤다(확장자로만 찾아 android/seagnal-release-key 를 놓침, 비밀번호 불일치로 드러남) / run #3(workflow_dispatch, 가지 d333dedb) 성공 — SEAGNAL-1.3.0-15-release.aab, jar verified, 서명 인증서 SHA-1 9C:C8:DA:CA:45:FB:63:90:80:6F:C2:55:C6:A7:04:58:24:2D:AD:2A. 파일을 사용자에게 채팅으로 전달함. 사용자 보고(2026-11-20): 시험 폰에서 앱을 끈 상태로 헤드업 알림 확인됨 → 운영 문서 §4 ④ 갱신. 남은 것: ①이 절차를 main 에 넣는 PR(사용자가 Actions 화면에서 직접 누르려면 필요) ②사용자가 Play 내부 테스트에 AAB 올리기 — 이 키가 Play 에 등록된 업로드 키와 같은지는 거기서 드러난다 ③앱 안 업데이트 확인은 versionCode 16 을 한 번 더 올려야 한다. 알릴 것(사용자 결정 사항): 이 저장소는 공개 저장소인데 릴리즈 키 파일(android/seagnal-release-key)과 옛 키(apk_build/android.keystore)가 들어 있다 — 비밀번호가 유일한 방어선. 이 작업 환경: 산출물 내려받기 때문에 SEAGNAL 이라는 개인 환경을 만들어 깃허브 빌드 저장 서버 주소 두 개를 허용했다(productionresultssa30·sa16.blob.core.windows.net).
+
+
+### [2026-11-20 11:35 KST] 🟢착수 — 스토어용 서명 AAB 를 깃허브에서 만드는 빌드 절차 추가(Build Release AAB)
+사용자 요청(2026-11-20): 시험 폰에서 앱을 끈 상태 헤드업 확인됨 → 스토어용 파일을 깃허브에서 만들게 해 달라. 할 일: .github/workflows/build-release-aab.yml 신설(workflow_dispatch). 디버그 빌드 절차(build-apk.yml)와 같은 준비(npm install → cap sync) 뒤 bundleRelease → 병합 매니페스트 검사(release) → 저장소의 apk_build/android.keystore(alias android, PKCS12)로 jarsigner 서명 → 서명 검증·지문 대조 → Artifacts 로 올림. 비밀번호는 깃허브 Secrets 의 ANDROID_KEYSTORE_PASSWORD(선택: ANDROID_KEY_PASSWORD)에서만 읽는다. build.gradle 은 안 건드린다. 병합 전 브랜치에서 임시 push 트리거로 release 빌드가 되는지 먼저 본다.
 ### [2026-11-20 12:32 KST] ✅완료 — AI 브리핑 오류 자동 처리 세션(가) + 누적 오류 E20261120-110944(나) — PR #1545 머지
 (나) 오류 27건: G01 지명 오판 고침(관형 어미 꼴·바깥쪽 해구·잔잔하더라도·보여도·동해 쪽 먼바다 — 사용자 허용), 장소 수 범위 8~9곳 허용(사용자 (가)), 검사 v24. 처리 완료 기록 G01. 나머지는 AI 어김·코드 밖 → 관리자 버튼. (가) 서버 automation/error-export·autofix-done, 머지 담당 briefing 종류(조건부 자동 머지 — 허용 파일 5개·내용 검사·표식 한 줄·결정 필요 0·그 세션 첫 PR), 관리자 AI 브리핑 탭 「오류 자동 처리」 칸. 독립 검토 3건 반영. 예약 작업 「연안 브리핑 오류 자동 처리」(trig_01Wd7dtxim4BFpuJbTM4Ecgj, 매일 05:48 KST, shin 환경, 새 세션) 생성 — 첫 실행 11-21 05:48. 다음: 첫 실행 결과(앱 「오류 자동 처리」 칸·Claude 앱 알림) 확인.
 

@@ -61,6 +61,20 @@
         </service>
     </application>
 
+    <!-- [GPS 는 있으면 쓰고 없어도 된다 — 2026-11-20]
+         백그라운드 위치 플러그인(@capacitor-community/background-geolocation)의 매니페스트가
+         <uses-feature android:name="android.hardware.location.gps" /> 를 끼워 넣는다(required 기본값 = true).
+         그대로 두면 Play 가 GPS 없는 기기(와이파이 전용 태블릿·크롬북·TV)를 지원 대상에서 뺀다 —
+         1.3.0(15)을 내부 테스트에 올렸을 때 실제로 나온 경고: 전화 -223 · 태블릿 -2,365(-35%) · 크롬북 -77(-100%),
+         이유 「필요한 기능을 지원하지 않습니다(시스템 기능)」. 그 기기의 기존 사용자는 업데이트를 못 받는다.
+         required 는 병합할 때 "하나라도 true 면 true" 라서 tools:replace 로 덮어써야 한다.
+         GPS 가 없어도 안전한가: 플러그인은 FusedLocationProvider 를 쓰고, 우리 코드(LocationAlertLocator)는
+         provider 마다 isProviderEnabled·try/catch 를 거쳐 NETWORK 로 넘어간다. -->
+    <uses-feature
+        android:name="android.hardware.location.gps"
+        android:required="false"
+        tools:replace="android:required" />
+
     <!-- Permissions -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
