@@ -451,6 +451,35 @@ const TR = (n, needs, extra) => Object.assign({ pr_url: URL(n), run_id: RUN, nee
         assert.equal(merges(d.gh).length, 0, '101번째 뒤의 실패도 본다(적대검증 C#하-3)'); assert.equal(d.m.list().prs[0].status, 'failed_checks');
     });
 
+    await check('B 브리핑 오류 자동 처리 종류(§11.10.59) — 표식 「briefing-autofix: 」 · 허용 파일 5개(검사기·그 시험·처리 완료 기록·설계서·README)만 자동 · 작업 기록·서버 다른 코드·워크플로는 버튼 · 위키 종류는 검사기 코드를 그대로 막음 · 푸시 글은 「AI 브리핑」 탭', async () => {
+        const B = M.PROFILES.briefing, EX = 'E20261120-054812', OKF = ['local_server/services/station_briefing_ai.js', 'local_server/scripts/test_station_briefing.js', 'local_server/config/station_briefing_resolved.json', 'client/js/ocean-map/coastal-risk/coastal_safety_forecast.design.md', 'client/js/forecast/station-briefing/README.md'];
+        const bpr = (o) => prJson(Object.assign({ body: '자동 처리\n\nbriefing-autofix: ' + EX }, o || {})), bctx = (o) => CTX(Object.assign({ profile: B, files: OKF, runId: EX }, o || {}));
+        assert.equal(M.judge(bpr(), [run('success')], bctx()).state, 'green');
+        assert.equal(M.judge(bpr(), [run('success')], bctx({ files: OKF.concat(['local_server/knowledge/legal/HANDOFF.md']) })).state, 'scope', '작업 기록은 허용 밖(충돌 잦음)');
+        assert.equal(M.judge(bpr(), [run('success')], bctx({ files: ['local_server/routes/station_briefing.js'] })).state, 'scope', '서버 다른 코드');
+        assert.equal(M.judge(bpr(), [run('success')], bctx({ files: ['scripts/refactor/verify_all.sh'] })).state, 'scope', '검사 본체');
+        assert.equal(M.judge(bpr(), [run('success')], bctx({ files: [{}] })).state, 'scope', '파일 이름이 글이 아니면 밖');
+        assert.equal(M.judge(prJson(), [run('success')], bctx()).state, 'foreign', '위키 표식(nariya-run)은 브리핑 종류에선 표식 아님');
+        assert.equal(M.judge(bpr({ body: 'briefing-autofix: E20260101-000000' }), [run('success')], bctx()).state, 'foreign', '다른 내보내기의 표식');
+        assert.equal(M.judge(prJson(), [run('success')], CTX({ files: ['local_server/services/station_briefing_ai.js'] })).state, 'scope', '위키 종류는 그대로 — 검사기 코드면 사람 몫');
+        assert.equal(M.judge(bpr(), [run('success')], bctx({ files: ['local_server/services/station_briefing_ai.js'], behindBy: 1 })).state, 'stale', '공통 조건(최신 main)은 같다');
+        // 머지 담당 — 자동 머지 · 푸시 글/종류
+        const d = make(); const time = d.time, gh = d.gh, push = d.push, file = newFile();
+        const mb = M.createMerger({ profile: B, file, now: time.now, setTimer: time.setTimer, clearTimer: time.clearTimer, fetch: gh, push, env: PROD() });
+        gh.pr = bpr(); gh.files = OKF.slice(); gh.runs = [run('success')];
+        assert.equal(mb.track({ pr_url: URL(9), run_id: EX, needs_decision: [] }, OWN).mode, 'auto');
+        await quiet(() => time.advance(5 * MIN));
+        assert.equal(merges(gh).length, 1, '조건이 맞으면 자동 머지'); assert.equal(push.sent[0].t, 'AI 브리핑 오류 자동 처리 — 자동 머지 완료 · 배포 시작'); assert.equal(push.sent[0].d.type, 'briefing_pr_merged');
+        assert.ok(!fs.existsSync(M.PROFILES.nariya.file) || fs.readFileSync(M.PROFILES.nariya.file, 'utf8').indexOf('briefing-autofix') < 0, '위키 상태 파일에 섞이지 않음');
+        const d2 = make(); const mb2 = M.createMerger({ profile: B, file: newFile(), now: d2.time.now, setTimer: d2.time.setTimer, clearTimer: d2.time.clearTimer, fetch: d2.gh, push: d2.push, env: PROD() });
+        d2.gh.pr = bpr(); d2.gh.files = OKF.concat(['local_server/routes/station_briefing.js']); d2.gh.runs = [run('success')];
+        mb2.track({ pr_url: URL(9), run_id: EX, needs_decision: [] }, OWN); await quiet(() => d2.time.advance(5 * MIN));
+        assert.equal(merges(d2.gh).length, 0, '허용 밖 파일이면 자동 머지 안 함');
+        const last = d2.push.sent[d2.push.sent.length - 1];
+        assert.equal(last.t, 'AI 브리핑 오류 자동 처리 — 앱에서 머지 버튼을 눌러 주세요'); assert.ok(/「AI 브리핑」 탭 「오류 자동 처리」 칸/.test(last.b), last.b); assert.equal(last.d.type, 'briefing_pr_needs_human');
+        assert.ok(/「AI 브리핑」 탭/.test(mb2.list().prs[0].howText), '카드 안내 글도 브리핑 탭');
+    });
+
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log('\n' + pass + ' PASS / ' + fail + ' FAIL');
     process.exit(fail ? 1 : 0);

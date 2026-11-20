@@ -3828,8 +3828,10 @@ const WIN = R.editionWindow('morning', T0);
     });
     await check('[§11.10.48-6] 라우터 — POST error-log/export(없으면 404) · 자동 처리 세션 경로 automation/error-export(자동화 열쇠만, §11.10.59) · resolve(없는 번호 404 · groups 넘김) · 관리자만 · md 맡기기는 글 그대로(text/markdown, 5MB 넘어도)', async () => {
         const express = require('express'), { createRouter } = require('../routes/station_briefing'); let got = null, has = true;
+        const afCalls = [], afake = { started: (id) => afCalls.push(['started', id]), done: async (b) => (afCalls.push(['done', b]), b && b.outcome ? { ok: true, tracked: null } : { ok: false, status: 400, error: 'outcome' }),
+            refresh: async () => afCalls.push(['refresh']), status: () => ({ lastRun: null, runs: [], prs: [] }), mergeNow: async (n) => (afCalls.push(['merge', n]), { ok: n === 9, status: 409 }), dismiss: (n) => ({ ok: n === 9, status: 409 }) };
         const fake = { readConfig: () => ({ exposure: 'admin' }), stations: () => [], exportErrors: () => (has ? { export: { id: 'E1', groups: [] }, errors: [] } : null), resolveExport: (id, g, n) => { got = [id, g, n]; return id === 'E1' ? { ok: true, resolved: ['G01'], already: [], unknown: [] } : { ok: false }; } };
-        const app = express(); app.use(express.json({ limit: '5mb' })); app.use(createRouter({ service: fake, isAdminDevice: () => false, verifyToken: () => false, authorize: (req, res, next) => req.get('X-Admin-Token') === 'tok-ok' ? next() : res.status(401).json({ ok: false }), authorizeTrial: (req, res, next) => req.get('X-Automation-Token') === 'auto-ok' ? next() : res.status(401).json({ ok: false }) }));
+        const app = express(); app.use(express.json({ limit: '5mb' })); app.use(createRouter({ service: fake, isAdminDevice: () => false, verifyToken: () => false, authorize: (req, res, next) => req.get('X-Admin-Token') === 'tok-ok' ? next() : res.status(401).json({ ok: false }), authorizeTrial: (req, res, next) => req.get('X-Automation-Token') === 'auto-ok' ? next() : res.status(401).json({ ok: false }), autofix: afake }));
         const server = http.createServer(app); await new Promise((r) => server.listen(0, '127.0.0.1', r)); const base = 'http://127.0.0.1:' + server.address().port + '/api/admin/station-briefing';
         const H = { 'X-Admin-Token': 'tok-ok' };
         try {
@@ -3846,11 +3848,47 @@ const WIN = R.editionWindow('morning', T0);
             assert.equal((await fetch(ab, { method: 'POST', headers: H })).status, 401, '관리자 토큰 자리(authorize)가 아니라 authorizeTrial 로 지킨다');
             assert.equal((await (await fetch(ab, { method: 'POST', headers: { 'X-Automation-Token': 'auto-ok' } })).json()).export.id, 'E1');
             has = false; assert.equal((await fetch(ab, { method: 'POST', headers: { 'X-Automation-Token': 'auto-ok' } })).status, 404);
+            assert.deepStrictEqual(afCalls.filter((c) => c[0] === 'started'), [['started', 'E1']], '자동화 경로 내보내기만 「시작」 기록(관리자 내보내기는 아님) · 없으면 기록 안 함');
+            const ad = 'http://127.0.0.1:' + server.address().port + '/api/station-briefing/automation/autofix-done', AJ = { 'X-Automation-Token': 'auto-ok', 'Content-Type': 'application/json' };
+            assert.equal((await fetch(ad, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"outcome":"nothing"}' })).status, 401);
+            assert.equal((await fetch(ad, { method: 'POST', headers: AJ, body: '{"outcome":"nothing"}' })).status, 200);
+            assert.equal((await fetch(ad, { method: 'POST', headers: AJ, body: '{}' })).status, 400, '본문 검사 실패는 400');
+            assert.equal((await fetch(base + '/autofix')).status, 401, '「오류 자동 처리」 칸은 관리자만');
+            assert.equal((await fetch(base + '/autofix', { headers: H })).status, 200); assert.ok(afCalls.some((c) => c[0] === 'refresh'), '열 때 PR 을 새로 읽음');
+            assert.equal((await fetch(base + '/autofix/prs/9/merge', { method: 'POST' })).status, 401);
+            assert.equal((await fetch(base + '/autofix/prs/9/merge', { method: 'POST', headers: H })).status, 200); assert.equal((await fetch(base + '/autofix/prs/8/merge', { method: 'POST', headers: H })).status, 409);
+            assert.equal((await fetch(base + '/autofix/prs/9/dismiss', { method: 'POST', headers: H })).status, 200);
             const big = '# 누적\n' + 'ㄱ'.repeat(2 * 1024 * 1024);   // 약 6MB(UTF-8) — 전역 JSON 5MB 상한을 넘는다
             const j = await (await fetch(base + '/download?name=station_briefing_open_errors_E1.md', { method: 'POST', headers: { ...H, 'Content-Type': 'text/markdown; charset=utf-8' }, body: big })).json();
             const g = await fetch('http://127.0.0.1:' + server.address().port + j.path); assert.equal(g.status, 200);
             assert.ok(g.headers.get('content-disposition').includes('station_briefing_open_errors_E1.md')); assert.equal((await g.text()).length, big.length);
         } finally { server.close(); }
+    });
+    await check('[§11.10.59-1] 자동 처리 기록 — 본문 검사(400) · 자동화 경로로 내보낸 세션의 PR 만 자동 머지 후보(owner·runSince·표식 번호) · 같은 내보내기로 두 번째 PR 은 후보 아님 · 마지막 세션 검사 기록 · 실패는 운영에서만 푸시', async () => {
+        const AF = require('../services/station_briefing_autofix'), f = path.join(fs.mkdtempSync(path.join(require('os').tmpdir(), 'sbaf-')), 'af.json');
+        let t = Date.parse('2026-11-20T05:48:00+09:00'); const tracks = [], pushes = [];
+        const merger = { track: (d, o) => (tracks.push([d, o]), { tracked: true, mode: o.owner ? 'auto' : 'human', status: 'waiting' }), list: () => ({ prs: [{ number: 9 }], counts: { needs_human: 0, waiting: 1 }, tokenConfigured: true }), refresh: async () => {}, mergeNow: async () => ({ ok: true }), dismiss: () => ({ ok: true }) };
+        const mk = (env) => AF.createAutofix({ file: f, now: () => t, merger, push: async (a, b, c) => pushes.push([a, b, c]), env });
+        const a = mk({});
+        assert.equal((await a.done({ outcome: 'pr', pr_url: 'https://github.com/cantatapream/SEAGNAL/pull/9' })).status, 400, 'pr 인데 export_id 없음');
+        assert.equal((await a.done({ outcome: 'pr', export_id: 'E20261120-054812', pr_url: 'https://github.com/evil/x/pull/9' })).status, 400, '다른 저장소 PR');
+        assert.equal((await a.done({ outcome: 'hack' })).status, 400);
+        a.started('E20261120-054812'); const since = t; t += 40 * 60000;
+        const r1 = await a.done({ outcome: 'pr', export_id: 'E20261120-054812', pr_url: 'https://github.com/cantatapream/SEAGNAL/pull/9', fixed: ['G01', 'X1'], left: ['G02'], summary: '고침\u202e', needs_decision: [] });
+        assert.equal(r1.ok, true); assert.equal(r1.owner, true);
+        assert.deepStrictEqual([tracks[0][0].run_id, tracks[0][1].owner, tracks[0][1].runSince], ['E20261120-054812', true, since], '표식 번호 = 내보내기 번호 · 시작 시각');
+        const r2 = await a.done({ outcome: 'pr', export_id: 'E20261120-054812', pr_url: 'https://github.com/cantatapream/SEAGNAL/pull/10' });
+        assert.equal(r2.owner, false, '같은 내보내기로 두 번째 PR 은 자동 머지 후보 아님');
+        const r3 = await a.done({ outcome: 'pr', export_id: 'E20261121-054812', pr_url: 'https://github.com/cantatapream/SEAGNAL/pull/11' });
+        assert.equal(r3.owner, false, '자동화 경로로 받은 기록이 없는 내보내기(관리자가 내려받은 md 등) — 후보 아님');
+        t += 60000; await a.done({ outcome: 'skipped', summary: '이전 PR 머지 대기' });
+        const st = mk({}).status();   // 파일에서 다시 읽어도
+        assert.equal(st.lastRun.outcome, 'skipped'); assert.equal(st.runs.length, 4); assert.equal(st.lastStart.export_id, 'E20261120-054812');
+        const pr1 = st.runs.find((r) => r.pr_url && r.pr_url.endsWith('/9'));
+        assert.deepStrictEqual(pr1.fixed, ['G01'], '유형 번호 꼴만'); assert.equal(pr1.summary, '고침', '방향 바꿈 문자 제거'); assert.equal(st.prs.length, 1);
+        await a.done({ outcome: 'failed', summary: 'x' }); assert.equal(pushes.length, 0, '운영 아님 — 푸시 없음');
+        await mk({ FLY_APP_NAME: 'seagnal-server' }).done({ outcome: 'failed', summary: '저장소 clone 실패' });
+        assert.equal(pushes.length, 1); assert.ok(/세션 실패/.test(pushes[0][0]) && /저장소 clone 실패/.test(pushes[0][1]) && /「오류 자동 처리」 칸/.test(pushes[0][1]));
     });
     await check('[§11.10.48-7] 화면 md — 누적 md(내보내기 번호·처리 완료 기록 방법·저장소 파일 경로·유형별 요약·날짜별·유형 번호 칸·탈락 글) · 서버 유형 열쇠가 모두 한글로 풀림 · 실행별 md 에 「(처리 완료)」', () => {
         const sandbox = { window: {} }; require('vm').runInNewContext(fs.readFileSync(path.join(__dirname, '../../client/js/admin/admin_station_briefing.js'), 'utf8'), sandbox);
