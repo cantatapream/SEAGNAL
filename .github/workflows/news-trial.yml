@@ -1,0 +1,43 @@
+# 임시 시험용 — 오늘의 뉴스 수집기(services/news_collector)를 실제 네이버·AI 키로 한 번 돌려 결과를 찍는다.
+# 키 값은 출력하지 않는다. 운영 서버·운영 데이터와 무관한 임시 폴더에서 돈다. 확인이 끝나면 이 파일을 지운다.
+name: news-trial
+on:
+  push:
+    branches: [claude/sharp-albattani-564mwa]
+    paths: ['.github/workflows/news-trial.yml']
+  workflow_dispatch:
+jobs:
+  trial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: install
+        run: cd local_server && npm ci --no-audit --no-fund --ignore-scripts
+      - name: run once
+        env:
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          GEMINI_API_KEY_26_8: ${{ secrets.GEMINI_API_KEY_26_8 }}
+          BULLETIN_AI_CONFIG_FILE: /tmp/news_trial/bai.json
+        run: |
+          mkdir -p /tmp/news_trial
+          cd local_server && node - <<'JS'
+          const N = require('./services/news_collector');
+          const c = N.createNews({ dir: '/tmp/news_trial/news', configFile: '/tmp/news_trial/cfg.json' });
+          c.setKeywords(['금어기', '어업 보조금', '어업인 지원금', '해경 단속', '수산업법 개정', '어선 전복', '선원 실종', '낚시어선 사고', '수상레저 사고', '적조', '해상풍력 어민', '외국인 선원']);
+          (async () => {
+            const st = await c.run();
+            console.log('STATE', JSON.stringify(st));
+            for (const d of c.dates()) {
+              const day = c.day(d);
+              console.log('\n===== ' + d + ' — 카드 ' + day.cards.length + '장');
+              for (const x of day.cards) console.log(`[${x.catName}${x.region ? '·' + x.region : ''}] ${x.title}  (${x.source}${x.more ? ' 외 ' + x.more + '건' : ''} · ${x.time})\n    ${x.summary}\n    사진:${x.image ? 'O' : 'X'} ${x.link}`);
+              const raw = JSON.parse(require('fs').readFileSync('/tmp/news_trial/news/' + d + '.json', 'utf8'));
+              console.log('--- 뺀 기사 ' + raw.rejected.length + '건 (앞 25건)');
+              for (const r of raw.rejected.slice(0, 25)) console.log(`  ${r.score}점 ${r.title} — ${r.reason}`);
+            }
+          })().catch((e) => { console.error(e); process.exit(1); });
+          JS
