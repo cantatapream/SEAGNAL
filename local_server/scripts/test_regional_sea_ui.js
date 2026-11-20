@@ -278,6 +278,15 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             assert.equal(await odd.$('.regional-forecast-sea'), null);
             assert.ok(await odd.$('.regional-forecast-summary .regional-forecast-line'));
         });
+        await check('기온 상자 「오늘」 판정은 한국 시간 기기에서 자정~09시에도 한국 날짜로 본다(2026-11-21 버그 — 시각 고정해 매일 확인)', async () => {
+            const r = await jeju.evaluate(() => {
+                const Real = Date, fixed = Real.UTC(2026, 10, 20, 15, 30);   // 2026-11-21 00:30 KST (UTC 로는 아직 20일)
+                class Fake extends Real { constructor(...a) { if (a.length) super(...a); else super(fixed); } static now() { return fixed; } }
+                window.Date = Fake;
+                try { return [isPdfTemperatureForToday('11.21. 05:00'), isPdfTemperatureForToday('11.20. 05:00'), new Real().getTimezoneOffset()]; } finally { window.Date = Real; }
+            });
+            assert.deepStrictEqual(r, [true, false, -540]);
+        });
         await check('페이지 오류가 없다', async () => { assert.deepStrictEqual(errors, []); });
         console.log('스크린샷:', SHOT);
     } catch (e) { console.error('❌ 시험 중 예외', e); fail++; }
