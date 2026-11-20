@@ -3826,10 +3826,10 @@ const WIN = R.editionWindow('morning', T0);
         fs.writeFileSync(path.join(d, 'error_log.json'), '{'); clock = K('2026-10-17T09:00'); const s4 = mk(); s4.status();
         assert.ok(fs.readdirSync(d).some((f) => /^error_log\.broken-.*\.json$/.test(f)), '깨진 파일을 옮겨 둠');
     });
-    await check('[§11.10.48-6] 라우터 — POST error-log/export(없으면 404) · resolve(없는 번호 404 · groups 넘김) · 관리자만 · md 맡기기는 글 그대로(text/markdown, 5MB 넘어도)', async () => {
+    await check('[§11.10.48-6] 라우터 — POST error-log/export(없으면 404) · 자동 처리 세션 경로 automation/error-export(자동화 열쇠만, §11.10.59) · resolve(없는 번호 404 · groups 넘김) · 관리자만 · md 맡기기는 글 그대로(text/markdown, 5MB 넘어도)', async () => {
         const express = require('express'), { createRouter } = require('../routes/station_briefing'); let got = null, has = true;
         const fake = { readConfig: () => ({ exposure: 'admin' }), stations: () => [], exportErrors: () => (has ? { export: { id: 'E1', groups: [] }, errors: [] } : null), resolveExport: (id, g, n) => { got = [id, g, n]; return id === 'E1' ? { ok: true, resolved: ['G01'], already: [], unknown: [] } : { ok: false }; } };
-        const app = express(); app.use(express.json({ limit: '5mb' })); app.use(createRouter({ service: fake, isAdminDevice: () => false, verifyToken: () => false, authorize: (req, res, next) => req.get('X-Admin-Token') === 'tok-ok' ? next() : res.status(401).json({ ok: false }) }));
+        const app = express(); app.use(express.json({ limit: '5mb' })); app.use(createRouter({ service: fake, isAdminDevice: () => false, verifyToken: () => false, authorize: (req, res, next) => req.get('X-Admin-Token') === 'tok-ok' ? next() : res.status(401).json({ ok: false }), authorizeTrial: (req, res, next) => req.get('X-Automation-Token') === 'auto-ok' ? next() : res.status(401).json({ ok: false }) }));
         const server = http.createServer(app); await new Promise((r) => server.listen(0, '127.0.0.1', r)); const base = 'http://127.0.0.1:' + server.address().port + '/api/admin/station-briefing';
         const H = { 'X-Admin-Token': 'tok-ok' };
         try {
@@ -3840,6 +3840,12 @@ const WIN = R.editionWindow('morning', T0);
             assert.equal(r.status, 200); assert.deepStrictEqual(got, ['E1', ['G01'], 'n']);
             await fetch(base + '/error-log/exports/E1/resolve', { method: 'POST', headers: { ...H, 'Content-Type': 'application/json' }, body: '{}' }); assert.equal(got[1], null, 'groups 없으면 전부');
             assert.equal((await fetch(base + '/error-log/exports/E9/resolve', { method: 'POST', headers: H })).status, 404);
+            // §11.10.59 — 자동 처리 세션 경로: 자동화 열쇠(authorizeTrial)로만 · 관리자 내보내기와 같은 결과 · 없으면 404
+            has = true; const ab = 'http://127.0.0.1:' + server.address().port + '/api/station-briefing/automation/error-export';
+            assert.equal((await fetch(ab, { method: 'POST' })).status, 401, '열쇠 없으면 401');
+            assert.equal((await fetch(ab, { method: 'POST', headers: H })).status, 401, '관리자 토큰 자리(authorize)가 아니라 authorizeTrial 로 지킨다');
+            assert.equal((await (await fetch(ab, { method: 'POST', headers: { 'X-Automation-Token': 'auto-ok' } })).json()).export.id, 'E1');
+            has = false; assert.equal((await fetch(ab, { method: 'POST', headers: { 'X-Automation-Token': 'auto-ok' } })).status, 404);
             const big = '# 누적\n' + 'ㄱ'.repeat(2 * 1024 * 1024);   // 약 6MB(UTF-8) — 전역 JSON 5MB 상한을 넘는다
             const j = await (await fetch(base + '/download?name=station_briefing_open_errors_E1.md', { method: 'POST', headers: { ...H, 'Content-Type': 'text/markdown; charset=utf-8' }, body: big })).json();
             const g = await fetch('http://127.0.0.1:' + server.address().port + j.path); assert.equal(g.status, 200);

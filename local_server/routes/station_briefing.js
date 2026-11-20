@@ -13,7 +13,7 @@
  *                    GET /api/station-briefing/now(「지금 밀집」만 — 화면이 1분마다, since 가 같으면 unchanged, §11.10.24)
  *                    GET·PUT /api/admin/station-briefing/config · GET /api/admin/station-briefing/status(?only=progress — 진행 게이지용 가벼운 응답) · POST /api/admin/station-briefing/run
  *                    GET /api/admin/station-briefing/stations · GET /api/admin/station-briefing/preview(관리자 미리보기 — 노출 범위와 무관)
- *                    GET /api/station-briefing/automation/job · POST …/automation/job-result · GET …/automation/jobs(세션 정시 판 — 관리자 또는 자동화 열쇠, §11.10.56) · …/automation/trial-*(세션 시험, §11.10.53)
+ *                    GET /api/station-briefing/automation/job · POST …/automation/job-result · GET …/automation/jobs(세션 정시 판 — 관리자 또는 자동화 열쇠, §11.10.56) · POST …/automation/error-export(누적 오류 자동 처리 세션 — §11.10.59) · …/automation/trial-*(세션 시험, §11.10.53)
  *                    POST /api/admin/station-briefing/error-log/export(처리 안 된 오류 전부 + 유형 번호 — 누적 md, 내보내기 기록을 남김 · §11.10.48)
  *                    POST /api/admin/station-briefing/error-log/exports/:id/resolve(관리자 버튼 — 그 내보내기의 남은 유형을 처리 완료)
  *                    POST /api/admin/station-briefing/download(오류 md 를 잠깐 맡기고 한 번 쓰는 열쇠를 받음) · GET /api/station-briefing/download/:token(그 열쇠로 파일 한 번 받기 — 앱 안 WebView 는
@@ -188,6 +188,11 @@ function createRouter({
     router.get(trial + '/jobs', authorizeTrial, (req, res) => {
         try { res.set('Cache-Control', 'no-store').json({ ok: true, jobs: svc().jobLog() }); }
         catch (e) { fail(res, e); }
+    });
+    // ── 누적 오류 자동 처리(2026-11-20 사용자 「가, 나 진행」 — 설계서 §11.10.59): 매일 뜨는 예약 작업 세션이 처리 안 된 오류를 받아 가 검사기를 고치고 PR 을 낸다.
+    //   관리자 POST error-log/export 와 같은 일(내보내기 기록을 남겨 머지 때 「이 내보내기에 든 것」만 처리 완료) — 자동화 열쇠로도 열린다. 없으면 404.
+    router.post(trial + '/error-export', authorizeTrial, (req, res) => {
+        try { const r = svc().exportErrors(); res.set('Cache-Control', 'no-store'); if (!r) return res.status(404).json({ ok: false, error: '처리 안 된 오류가 없습니다' }); res.json({ ok: true, ...r }); } catch (e) { fail(res, e); }
     });
     router.get(trial + '/trials', authorizeTrial, (req, res) => {
         try { res.set('Cache-Control', 'no-store').json({ ok: true, trials: svc().trialLog() }); }
