@@ -62,6 +62,16 @@ const AUTO_ALLOW_FILES = new Set([
     'local_server/knowledge/legal/_dashboard/index.json',
 ]);
 const CODE_EXT_RE = /\.(js|mjs|cjs|py|sh|ya?ml|ts|html|css)$/i;
+// 브리핑 오류 자동 처리(2026-11-20 설계서 §11.10.59 — 사용자 「조건부 머지하되, 조건이 안맞으면 관리자에게 푸시로 앱 내부에서 머지하라고」)가 고칠 수 있는 파일 — 이것뿐.
+//   검사기(코드)를 고치는 일이라 위키 쪽(코드 금지)과 달리 그 한 파일은 연다. 없으면: 세션이 서버 다른 코드·게이트·워크플로를 바꿔도 사람 눈 없이 배포된다.
+//   작업 기록(HANDOFF.md)은 넣지 않는다 — 다른 세션들이 자주 덧붙여 충돌이 잦고, 충돌을 풀 자동 세션이 이쪽엔 없다(자동 처리 기록은 서버 실행 기록·PR·설계서 절에 남는다).
+const BRIEFING_ALLOW_FILES = new Set([
+    'local_server/services/station_briefing_ai.js',
+    'local_server/scripts/test_station_briefing.js',
+    'local_server/config/station_briefing_resolved.json',
+    'client/js/ocean-map/coastal-risk/coastal_safety_forecast.design.md',
+    'client/js/forecast/station-briefing/README.md',
+]);
 // 5분: 검사(실측 약 19분 — PR #1471)를 기다리며 다시 볼 간격. 없으면 검사가 끝나도 아무도 머지하지 않는다.
 const POLL_MS = 5 * 60000;
 // 30분 · 24시간: 검사 실패 뒤에도 드물게 다시 본다 — 다시 돌려 초록이 되면 머지할 수 있게(적대검증 C#중-2). 24시간 뒤엔 그만.
@@ -85,6 +95,38 @@ const isPlain = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
 function outsideAuto(files) {
     return (files || []).filter((f) => typeof f !== 'string' || CODE_EXT_RE.test(f) || !(AUTO_ALLOW_FILES.has(f) || AUTO_ALLOW.some((p) => f.startsWith(p))));
 }
+/** 브리핑 오류 자동 처리의 허용 파일 밖. 예: outsideBriefing(['local_server/services/station_briefing_ai.js', 'local_server/routes/x.js']) → ['local_server/routes/x.js'] @param {string[]} files @returns {string[]} */
+function outsideBriefing(files) { return (files || []).filter((f) => typeof f !== 'string' || !BRIEFING_ALLOW_FILES.has(f)); }
+// 브리핑 검사기 고침에 있으면 안 되는 새 줄(독립 검토 2026-11-20 (A) — 허용 파일 이름만 보면 검사기에 외부 호출·파일 접근을 끼워도 자동 배포된다).
+//   검사기는 글을 거르는 순수 함수라 새 require·process·네트워크·eval 이 들 일이 없다. 없으면: 세션이 받은 AI 글(간접 지시 주입 가능)에 휘둘린 변경이 사람 눈 없이 배포될 수 있다.
+const BRIEFING_RISKY_ADD_RE = /\brequire\s*\(|\bimport\s*\(|\bprocess\.|child_process|\bfetch\s*\(|\beval\s*\(|\bnew\s+Function\b|\bFunction\s*\(|https?:\/\/|\bfs\.|\bXMLHttpRequest\b/;
+/**
+ * 브리핑 PR 의 바뀐 내용 검사(자동 머지 전) — 걸리면 사람 몫. 순수 함수.
+ * ①검사기 파일의 더한 줄에 BRIEFING_RISKY_ADD_RE ②시험 파일에서 지운 단언(assert) 줄이 더한 단언 줄보다 많음(시험 약화) ③이 둘의 patch 를 못 받음(너무 큼 — 못 보면 자동 아님).
+ * 예: briefingContentIssues([{filename:'local_server/services/station_briefing_ai.js', patch:'+const x = require(\'fs\');'}]) → ['검사기에 새 외부 호출·파일 접근 줄']
+ * @param {{filename:string, patch?:string}[]} details @returns {string[]}
+ */
+function briefingContentIssues(details) {
+    const out = [];
+    for (const x of details || []) {
+        if (!x || (x.filename !== 'local_server/services/station_briefing_ai.js' && x.filename !== 'local_server/scripts/test_station_briefing.js')) continue;
+        if (typeof x.patch !== 'string') { out.push('바뀐 내용을 다 보지 못함(' + x.filename.split('/').pop() + ')'); continue; }
+        const lines = x.patch.split('\n'), add = lines.filter((l) => l.startsWith('+') && !l.startsWith('+++')), del = lines.filter((l) => l.startsWith('-') && !l.startsWith('---'));
+        if (x.filename.endsWith('station_briefing_ai.js') && add.some((l) => BRIEFING_RISKY_ADD_RE.test(l))) out.push('검사기에 새 외부 호출·파일 접근 줄');
+        if (x.filename.endsWith('test_station_briefing.js') && del.filter((l) => /\bassert\b/.test(l)).length > add.filter((l) => /\bassert\b/.test(l)).length) out.push('시험 단언이 줄어듦');
+    }
+    return out;
+}
+
+/**
+ * 자동 머지 종류(§11.10.59) — 같은 머지 담당을 위키 자동 반영(nariya)과 브리핑 오류 자동 처리(briefing)가 함께 쓴다.
+ * 종류마다 다른 것: 상태 파일 · PR 본문 표식 · 허용 파일 · 푸시·카드 글 · 푸시 종류. 조건(검사 초록·충돌 없음·결정 필요 0·최신 main·그 sha 만 머지)은 같다.
+ */
+const PROFILES = {
+    nariya: { key: 'nariya', file: DEFAULT_FILE, marker: 'nariya-run: ', card: '앱 「자동반영」 방 카드', name: 'AI 챗봇 자동 반영', where: '앱 → 관리자 → 「자동반영」 방', scopeWhy: '위키·원문 밖 파일을 고침', scopeShort: '위키·원문 밖 파일(프로그램 코드 등)을 고침', outside: outsideAuto, push: 'nariya_pr' },
+    // briefing: 표식은 「한 줄 전체」가 그 번호일 때만(독립 검토 (C) — 부분 일치면 E…054812 가 E…054812-2 의 앞부분이라 통과했다) · 내용 검사(content)
+    briefing: { key: 'briefing', file: path.join(__dirname, '..', 'data', 'briefing_autofix_pr_state.json'), marker: 'briefing-autofix: ', markerLine: true, content: briefingContentIssues, card: '앱 「AI 브리핑」 탭 「오류 자동 처리」 칸', name: 'AI 브리핑 오류 자동 처리', where: '앱 → 관리자 → AI → 「AI 브리핑」 탭 「오류 자동 처리」 칸', scopeWhy: '자동 처리가 고칠 수 있는 파일 밖을 고침', scopeShort: '자동 처리가 고칠 수 있는 파일 밖을 고침', outside: outsideBriefing, push: 'briefing_pr' },
+};
 
 /**
  * PR·검사·(있으면) 파일 목록·main 시각으로 머지할 수 있는지 판정한다(순수 함수 — 시험이 직접 먹인다).
@@ -96,7 +138,7 @@ function outsideAuto(files) {
  *   how(사람에게 넘길 때 어떻게 풀리나): button · github
  */
 function judge(pr, runs, ctx) {
-    const c = ctx || {};
+    const c = ctx || {}, P = c.profile || PROFILES.nariya;
     if (!isPlain(pr)) return { ok: false, state: 'invalid', why: 'PR 정보를 못 읽음', how: 'github' };
     if (pr.merged) return { ok: false, state: 'merged', why: '이미 머지됨' };
     if (pr.state !== 'open') return { ok: false, state: 'closed', why: 'PR 이 닫혀 있음' };
@@ -111,10 +153,12 @@ function judge(pr, runs, ctx) {
         const created = Date.parse(pr.created_at || '');
         if (!Number.isFinite(created) || !Number.isFinite(c.runSince) || created < c.runSince) return { ok: false, state: 'foreign', why: '이 PR 이 그 세션이 일을 시작한 뒤에 만들어진 것인지 확인하지 못함', sha, how: 'button' };
         // PR 본문의 표식 「nariya-run: <run_id>」가 done 을 보낸 run 과 같아야 한다(재검토 중-D — 세션이 다른 PR 번호를 잘못 보고해도 자동 머지되지 않게).
-        if (typeof c.runId !== 'string' || !c.runId || String(pr.body || '').indexOf('nariya-run: ' + c.runId) < 0) return { ok: false, state: 'foreign', why: 'PR 본문에 이 세션의 표식(nariya-run: ' + String(c.runId || '?').slice(0, 64) + ')이 없음', sha, how: 'button' };
+        const markOk = typeof c.runId === 'string' && !!c.runId && (P.markerLine ? String(pr.body || '').split(/\r?\n/).some((l) => l.trim() === P.marker + c.runId) : String(pr.body || '').indexOf(P.marker + c.runId) >= 0);
+        if (!markOk) return { ok: false, state: 'foreign', why: 'PR 본문에 이 세션의 표식(' + P.marker + String(c.runId || '?').slice(0, 64) + ')이 없음', sha, how: 'button' };
         if (c.filesTruncated) return { ok: false, state: 'scope', why: '바뀐 파일이 너무 많아 다 보지 못함', sha, how: 'button' };
-        const out = outsideAuto(c.files);
-        if (!Array.isArray(c.files) || out.length) return { ok: false, state: 'scope', why: '위키·원문 밖 파일을 고침: ' + (out.slice(0, 3).join(', ') || '(목록 없음)') + (out.length > 3 ? ` 외 ${out.length - 3}개` : ''), sha, how: 'button' };
+        const out = P.outside(c.files);
+        if (P.content) { const bad = P.content(c.details); if (!Array.isArray(c.details) || bad.length) return { ok: false, state: 'scope', why: '자동 머지하지 않는 변경: ' + (bad.join(', ') || '바뀐 내용을 못 읽음'), sha, how: 'button' }; }
+        if (!Array.isArray(c.files) || out.length) return { ok: false, state: 'scope', why: P.scopeWhy + ': ' + (out.slice(0, 3).join(', ') || '(목록 없음)') + (out.length > 3 ? ` 외 ${out.length - 3}개` : ''), sha, how: 'button' };
     }
     // mergeable 은 GitHub 가 늦게 채워 null 로 오래 남을 수 있다 — mergeable_state 「dirty」(충돌)도 충돌로 본다(2026-11-18 PR #1485: 충돌인데 앱이 「계산 중」으로 보였다).
     //   충돌을 검사보다 먼저 본다 — 충돌한 PR 에는 GitHub 가 검사를 돌리지 않아(머지 ref 를 못 만듦) 「필수 검사 없음」으로 30분을 헛기다리다 넘겼다(2026-11-18 PR #1497).
@@ -144,7 +188,8 @@ function judge(pr, runs, ctx) {
  * [연계] ← forDefault · scripts/test_nariya_pr_merge.js
  */
 function createMerger({
-    file = DEFAULT_FILE,
+    profile = PROFILES.nariya,   // 자동 머지 종류(§11.10.59) — 기본은 위키 자동 반영(종전 동작 그대로)
+    file = profile.file,
     now = Date.now,
     setTimer = (fn, ms) => { const t = setTimeout(fn, ms); if (t && t.unref) t.unref(); return t; },
     clearTimer = (t) => clearTimeout(t),
@@ -238,21 +283,21 @@ function createMerger({
             if (!m.ok) return httpFail('main 과 비교', m);
             behindBy = m.json && Number.isInteger(m.json.behind_by) ? m.json.behind_by : NaN;
         }
-        let files = null, filesTruncated = false;
+        let files = null, filesTruncated = false, details = null;
         if (opt.auto || opt.withFiles) {
-            files = [];
+            files = []; details = [];
             for (let page = 1; page <= 30; page++) {
                 const f = await gh('GET', API + '/pulls/' + n + '/files?per_page=100&page=' + page);
                 if (!f.ok) return httpFail('바뀐 파일 조회', f);
                 const got = Array.isArray(f.json) ? f.json : [];
                 // 이름 바꾸기는 옛 경로도 본다 — 기준선·검사 도구를 wiki/ 로 「옮기는」 것은 그 자리에서 지우는 것과 같다(재검토 중-A).
-                for (const x of got) { if (!x) continue; files.push(x.filename); if (x.previous_filename) files.push(x.previous_filename); }
+                for (const x of got) { if (!x) continue; files.push(x.filename); if (x.previous_filename) files.push(x.previous_filename); details.push({ filename: x.filename, patch: typeof x.patch === 'string' ? x.patch : undefined }); }
                 if (got.length < 100) break;
                 if (page === 30) filesTruncated = true;   // GitHub 는 3,000개까지만 준다
             }
         }
-        const r = judge(p.json, runs, { behindBy, auto: !!opt.auto, files, filesTruncated, runSince: opt.runSince, owner: opt.owner, runId: opt.runId });
-        const outside = files ? outsideAuto(files) : null;
+        const r = judge(p.json, runs, { behindBy, auto: !!opt.auto, files, filesTruncated, runSince: opt.runSince, owner: opt.owner, runId: opt.runId, profile, details });
+        const outside = files ? profile.outside(files) : null;
         return Object.assign(r, { title: String((p.json && p.json.title) || '').slice(0, 200), ref: p.json && p.json.head && typeof p.json.head.ref === 'string' ? p.json.head.ref.slice(0, 200) : null }, outside ? { outside: outside.slice(0, 5), outsideCount: outside.length + (filesTruncated ? '+' : '') } : {});
     }
 
@@ -277,8 +322,8 @@ function createMerger({
 
     /** 사람에게 넘길 때 무엇을 해야 하나 — 푸시·카드에 같은 글을 쓴다(적대검증 C#중-3). */
     const HOW_TEXT = {
-        button: '앱 → 관리자 → 「자동반영」 방에서 내용을 확인하고 [머지] 버튼을 눌러 주세요(검사가 끝나 초록이면 눌립니다)',
-        github: '앱 버튼으로는 풀 수 없습니다 — GitHub 에서 PR 을 직접 확인해 주세요(앱 「자동반영」 방 카드의 「GitHub 에서 보기」)',
+        button: profile.where + '에서 내용을 확인하고 [머지] 버튼을 눌러 주세요(검사가 끝나 초록이면 눌립니다)',
+        github: '앱 버튼으로는 풀 수 없습니다 — GitHub 에서 PR 을 직접 확인해 주세요(' + profile.card + '의 「GitHub 에서 보기」)',
         secrets: '서버의 GitHub 열쇠(Fly secrets GITHUB_MERGE_TOKEN)의 값·권한을 확인해 주세요',
     };
     /**
@@ -294,12 +339,12 @@ function createMerger({
         // 「위키·원문 밖 파일을 고침: local_server/…」 → 앞말만 · 괄호 속(「표식(nariya-run: …)」)은 뺀다(적대검증 하3 — 괄호가 안 닫힌 채 잘렸다).
         const plain = (p.needs || []).length && /^결정 필요/.test(String(why)) ? '결정 필요 ' + p.needs.length + '건'
             : String(why || '').replace(/\([^)]*\)/g, '').split(':')[0].replace(/\s+/g, ' ').trim();
-        const title = p.how !== 'button' ? 'AI 챗봇 자동 반영 — 자동 머지 안 함 · 확인 필요'
-            : ready ? 'AI 챗봇 자동 반영 — 앱에서 머지 버튼을 눌러 주세요' : 'AI 챗봇 자동 반영 — 확인 필요';
+        const title = p.how !== 'button' ? profile.name + ' — 자동 머지 안 함 · 확인 필요'
+            : ready ? profile.name + ' — 앱에서 머지 버튼을 눌러 주세요' : profile.name + ' — 확인 필요';
         const body = p.how !== 'button' ? `${plain}. ${HOW_TEXT[p.how]}.`
-            : ready ? `검사를 통과했습니다(자동으로 머지하지 않은 까닭: ${plain}). 앱 → 관리자 → 「자동반영」 방에서 내용을 확인하고 [머지] 버튼을 눌러 주세요.`
-            : `${plain}. 앱 → 관리자 → 「자동반영」 방에서 확인해 주세요.`;
-        await notify(title, body, { type: 'nariya_pr_needs_human', pr: String(p.number), how: p.how, ready: String(!!ready) });
+            : ready ? `검사를 통과했습니다(자동으로 머지하지 않은 까닭: ${plain}). ${profile.where}에서 내용을 확인하고 [머지] 버튼을 눌러 주세요.`
+            : `${plain}. ${profile.where}에서 확인해 주세요.`;
+        await notify(title, body, { type: profile.push + '_needs_human', pr: String(p.number), how: p.how, ready: String(!!ready) });
     }
 
     /**
@@ -372,7 +417,7 @@ function createMerger({
                 }
                 p.status = p.statusBefore === 'failed_checks' ? 'failed_checks' : 'waiting'; p.why = p.whyBefore || null; p.watchFrom = now();
                 // 맡기기 전 까닭이 「GitHub 에서 확인」 몫의 까닭(검사 30분 없음 등 — 충돌 탓이었다)이면 버리고 지금 까닭으로 — 그대로 두면 「머지 버튼」 푸시에 옛 까닭이 실린다(2026-11-18 PR #1497).
-                if (p.how === 'github') { p.how = 'button'; p.why = (p.needs || []).length ? '결정 필요 ' + p.needs.length + '건' : parseInt(p.outsideCount, 10) > 0 ? '위키·원문 밖 파일(프로그램 코드 등)을 고침' : null; }
+                if (p.how === 'github') { p.how = 'button'; p.why = (p.needs || []).length ? '결정 필요 ' + p.needs.length + '건' : parseInt(p.outsideCount, 10) > 0 ? profile.scopeShort : null; }
                 save();
             }
             // 확인을 기다리는 사이 track 이 사람 몫으로 내렸으면(결정 필요가 더해짐) 머지하지 않는다(적대검증 하5 — p 는 상태 객체 그 자체라 지금 값을 본다).
@@ -382,9 +427,9 @@ function createMerger({
                 try { m = await doMerge(n, r.sha); } catch (e) { console.error('[nariya_pr_merge] PR #' + n + ' 자동 머지 요청 실패:', e && e.message); m = { ok: false, why: '연결 실패: ' + String((e && e.message) || e).slice(0, 80) }; }
                 if (m.ok) {
                     p.status = 'merged'; p.mergedAt = now(); p.mergedBy = 'auto'; p.mergedSha = r.sha; save();
-                    await notify('AI 챗봇 자동 반영 — 자동 머지 완료 · 배포 시작',
+                    await notify(profile.name + ' — 자동 머지 완료 · 배포 시작',
                         '검사를 통과해 자동으로 머지했습니다. 배포가 이어서 시작됩니다(누를 것 없음).',
-                        { type: 'nariya_pr_merged', pr: String(n), by: 'auto' });
+                        { type: profile.push + '_merged', pr: String(n), by: 'auto' });
                 } else await handOver(p, '자동 머지가 거절됐습니다 — ' + m.why, 'button');
                 return;
             }
@@ -394,9 +439,9 @@ function createMerger({
                 if (p.status !== 'failed_checks') {
                     // 사람 몫 PR 은 처음 까닭(결정 필요 N건 등)을 지운다 — 초록이 되면 그 까닭으로 「머지 버튼」 푸시를 보낸다. 실패 까닭은 check.why 에 있다.
                     p.status = 'failed_checks'; if (auto) p.why = r.why; p.failedAt = now(); save();
-                    await notify('AI 챗봇 자동 반영 — 검사 실패 · 자동 머지 안 함',
-                        '검사가 실패해 머지 버튼이 잠깁니다. 다시 돌려 통과하면 알려 드립니다. 앱 → 관리자 → 「자동반영」 방에서 확인해 주세요.',
-                        { type: 'nariya_pr_failed', pr: String(n) });
+                    await notify(profile.name + ' — 검사 실패 · 자동 머지 안 함',
+                        '검사가 실패해 머지 버튼이 잠깁니다. 다시 돌려 통과하면 알려 드립니다. ' + profile.where + '에서 확인해 주세요.',
+                        { type: profile.push + '_failed', pr: String(n) });
                 }
                 if (now() - (p.failedAt || now()) < FAIL_WATCH_MS) arm(n, FAIL_POLL_MS);
                 else await handOver(p, '검사 실패가 24시간 이어졌습니다 — 더는 자동으로 지켜보지 않습니다', 'button');   // 적대검증 하4 — 조용히 멈추지 않게
@@ -628,7 +673,7 @@ function createMerger({
     return { track, evaluate, mergeNow, refresh, list, start, tick, conflicts, conflictResult, setConflictHook, answer, answers, answersResult, setAnswerHook, dismiss, _state: () => load() };
 }
 
-let def = null;
+let def = null, defBriefing = null;
 /** 운영 기본 인스턴스. [연계] ← nariya_autorun · routes/legal.js · server.js */
 function forDefault() {
     return def || (def = createMerger({
@@ -637,8 +682,11 @@ function forDefault() {
     }));
 }
 
+/** 브리핑 오류 자동 처리의 머지 담당(§11.10.59) — 충돌·결정 필요 답 담당 없음(충돌은 「GitHub 에서 확인」). [연계] ← station_briefing_autofix · server.js */
+function forBriefing() { return defBriefing || (defBriefing = createMerger({ profile: PROFILES.briefing })); }
+
 module.exports = {
-    createMerger, forDefault, judge, outsideAuto, REQUIRED_CHECK, PR_URL_RE, AUTO_ALLOW,
+    createMerger, forDefault, forBriefing, judge, outsideAuto, outsideBriefing, briefingContentIssues, PROFILES, BRIEFING_ALLOW_FILES, REQUIRED_CHECK, PR_URL_RE, AUTO_ALLOW,
     track: (d, o) => forDefault().track(d, o),
     mergeNow: (n, by) => forDefault().mergeNow(n, by),
     refresh: () => forDefault().refresh(),
