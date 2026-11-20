@@ -1,7 +1,7 @@
 
 // [이 파일의 업데이트 관련 부분 — 2026-11-20]
 //   · 업데이트 안내 창(시안 C): showUpdatePopup — 옛 앱(1.1.1 이하)에서 서버 latestVersion 이 더 높을 때. 「나중에」 24시간.
-//     바뀐 점 목록은 관리자 센터 버전 탭 「업데이트 메시지」(client/app_version.json updateMessage). 관리자 미리 보기 = window.SeagnalUpdatePopup.
+//     바뀐 점 목록은 관리자 센터 버전 탭 「업데이트 메시지」(서버 local_server/data/app_version.json — services/app_version_store.js). 관리자 미리 보기 = window.SeagnalUpdatePopup.
 //   · 앱 안 업데이트(유연형): tryInAppUpdate — 1.3.0 이후 앱. 설계·검증: 00_docs/operations/app-release-headsup-inapp-update.md
 //   · 시험: local_server/scripts/test_inapp_update_flow.js
 // Capacitor 전역 객체 확보
@@ -549,7 +549,7 @@ function isVersionLower(a, b) {
 //   사용자 원문: 「3안 처럼 반영하고자 하는데, 업데이트하러가기 버튼 내 텍스트 바로 아래 플레이스토어로 이동합니다. 라고 작게 명시」
 //              「하루(24시간) 뒤 … 이대로 하자.」
 //   - 새 아이콘 · 「새 버전이 나왔어요」 · v현재 → v최신 · 바뀐 점 목록 · [업데이트하러 가기(Play 스토어로 이동합니다)] · [나중에]
-//   - 바뀐 점 목록은 관리자 센터 버전 탭의 「업데이트 메시지」에서 온다(client/app_version.json 의 updateMessage).
+//   - 바뀐 점 목록은 관리자 센터 버전 탭의 「업데이트 메시지」에서 온다(/api/app-version 의 updateMessage — 서버 services/app_version_store.js).
 //     입력 규칙: 한 줄 = 목록 한 칸, 줄 맨 앞 이모지 = 왼쪽 아이콘(없으면 •), 「|」 뒤 = 작은 설명.
 //   - [나중에] → 창을 닫고 24시간 동안 다시 띄우지 않는다(UPDATE_POPUP_LATER_KEY). 앱 안 업데이트(IN_APP_UPDATE_ASK_GAP_MS)와 같은 간격.
 //   - 이 창은 서버에서 내려가는 화면이라 1.1.1 앱에도 그대로 뜬다(APK 업데이트 불필요).

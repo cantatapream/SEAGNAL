@@ -67,7 +67,7 @@ client/js/
 │   │   ├── render.js
 │   │   ├── zone_avg.js
 │   ├── main-accordion/
-│   │   └── main_accordion_solo.js
+│   │   ├── main_accordion_solo.js
 │   ├── marine-chart/
 │   │   ├── marine_chart1.js
 │   │   ├── marine_chart2.js

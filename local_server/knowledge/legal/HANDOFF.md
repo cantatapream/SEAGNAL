@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-20 21:22 KST] ✅완료 — 앱 버전 정보를 관리자 [적용]만으로 끝나게 — 서버 볼륨에 저장
+사용자 요청(2026-11-20): '적용만으로 끝나게 고쳐놓고 진행하자. 그래야 만약에 문제있어서 1.1.1 버전 3으로 적용만 하면 바로 적용되는거잖아.' 원인: 관리자 [적용]이 client/app_version.json 에 써서 main 머지(자동 배포)마다 저장소 값으로 덮였다. 고침: services/app_version_store.js 신설 — local_server/data/app_version.json(볼륨, .dockerignore 제외)에 tmp+rename 으로 쓰고, 읽을 때 그것이 없으면 client/app_version.json(처음 값). routes/version.js GET 이 store.read(Cache-Control no-store), routes/admin.js POST 가 store.write(다른 칸 유지). .gitignore 에 data/app_version.json. 시험 test_app_version_store.js 21 PASS(처음 값·적용 즉시·배포 뒤 유지·되돌리기·깨진 파일 경고·둘 다 없음 404·연결) — verify_all SUITES 등록, _RULES.md 재생성. 관리자 화면 안내에 '[적용]하면 바로 반영, 배포해도 유지' 추가. 다음: PR → 검사 → 머지 → 사용자가 관리자 센터에서 1.3.0/17/메시지 [적용].
+
+
 ### [2026-11-20 17:58 KST] ✅완료 — 업데이트 안내 창 시안 C + 관리자 미리 보기 + 프로덕션 출시 확인
 Play 제출 활동(사용자 화면, 2026-11-20): 제출 14 '프로덕션, 비공개 테스트 - Alpha, 스토어 등록정보' 17:24 KST 제출 → 상태 '출시됨'. 1.3.0(17) 전체 출시. 사용자가 안내 창 시안 C 선택(버튼 안 'Play 스토어로 이동합니다', 나중에=24시간). 구현: client/capacitor-plugins.js showUpdatePopup 교체(새 아이콘 client/assets/app_update_icon.png, 바뀐 점 목록 = updateMessage 한 줄=한 칸·이모지=아이콘·'|' 뒤=설명, HTML 이스케이프, 나중에 키 seagnal_update_popup_later_at 24h, 이모지 정규식은 new RegExp+try 로 옛 WebView 문법 오류 방지), checkAppUpdate 에 24시간 건너뛰기, window.SeagnalUpdatePopup(preview). admin.js 버전 탭: 입력 안내 + [이 휴대폰에서 미리 보기]. index2.html 캐시 번호 UpdatePopupC_20261120. test_inapp_update_flow 104 PASS(새 [9] 22건). 다음: 이 변경을 main 에 합친 뒤에 관리자 센터 latestVersion 을 1.3.0 으로(출시 100% 후 하루 이틀). 합치기 전에 올리면 옛 창이 뜬다.
 
