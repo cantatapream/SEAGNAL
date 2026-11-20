@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 165 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 166 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -436,6 +436,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_inapp_update_flow` | 앱 안 업데이트(유연형) 화면 흐름 검증 |
 | `test_push_device_test` | 「직접 발송」의 "이 휴대폰에만 보내기(시험)" 검증 |
 | `test_no_nariya_name` | 옛 챗봇 이름이 화면·푸시·AI 지시문·AI 가 인용하는 위키에 다시 들어오지 않게 고정한다. |
+| `test_app_version_store` | 앱 최신 버전 정보가 「관리자 [적용]만으로」 바뀌고, 배포 뒤에도 남는지 검증 |
 
 > 위 두 표는 **기계가 찍은 것**이다 — `verify_all.sh` 의 절 머리줄과 `SUITES` 배열,
 > 그리고 각 스위트 파일 머리 주석에서 그대로 뽑았다. 손으로 고치면 다음 실행에 사라진다.
