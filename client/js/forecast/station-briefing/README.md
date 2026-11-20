@@ -365,7 +365,7 @@ CSS 는 `<head>` 의 `risk_forecast.css` 다음.
 
 ## 누적 오류 자동 처리 세션 (2026-11-20 — 설계서 §11.10.59)
 
-- 매일 05:48 KST(사용자 「새벽 6시」) 예약 작업 세션이 `POST /api/station-briefing/automation/error-export`(자동화 열쇠)로 처리 안 된 오류를 받아, 검사기 오판만 고치고 PR(본문 끝 `briefing-autofix: <내보내기 번호>`)을 낸다. 머지는 사장님 — 머지·배포되면 고친 유형이 자동으로 처리 완료.
+- 매일 05:48 KST(사용자 「새벽 6시」) 예약 작업 세션이 `POST /api/station-briefing/automation/error-export`(자동화 열쇠)로 처리 안 된 오류를 받아, 검사기 오판만 고치고 PR(본문 끝 `briefing-autofix: <내보내기 번호>`)을 낸다. 조건(검사 초록·허용 파일 5개만·결정 필요 0건)이 맞으면 서버가 자동 머지, 아니면 관리자 푸시 + AI 브리핑 탭 「오류 자동 처리」 칸의 [머지] 버튼. 머지·배포되면 고친 유형이 자동으로 처리 완료되고 「처리 안 된 오류」 수가 준다.
 - 열린 자동 처리 PR 이 있으면 그날은 건너뜀. 지침 원문 `client/js/ocean-map/coastal-risk/briefing_autofix.routine.md`.
 
 ## AI 순서 = 「AI 모델 설정」 ④ 목록 (2026-11-16 — 설계서 §11.10.51)
