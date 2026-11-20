@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-20 23:27 KST] ✅완료 — 자동 푸시 경로 점검 — 운영에서 통과, 버튼은 남김
+사용자가 운영(배포 #2362 뒤)에서 [자동 푸시 경로 점검 (임시)]를 눌러 확인: 자동 특보 푸시 길 통과(200) — 점검 알림이 헤드업으로 옴, 자동 태풍 푸시 길 통과(400, 발송 없이). → PR #1553 의 관리자 확인이 자동 푸시를 막지 않음이 운영에서 확인됨. 사용자 결정: '나중에 쓸 수 있도록 놔두자.' → 버튼·라우트·서비스·시험 유지(운영 문서에 기록). 참고: PR #1552 배포(#2360)는 Fly 이미지 저장소 TLS access denied 로 실패했고 #2361 에서 반영됨.
+
+
 ### [2026-11-20 23:17 KST] ✅완료 — [임시] 자동 푸시 경로 점검 버튼
 사용자: '직접 발송하는 것으로 자동 푸시 온다고 볼 수 있니 ?'(아니다 — 관리자 열쇠 길 vs 내부 열쇠 길) → '자동 푸시 경로 점검 버튼 임시로 만들어보자.' 참고: 시작 화면 버전 줄이 안 뜬 까닭 = PR #1552 배포(Deploy #2360)가 Fly 이미지 저장소 TLS access denied 로 실패, PR #1553 배포(#2361)로 반영됨(사용자 '어 뜬다' 확인). 구현: services/push_auto_path_check.js(validate: 주소 20자 미만이면 거절 — 빈 adminToken=전체 발송 방지 / run: push_sender 와 같은 localhost:3001/api/push-custom 에 내부 열쇠 + adminToken=이 휴대폰 → 한 대만·기록 없음, push-typhoon 은 빈 본문으로 문지기만 400/401 확인), routes/push.js POST /api/admin/push-auto-path-check(requireAdminToken), alert_push.js 직접 발송 탭 버튼 + runAutoPushPathCheck(주소 없으면 서버 요청 안 함), index2.html 캐시 번호 AutoPathCheck_20261120. 시험 test_push_auto_path_check 23 PASS(verify_all 등록), test_push_route_auth 30 PASS(서버 내부 호출처 목록에 점검 서비스 추가). 실제 서버 e2e: 로그인 전 → 로그인 필요 안내, 주소 없음 → 안내, 정상 → 특보 길 200·태풍 길 400(구독자 1명 매칭, 이 환경엔 Firebase 없어 0건). 확인이 끝나면 지운다.
 
