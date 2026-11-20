@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-20 11:53 KST] ✅완료 — 스토어용 서명 AAB 를 깃허브에서 만드는 빌드 절차(Build Release AAB) — 가지에서 실제 서명본까지 확인
+한 것: .github/workflows/build-release-aab.yml 신설(workflow_dispatch). 준비(npm install → cap sync) → bundleRelease → 병합 매니페스트(release) 검사 → jarsigner 서명 → 서명 검증·지문 대조 → Artifacts(seagnal-release-aab). 서명 키는 저장소의 android/seagnal-release-key(PKCS12, alias key0, 2026-02-14 생성 — 사용자가 채팅으로 준 릴리즈 키와 sha256 일치), 비밀번호는 깃허브 Secrets 의 ANDROID_KEYSTORE_PASSWORD(사용자가 등록함). 실행 기록: run #1(push, 서명 없이) 빌드·매니페스트 검사 통과 / run #2 실패 — 내가 apk_build/android.keystore 를 릴리즈 키로 잘못 봤다(확장자로만 찾아 android/seagnal-release-key 를 놓침, 비밀번호 불일치로 드러남) / run #3(workflow_dispatch, 가지 d333dedb) 성공 — SEAGNAL-1.3.0-15-release.aab, jar verified, 서명 인증서 SHA-1 9C:C8:DA:CA:45:FB:63:90:80:6F:C2:55:C6:A7:04:58:24:2D:AD:2A. 파일을 사용자에게 채팅으로 전달함. 사용자 보고(2026-11-20): 시험 폰에서 앱을 끈 상태로 헤드업 알림 확인됨 → 운영 문서 §4 ④ 갱신. 남은 것: ①이 절차를 main 에 넣는 PR(사용자가 Actions 화면에서 직접 누르려면 필요) ②사용자가 Play 내부 테스트에 AAB 올리기 — 이 키가 Play 에 등록된 업로드 키와 같은지는 거기서 드러난다 ③앱 안 업데이트 확인은 versionCode 16 을 한 번 더 올려야 한다. 알릴 것(사용자 결정 사항): 이 저장소는 공개 저장소인데 릴리즈 키 파일(android/seagnal-release-key)과 옛 키(apk_build/android.keystore)가 들어 있다 — 비밀번호가 유일한 방어선. 이 작업 환경: 산출물 내려받기 때문에 SEAGNAL 이라는 개인 환경을 만들어 깃허브 빌드 저장 서버 주소 두 개를 허용했다(productionresultssa30·sa16.blob.core.windows.net).
+
+
 ### [2026-11-20 11:35 KST] 🟢착수 — 스토어용 서명 AAB 를 깃허브에서 만드는 빌드 절차 추가(Build Release AAB)
 사용자 요청(2026-11-20): 시험 폰에서 앱을 끈 상태 헤드업 확인됨 → 스토어용 파일을 깃허브에서 만들게 해 달라. 할 일: .github/workflows/build-release-aab.yml 신설(workflow_dispatch). 디버그 빌드 절차(build-apk.yml)와 같은 준비(npm install → cap sync) 뒤 bundleRelease → 병합 매니페스트 검사(release) → 저장소의 apk_build/android.keystore(alias android, PKCS12)로 jarsigner 서명 → 서명 검증·지문 대조 → Artifacts 로 올림. 비밀번호는 깃허브 Secrets 의 ANDROID_KEYSTORE_PASSWORD(선택: ANDROID_KEY_PASSWORD)에서만 읽는다. build.gradle 은 안 건드린다. 병합 전 브랜치에서 임시 push 트리거로 release 빌드가 되는지 먼저 본다.
 
