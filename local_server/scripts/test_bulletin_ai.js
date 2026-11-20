@@ -118,7 +118,7 @@ gemini.callGemini = async (a) => { calls.push({ id: 'gemini', model: a.model });
     const plain = []; let gemmaAnswer = () => ({ success: true, text: '```json\n' + GOOD + '\n```' });
     gemini.callPlain = async (a) => { plain.push(a); return gemmaAnswer(a); };
     const g2 = await (await fetch(base + '/api/admin/bulletin-ai/config')).json();
-    ok('선택지: ③·⑥ 에서만 · Gemma 두 모델(Gemini API 가 제공하는 것 — 실제로 불린 26b 가 앞) · 「시험 호출」은 기본 Gemini 모델도', g2.choices.gemma && g2.choices.gemma.features.join() === 'forecast,seasummary'
+    ok('선택지: ③·⑥·⑦ 에서만 · Gemma 두 모델(Gemini API 가 제공하는 것 — 실제로 불린 26b 가 앞) · 「시험 호출」은 기본 Gemini 모델도', g2.choices.gemma && g2.choices.gemma.features.join() === 'forecast,seasummary,news'
       && g2.choices.gemma.models.join() === 'gemma-4-26b-a4b-it,gemma-4-31b-it' && g2.choices.gemma.tryModels.join() === 'gemini-2.5-flash-lite,gemma-4-26b-a4b-it,gemma-4-31b-it', JSON.stringify(g2.choices.gemma));
     ok('기본은 종전 그대로 — ③ 의 gemma 칸은 비어 있다(쓰지 않음) · 다른 기능에는 그 칸이 없다', g2.config.forecast.gemma === '' && !('gemma' in g2.config.escalation) && !('gemma' in g2.config.read) && !('gemma' in g2.config.briefing) && !('gemini' in g2.config.forecast.models));
     // 관리자가 정한 순서: 클로드 키2 → Gemini (나머지는 삭제)
@@ -247,6 +247,16 @@ gemini.callGemini = async (a) => { calls.push({ id: 'gemini', model: a.model });
     gemmaAnswer = () => ({ success: true, text: '{"항목":[]}' }); plain.length = 0; calls.length = 0;
     const e1 = await bai.call('escalation', 'P');
     ok('⑤ 격상 가능성 읽기는 Gemma 를 부르지 않는다 — 정해 둔 순서(기본 Gemini)만', e1.provider === 'gemini' && plain.length === 0 && calls.length === 1 && calls[0].model === 'gemini-2.5-flash-lite' && !bai.gemmaStatus().escalation);
+    // ⑦ 오늘의 뉴스 판정(2026-11-21 사용자 「Ai를 통합관리자센터에 있는거처럼 선택할수있도록 해줘. Ai모델선택하는것」)
+    {
+      const c7 = bai.getConfig().news;
+      ok('⑦ 기본: 「먼저 Gemma」 켜짐(26b) · 순서는 Gemini 만 · 설정 화면 GET 에 news 칸이 있다', c7.gemma === 'gemma-4-26b-a4b-it' && c7.order.filter((id) => !c7.removed.includes(id)).join() === 'gemini'
+        && !!g2.config.news && bai.FEATURES.news.name === '오늘의 뉴스 판정', JSON.stringify(c7));
+      const sv = await (await post({ feature: 'news', gemma: '', removed: ['claude1', 'upstage', 'chatgpt'] })).json();
+      ok('⑦ 관리자가 고른 값이 저장된다(Gemma 끄기 · 클로드 키2 다시 추가)', sv.ok && sv.config.news.gemma === '' && sv.config.news.order.filter((id) => !sv.config.news.removed.includes(id)).join() === 'gemini,claude2'
+        && bai.getConfig().news.gemma === '', JSON.stringify(sv.config.news).slice(0, 400));
+      await (await post({ feature: 'news', gemma: 'gemma-4-26b-a4b-it', removed: ['claude2', 'claude1', 'upstage', 'chatgpt'] })).json();   // 뒤 검사를 위해 기본으로 되돌림
+    }
     // ⑥ 해상 기상 요약(2026-11-19 사용자 「2.순서 - 전용칸 6」 「이 작업은 젬마가 진행하도록 하고 젬마가 안되면 … 순서로서 ai api 호출」)
     {
       const c6 = bai.getConfig().seasummary;

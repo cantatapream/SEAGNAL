@@ -49,11 +49,18 @@
 - 이어지는 사고는 새 소식만, 해외 사고는 우리 연루·국내 규제 영향만, 같은 사건은 1장으로 묶음
 - 견본 교훈: 단어 필터로는 확실한 것만 버린다(「수상」이 「수상레저」 법안을 잘못 버린 일)
 
+### 2-1. 판정 AI 고르기
+- 관리자 → AI → 「AI 모델 설정」 ⑦ **오늘의 뉴스 판정** 칸에서 고른다(사용자 2026-11-21 「Ai를 통합관리자센터에 있는거처럼 선택할수있도록 해줘. Ai모델선택하는것」).
+  다른 기능(①~⑥)과 같은 방식 — 우선순위(▲▼·삭제·다시 추가), 칸별 모델·노력, ChatGPT 실행 위치, 「먼저 Gemma」.
+- 기본: 「먼저 Gemma」 켜짐(gemma-4-26b-a4b-it, 무료) → 안 되면 Gemini. 다른 AI(클로드·업스테이지·ChatGPT)는 관리자가 「다시 추가」 해야 쓰인다(몰래 크레딧을 쓰지 않게 — ①③⑤⑥ 과 같은 규칙).
+- 서버: `services/bulletin_ai.js` 의 `news` 기능 — 판정 코드(`news_judge.js`)는 `bulletin_ai.call('news', …, { accept })` 로 부른다.
+
 ## 3. 진행 상태
 
 | 단계 | 상태 | 파일 |
 |---|---|---|
 | 어황정보 서버 | ✅ 2026-11-21 | `local_server/services/fishcond_collector.js` · `local_server/routes/fishcond.js` · 검사 `local_server/scripts/test_fishcond_collector.js` |
+| 판정 AI 고르기(관리자 ⑦) | ✅ 2026-11-21 | `services/bulletin_ai.js`(news) · `client/js/admin/admin_bulletin_ai.js` · 검사 `test_bulletin_ai.js` 81/81 · `test_bulletin_ai_ui.js` 11/11 |
 | 오늘의 뉴스 서버 | 다음 | `news_collector.js` · `news_judge.js` · `routes/news.js`(예정) |
 | 앱 화면 | 시안 선택 대기 | `client/js/notice/hub/` · `news/` · `fishcond/`(예정) |
 | 관리자 화면 | 시안 선택 대기 | `client/js/admin/` 게시판 관리 |
