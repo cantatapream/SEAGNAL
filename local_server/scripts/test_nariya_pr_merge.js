@@ -451,6 +451,46 @@ const TR = (n, needs, extra) => Object.assign({ pr_url: URL(n), run_id: RUN, nee
         assert.equal(merges(d.gh).length, 0, '101번째 뒤의 실패도 본다(적대검증 C#하-3)'); assert.equal(d.m.list().prs[0].status, 'failed_checks');
     });
 
+    await check('B 브리핑 오류 자동 처리 종류(§11.10.59) — 표식 「briefing-autofix: 」 · 허용 파일 5개(검사기·그 시험·처리 완료 기록·설계서·README)만 자동 · 작업 기록·서버 다른 코드·워크플로는 버튼 · 위키 종류는 검사기 코드를 그대로 막음 · 푸시 글은 「AI 브리핑」 탭', async () => {
+        const B = M.PROFILES.briefing, EX = 'E20261120-054812', OKF = ['local_server/services/station_briefing_ai.js', 'local_server/scripts/test_station_briefing.js', 'local_server/config/station_briefing_resolved.json', 'client/js/ocean-map/coastal-risk/coastal_safety_forecast.design.md', 'client/js/forecast/station-briefing/README.md'];
+        const bpr = (o) => prJson(Object.assign({ body: '자동 처리\n\nbriefing-autofix: ' + EX }, o || {})), bctx = (o) => CTX(Object.assign({ profile: B, files: OKF, runId: EX }, o || {}));
+        const DET = OKF.map((f) => ({ filename: f, patch: '@@ -1 +1 @@\n-a\n+b' }));
+        assert.equal(M.judge(bpr(), [run('success')], bctx({ details: DET })).state, 'green');
+        // 독립 검토(2026-11-20) — 내용 검사 · 표식은 한 줄 전체
+        assert.equal(M.judge(bpr(), [run('success')], bctx()).state, 'scope', '바뀐 내용(patch)을 못 읽으면 자동 아님');
+        const risky = (line) => M.judge(bpr(), [run('success')], bctx({ details: [{ filename: OKF[0], patch: '@@\n' + line }] }));
+        for (const l of ["+const cp = require('child_process');", '+  process.env.X = 1;', "+fetch('https://evil.example/x')", '+eval(s)', "+fs.writeFileSync('a', b)", "+const f = new Function('x')"]) assert.equal(risky(l).state, 'scope', l);
+        assert.equal(risky("+const RE = /있었던/; // 'require( 는 지운 줄' 아님").state, 'scope', '주석 속 require( 도 막음(보수적으로)');
+        assert.equal(risky("-const x = require('fs');\n+const y = 1;").state, 'green', '지운 줄의 require 는 상관없음');
+        assert.equal(M.judge(bpr(), [run('success')], bctx({ details: [{ filename: OKF[1], patch: '@@\n-assert.ok(a);\n-assert.ok(b);\n+assert.ok(a);' }] })).state, 'scope', '시험 단언이 줄면 사람 몫');
+        assert.deepStrictEqual(M.briefingContentIssues([{ filename: OKF[2], patch: undefined }]), [], '처리 완료 기록·문서는 내용 검사 안 함');
+        assert.equal(M.judge(bpr({ body: '자동\n\nbriefing-autofix: ' + EX + '-2' }), [run('success')], bctx({ details: DET })).state, 'foreign', '같은 초 다른 내보내기(-2)는 앞부분 일치로 통과하지 않음');
+        assert.equal(M.judge(bpr({ body: '예시: 「briefing-autofix: ' + EX + '」 를 적는다' }), [run('success')], bctx({ details: DET })).state, 'foreign', '줄 가운데 인용은 표식 아님');
+        assert.equal(M.judge(bpr(), [run('success')], bctx({ files: OKF.concat(['local_server/knowledge/legal/HANDOFF.md']) })).state, 'scope', '작업 기록은 허용 밖(충돌 잦음)');
+        assert.equal(M.judge(bpr(), [run('success')], bctx({ files: ['local_server/routes/station_briefing.js'] })).state, 'scope', '서버 다른 코드');
+        assert.equal(M.judge(bpr(), [run('success')], bctx({ files: ['scripts/refactor/verify_all.sh'] })).state, 'scope', '검사 본체');
+        assert.equal(M.judge(bpr(), [run('success')], bctx({ files: [{}] })).state, 'scope', '파일 이름이 글이 아니면 밖');
+        assert.equal(M.judge(prJson(), [run('success')], bctx()).state, 'foreign', '위키 표식(nariya-run)은 브리핑 종류에선 표식 아님');
+        assert.equal(M.judge(bpr({ body: 'briefing-autofix: E20260101-000000' }), [run('success')], bctx()).state, 'foreign', '다른 내보내기의 표식');
+        assert.equal(M.judge(prJson(), [run('success')], CTX({ files: ['local_server/services/station_briefing_ai.js'] })).state, 'scope', '위키 종류는 그대로 — 검사기 코드면 사람 몫');
+        assert.equal(M.judge(bpr(), [run('success')], bctx({ files: ['local_server/services/station_briefing_ai.js'], details: DET, behindBy: 1 })).state, 'stale', '공통 조건(최신 main)은 같다');
+        // 머지 담당 — 자동 머지 · 푸시 글/종류
+        const d = make(); const time = d.time, gh = d.gh, push = d.push, file = newFile();
+        const mb = M.createMerger({ profile: B, file, now: time.now, setTimer: time.setTimer, clearTimer: time.clearTimer, fetch: gh, push, env: PROD() });
+        gh.pr = bpr(); gh.files = DET.slice(); gh.runs = [run('success')];
+        assert.equal(mb.track({ pr_url: URL(9), run_id: EX, needs_decision: [] }, OWN).mode, 'auto');
+        await quiet(() => time.advance(5 * MIN));
+        assert.equal(merges(gh).length, 1, '조건이 맞으면 자동 머지'); assert.equal(push.sent[0].t, 'AI 브리핑 오류 자동 처리 — 자동 머지 완료 · 배포 시작'); assert.equal(push.sent[0].d.type, 'briefing_pr_merged');
+        assert.ok(!fs.existsSync(M.PROFILES.nariya.file) || fs.readFileSync(M.PROFILES.nariya.file, 'utf8').indexOf('briefing-autofix') < 0, '위키 상태 파일에 섞이지 않음');
+        const d2 = make(); const mb2 = M.createMerger({ profile: B, file: newFile(), now: d2.time.now, setTimer: d2.time.setTimer, clearTimer: d2.time.clearTimer, fetch: d2.gh, push: d2.push, env: PROD() });
+        d2.gh.pr = bpr(); d2.gh.files = DET.concat([{ filename: 'local_server/routes/station_briefing.js', patch: '+x' }]); d2.gh.runs = [run('success')];
+        mb2.track({ pr_url: URL(9), run_id: EX, needs_decision: [] }, OWN); await quiet(() => d2.time.advance(5 * MIN));
+        assert.equal(merges(d2.gh).length, 0, '허용 밖 파일이면 자동 머지 안 함');
+        const last = d2.push.sent[d2.push.sent.length - 1];
+        assert.equal(last.t, 'AI 브리핑 오류 자동 처리 — 앱에서 머지 버튼을 눌러 주세요'); assert.ok(/「AI 브리핑」 탭 「오류 자동 처리」 칸/.test(last.b), last.b); assert.equal(last.d.type, 'briefing_pr_needs_human');
+        assert.ok(/「AI 브리핑」 탭/.test(mb2.list().prs[0].howText), '카드 안내 글도 브리핑 탭');
+    });
+
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log('\n' + pass + ' PASS / ' + fail + ' FAIL');
     process.exit(fail ? 1 : 0);
