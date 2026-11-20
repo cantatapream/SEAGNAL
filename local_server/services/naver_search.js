@@ -13,6 +13,7 @@
  *   법적 근거로 인용하지 않는다. 법 조문·처벌은 항상 위키 원문에서만 가져온다.
  *
  * [연계]
+ * - 사용처(뉴스): `news_collector.js`가 `searchNews`로 매시 해양 뉴스를 모은다(2026-11-21 — 「뉴스·공지·어황」 탭).
  * - 사용처: `legal_retriever.js`의 §4-U 단계(위키 검색이 0건이거나 스코어가 낮을 때) —
  *   아직 미배선. 이 모듈은 독립적으로 호출 가능한 building block만 제공한다.
  * - 환경변수: `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET` (local_server/.env, Fly secrets)
@@ -108,4 +109,26 @@ async function searchTermMeaning(query, opts = {}) {
   return all.sort((a, b) => b.score - a.score);
 }
 
-module.exports = { correctTypo, searchTermMeaning, domainScore };
+/**
+ * 뉴스 검색 — 최신순으로 한 쪽(최대 100건)을 받는다. 실패해도 던지지 않고 ok:false 로 알린다
+ * (오늘의 뉴스 수집기가 「검색어 하나 실패」와 「기사 0건」을 구별해 상태에 남기게 — callSearch 처럼 빈 결과로 숨기지 않는다).
+ * 확인(2026-11-20 GitHub Actions 실호출): GET /search/v1/news · 받는 칸 title·description·link·originallink·pubDate(RFC 822) ·
+ *   title·description 에 <b>…</b> 강조와 &quot; 같은 엔티티가 섞여 온다(정리는 부르는 쪽).
+ * 예: await searchNews('금어기', { start: 1 }) → { ok:true, items:[{title, description, link, originallink, pubDate}], total: 22823 }
+ * @param {string} query @param {{display?:number, start?:number, sort?:'date'|'sim'}} [opt]
+ * @returns {Promise<{ok:boolean, items:Array, total:number, error?:string}>}
+ * @연계 services/news_collector.js(매시 수집) — 사용자 2026-11-21 「뉴스는 … 1시간 간격으로 업데이트」 · NAVER API HUB 에 「뉴스」 API 를 사용자가 추가함(2026-11-20).
+ */
+async function searchNews(query, opt = {}) {
+  const params = new URLSearchParams({ query, display: String(opt.display || 100), start: String(opt.start || 1), sort: opt.sort || 'date' }).toString();
+  try {
+    const res = await fetch(`${BASE}/search/v1/news?${params}`, { headers: authHeaders(), signal: AbortSignal.timeout(15000) });
+    if (!res.ok) return { ok: false, items: [], total: 0, error: 'HTTP ' + res.status + ' ' + String(await res.text()).slice(0, 120) };
+    const data = await res.json();
+    return { ok: true, items: data.items || [], total: data.total || 0 };
+  } catch (e) {
+    return { ok: false, items: [], total: 0, error: String((e && e.message) || e).slice(0, 160) };
+  }
+}
+
+module.exports = { correctTypo, searchTermMeaning, domainScore, searchNews };

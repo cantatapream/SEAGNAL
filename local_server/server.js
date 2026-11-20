@@ -301,6 +301,7 @@ app.use(require('./routes/navigational_warning'));  // 항행경보 현황 API (
 app.use(require('./routes/assistant'));     // AI 음성/텍스트 비서 (자연어 질문 → 실데이터 답변)
 app.use(require('./routes/legal'));          // 해양법령 챗봇 — 관리자 리뷰 검증 API + 현 DB 답변
 app.use(require('./routes/fishcond'));      // 뉴스·공지·어황 탭 — 국립수산과학원 어황정보 목록·PDF·쪽 그림 (services/fishcond_collector 가 받아 둠)
+app.use(require('./routes/news'));          // 뉴스·공지·어황 탭 — 오늘의 뉴스 카드·보관 날짜·펼친 횟수 (services/news_collector 가 매시 모음)
 
 // ============================================================================
 // 4. 정기 작업 (Daily Cloud Backup)
@@ -562,6 +563,9 @@ app.listen(PORT, '0.0.0.0', () => {
         // 국립수산과학원 어황정보 — 운영에서만 시작 직후 한 번·매시 7분(KST) 확인, 새 글 PDF 를 받아 쪽 그림으로(services/fishcond_collector.js, 2026-11-21)
         try { require('./services/fishcond_collector').start(); }
         catch (_) { console.error('[startup] 어황정보 수집기 시작 실패'); }
+        // 오늘의 뉴스 — 운영에서만 시작 2분 뒤 한 번·매시 2분(KST) 네이버 뉴스 수집 + AI 판정(관리자 「AI 모델 설정 ⑦」 순서) — services/news_collector.js(2026-11-21)
+        try { require('./services/news_collector').start(); }
+        catch (_) { console.error('[startup] 오늘의 뉴스 수집기 시작 실패'); }
         // 활동지점 안전 브리핑 — 운영에서만 1분 점검(08:00·17:30·23:00 KST + 특보 변경). 시작 때 계산·외부 호출은 없다(첫 점검 1분 뒤).
         try { require('./services/station_briefing').start(); }
         catch (_) { console.error('[startup] 활동지점 안전 브리핑 시작 실패'); }
