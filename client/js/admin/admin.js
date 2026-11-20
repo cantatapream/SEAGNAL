@@ -5016,7 +5016,15 @@ async function renderUnifiedVersionContent(container) {
             <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:4px;font-weight:600;">현재 업데이트 메시지</label>
             <div style="${currentStyle}; white-space:pre-wrap; margin-bottom:10px;">${versionData.updateMessage || '-'}</div>
             <label style="display:block;color:#a78bfa;font-size:0.8rem;margin-bottom:4px;font-weight:600;">변경할 업데이트 메시지</label>
-            <textarea id="ver-updateMessage" rows="4" placeholder="사용자에게 표시할 업데이트 안내" style="${fieldStyle}; resize:vertical; line-height:1.5;">${versionData.updateMessage || ''}</textarea>
+            <textarea id="ver-updateMessage" rows="5" placeholder="🔔 알림이 화면 위에 바로 떠요 | 특보·공지를 놓치지 않게, 카톡처럼 위에 표시돼요" style="${fieldStyle}; resize:vertical; line-height:1.5;">${versionData.updateMessage || ''}</textarea>
+            <div style="color:#64748b;font-size:0.78rem;line-height:1.6;margin-top:6px;">
+                사용자 안내 창(옛 앱 1.1.1 이하에 뜨는 「새 버전이 나왔어요」)의 <b>바뀐 점 목록</b>이 됩니다.<br>
+                · 한 줄 = 목록 한 칸 · 줄 맨 앞 이모지 = 왼쪽 아이콘(없으면 •) · 「|」 뒤 = 작은 설명<br>
+                · 안내 창은 위 latestVersion 이 사용자 앱 버전보다 높을 때만 뜹니다. 「나중에」를 누르면 24시간 동안 다시 뜨지 않습니다.
+            </div>
+            <button type="button" onclick="previewUpdatePopup()" style="margin-top:10px;padding:9px 14px;background:rgba(68,138,255,0.15);color:#93c5fd;border:1px solid rgba(68,138,255,0.4);border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;">
+                <i class="fa-solid fa-eye"></i> 이 휴대폰에서 미리 보기
+            </button>
         </div>
 
         <!-- 적용 버튼 -->
@@ -5025,6 +5033,23 @@ async function renderUnifiedVersionContent(container) {
         </button>
     `;
 }
+
+/**
+ * 입력 중인 업데이트 메시지로 사용자 안내 창을 이 화면에서만 띄워 본다(저장·발송 없음).
+ * 예: 버전 탭에서 [이 휴대폰에서 미리 보기] → 「새 버전이 나왔어요」 창. [업데이트하러 가기]는 실제로 Play 스토어를 연다.
+ * [연계] → capacitor-plugins.js 의 window.SeagnalUpdatePopup.preview(같은 창 코드 — 「나중에」 기록은 남기지 않는다)
+ *        ← renderUnifiedVersionContent 의 미리 보기 버튼. 사용자 확정 2026-11-20(시안 C).
+ */
+window.previewUpdatePopup = function () {
+    const P = window.SeagnalUpdatePopup;
+    if (!P || typeof P.preview !== 'function') {
+        alert('안내 창 코드를 아직 불러오지 못했습니다(capacitor-plugins.js). 앱을 새로 고친 뒤 다시 눌러 주세요.');
+        return;
+    }
+    const latest = (document.getElementById('ver-latestVersion').value || '').trim() || '1.3.0';
+    const msg = document.getElementById('ver-updateMessage').value || '';
+    P.preview('1.1.1', latest, msg, 'https://play.google.com/store/apps/details?id=com.seagnal.app');
+};
 
 /** 버전 정보 적용 */
 window.applyVersionUpdate = async function () {

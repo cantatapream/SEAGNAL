@@ -17,7 +17,7 @@ const src = fs.readFileSync(path.join(__dirname, '..', '..', 'client', 'capacito
 const a = src.indexOf('// [앱 업데이트 체크]');
 const b = src.indexOf('initPushNotifications();\ncheckAppUpdate();');
 if (a < 0 || b < 0 || b < a) { console.log('구간을 못 찾았다 — capacitor-plugins.js 구조가 바뀌었다\n결과: 0 PASS / 1 FAIL'); process.exit(1); }
-const code = src.slice(a, b) + '\n;globalThis.__t = { tryInAppUpdate, checkAppUpdate, showUpdateReadyBar };';
+const code = src.slice(a, b) + '\n;globalThis.__t = { tryInAppUpdate, checkAppUpdate, showUpdateReadyBar, parseUpdateItems };';
 
 let pass = 0, fail = 0;
 function check(name, cond, extra) {
@@ -27,7 +27,7 @@ function check(name, cond, extra) {
 const ASKED = 'seagnal_inapp_update_asked_at';
 
 /** 가짜 화면·저장소·서버로 checkAppUpdate 를 한 번 돌린다. serverVersion = 서버가 말하는 최신 버전(앱은 1.2.3). */
-async function run({ plugin, native = true, store = {}, serverVersion = '9.9.9', fireTimers = false }) {
+async function run({ plugin, native = true, store = {}, serverVersion = '9.9.9', fireTimers = false, message = 'm' }) {
     const els = {}, log = [], timers = [];
     const mkEl = () => ({
         id: '', _html: '',
@@ -46,7 +46,7 @@ async function run({ plugin, native = true, store = {}, serverVersion = '9.9.9',
         setTimeout: (fn, ms) => { timers.push({ fn, ms }); if (fireTimers) Promise.resolve().then(fn); return timers.length; },
         App: { getInfo: async () => ({ version: '1.2.3' }) },
         Browser: { open: async () => { log.push('BROWSER'); } },
-        fetch: async () => ({ ok: true, json: async () => ({ latestVersion: serverVersion, updateMessage: 'm', playStoreUrl: 'u' }) }),
+        fetch: async () => ({ ok: true, json: async () => ({ latestVersion: serverVersion, updateMessage: message, playStoreUrl: 'u' }) }),
     };
     ctx.window = { Capacitor: { isNativePlatform: () => native, Plugins: plugin ? { SeagnalAppUpdate: plugin } : {} }, addEventListener() { } };
     vm.createContext(ctx);
@@ -224,6 +224,49 @@ const NONE = { updateAvailable: false, flexibleAllowed: false, inProgress: false
     check('새 APK(disable 없음) → 아무것도 안 한다', runCleanup(() => ({ SeagnalAssistant: { readUserProfile() { } } })).length === 0);
     check('스토어판(플러그인 없음) → 아무것도 안 한다', runCleanup(() => ({})).length === 0);
     check('disable 이 던져도 모듈이 죽지 않는다', runCleanup(() => ({ SeagnalAssistant: { disable: () => { throw new Error('x'); } } })).some((x) => /warn:/.test(x)));
+
+    console.log('[9] 업데이트 안내 창 — 시안 C(사용자 확정 2026-11-20): 바뀐 점 목록 · 버튼 안 「Play 스토어로 이동합니다」 · 「나중에」 24시간');
+    const LATER = 'seagnal_update_popup_later_at';
+    const MSG = '🔔 알림이 화면 위에 바로 떠요 | 특보·공지를 놓치지 않게\n그냥 한 줄\n<img src=x onerror=alert(1)> | <script>x</script>';
+    r = await run({ plugin: null, message: MSG });
+    const html = r.popup ? r.els['app-update-overlay']._html : '';
+    check('옛 APK → 안내 창이 뜬다', r.popup);
+    check('제목은 「새 버전이 나왔어요」, 버전 줄은 v현재 → v최신', /새 버전이 나왔어요/.test(html) && /v1\.2\.3 → <b>v9\.9\.9<\/b>/.test(html));
+    check('버튼 안에 「업데이트하러 가기」와 작은 「Play 스토어로 이동합니다」', /id="app-update-btn">업데이트하러 가기<small>Play 스토어로 이동합니다<\/small><\/button>/.test(html));
+    check('「나중에」 버튼이 있다', /id="app-update-later-btn">나중에<\/button>/.test(html));
+    check('메시지 한 줄 = 목록 한 칸, 이모지는 아이콘, 「|」 뒤는 작은 설명', /update-item-icon">🔔<\/span><span class="update-item-text">알림이 화면 위에 바로 떠요<small>특보·공지를 놓치지 않게<\/small>/.test(html));
+    check('이모지 없는 줄은 기본 점(•)', /update-item-icon">•<\/span><span class="update-item-text">그냥 한 줄<\/span>/.test(html));
+    check('메시지 속 HTML 은 글자로만 들어간다(태그가 살아나지 않는다)', !/<img src=x|<script>x/.test(html) && /&lt;img src=x/.test(html));
+    check('새 아이콘 그림을 쓴다', /src="assets\/app_update_icon\.png"/.test(html));
+    r.els['app-update-btn'].listeners.click();
+    await new Promise((res) => setTimeout(res, 0));
+    check('[업데이트하러 가기] → Play 스토어(Browser.open)', r.log.includes('BROWSER'));
+    r.els['app-update-later-btn'].listeners.click();
+    const at = Number(r.store[LATER]);
+    check('[나중에] → 누른 시각을 남긴다', at > 0 && Math.abs(Date.now() - at) < 5000, r.store[LATER]);
+    r = await run({ plugin: null, store: { [LATER]: String(Date.now() - 60 * 60 * 1000) } });
+    check('「나중에」 1시간 뒤 → 안 뜬다', !r.popup);
+    r = await run({ plugin: null, store: { [LATER]: String(Date.now() - 23.9 * 60 * 60 * 1000) } });
+    check('「나중에」 23.9시간 뒤 → 안 뜬다', !r.popup);
+    r = await run({ plugin: null, store: { [LATER]: String(Date.now() - 24.1 * 60 * 60 * 1000) } });
+    check('「나중에」 24.1시간 뒤 → 다시 뜬다', r.popup);
+    r = await run({ plugin: null, store: { [LATER]: String(Date.now() - 60 * 1000) }, serverVersion: '1.2.3' });
+    check('서버 버전이 같으면 「나중에」와 상관없이 안 뜬다', !r.popup);
+    r = await run({ plugin: null, message: '' });
+    check('메시지가 비면 목록 칸 없이 뜬다(창은 그대로)', r.popup && !/class="update-list"/.test(r.els['app-update-overlay']._html));
+    // 1.3.0 이후 앱: 앱 안 업데이트가 맡으면 이 창은 뜨지 않는다(종전 동작 유지).
+    p = mkPlugin(NONE);
+    r = await run({ plugin: p });
+    check('새 APK(Play 기준 최신) → 안내 창이 뜨지 않는다', !r.popup);
+    const parse = (() => { const c = { console, Date, Number, String, Math, JSON, Promise, window: {}, document: {}, localStorage: {} }; vm.createContext(c); vm.runInContext(code, c); return c.__t.parseUpdateItems; })();
+    const items = parse('👨‍👩‍👧 가족 | 조합\n🇰🇷 국기\n\n   \n⬇️ 다음부터는 앱 안에서');
+    check('조합 이모지·국기·변형 문자 이모지도 아이콘 하나로 읽고 빈 줄은 건너뛴다', JSON.stringify(items.map((x) => x.icon)) === JSON.stringify(['👨‍👩‍👧', '🇰🇷', '⬇️']) && items[0].sub === '조합', items);
+    check('정규식은 new RegExp 로 만든다(옛 WebView 에서 파일 전체가 문법 오류로 멈추지 않게)', /new RegExp\('\^\(\(\?:\\\\p\{Extended_Pictographic\}/.test(src) && !/\/\^\(\(\?:\\p\{Extended_Pictographic\}/.test(src));
+    check('관리자 센터 미리 보기용으로 내보낸다', /window\.SeagnalUpdatePopup = \{/.test(src));
+    const adminSrc = fs.readFileSync(path.join(root, 'client', 'js', 'admin', 'admin.js'), 'utf8');
+    check('관리자 버전 탭에 미리 보기 버튼·입력 안내가 있다', /onclick="previewUpdatePopup\(\)"/.test(adminSrc) && /window\.previewUpdatePopup = function/.test(adminSrc) && /「\|」 뒤 = 작은 설명/.test(adminSrc));
+    check('index2.html 이 바뀐 안내 창 코드를 새로 받는다(캐시 번호)', /capacitor-plugins\.js\?v=UpdatePopupC_20261120/.test(fs.readFileSync(path.join(root, 'client', 'index2.html'), 'utf8')));
+    check('안내 창 아이콘 그림 파일이 있다', fs.existsSync(path.join(root, 'client', 'assets', 'app_update_icon.png')));
 
     console.log(`\n결과: ${pass} PASS / ${fail} FAIL`);
     process.exit(fail ? 1 : 0);
