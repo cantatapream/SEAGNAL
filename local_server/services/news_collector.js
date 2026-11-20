@@ -12,7 +12,9 @@
  *   ① 검색어마다 최신순 한 쪽(100건)을 받는다. 그 쪽이 모두 지난 확인 뒤 기사면 다음 쪽(최대 3쪽 — 기사가 많은 검색어는 100건이 하루가 안 된다, 실측 2026-11-20 「어선 사고」 100건 = 약 29시간).
  *   ② 주소·제목으로 겹친 기사를 지우고, 이미 판정한 기사(seen)를 뺀다. 마트 할인 기사처럼 확실한 것만 기계로 버린다
  *      (낱말로 넓게 거르지 않는다 — 견본에서 「수상」이 「수상레저」 법안 기사를 잘못 버렸다).
- *   ③ AI 판정(BATCH 개씩). 3점 이상만 카드. 같은 사건은 묶고, 이미 실은 카드와 같은 사건이면 새 사실이 있을 때만 새 카드(사용자 「사고 보도의 경우 새소식 있을 때만」).
+ *   ③ AI 판정(BATCH 개씩 — 앞 묶음에서 만든 카드도 다음 묶음에 「이미 실은 카드」로 준다. 실제 시험 2026-11-21: 묶음끼리 못 보면 해광호가 카드 3장으로 갈라졌다).
+ *      3점 이상만 카드. 같은 사건은 묶는다. 이미 실은 카드와 같은 사건이면: 같은 날이면 그 카드에 더하고(새 사실이면 카드 머리를 최신 소식으로 바꾼다),
+ *      다른 날이면 새 사실이 있을 때만 새 카드(사용자 「사고 보도의 경우 새소식 있을 때만」 — 질문이 「매일 다시 올릴까요」였다).
  *      판정이 끝까지 실패한 기사는 pending 에 두고 다음 시간에 다시 묻는다(26시간이 지나면 버린다).
  *   ④ 새 카드의 대표 기사 페이지에서 og:image·og:site_name 을 읽는다(사진 파일은 저장하지 않는다 — 주소만).
  *   ⑤ 30일이 지난 날짜 파일·조회 수를 지운다. 결과를 state.json 에 남긴다(관리자 화면이 「마지막 갱신·결과」를 띄운다 — 조용한 실패를 막는다).
@@ -189,14 +191,17 @@ function createNews({ dir = path.join(DATA, 'news'), configFile = path.join(DATA
                 const known = () => [yday, today].flatMap((d) => days[d].cards.map((c) => ({ id: c.id, title: c.title, date: d })));
                 const findCard = (id) => { for (const d of Object.keys(days)) { const c = days[d].cards.find((x) => x.id === id); if (c) return c; } return null; };
                 const arts = cands.map((a) => ({ title: a.title, desc: a.desc, source: hostOf(a.originallink), time: kstShort(a.pubMs) }));
-                const J = cands.length ? await doJudge(arts, known()) : { results: [], failed: [], providers: {}, errors: [] };
-                st.providers = J.providers || {}; st.judgeErrors = (J.errors || []).slice(0, 5);
-                const failedSet = new Set(J.failed || []);
-                st.failed = failedSet.size; st.judged = cands.length - failedSet.size;
-                const newPending = cands.filter((_, i) => failedSet.has(i));
+                const failedSet = new Set(), judgeErrors = [];
                 const groups = new Map();   // 같은 묶음 → 그 묶음 카드
-                const fresh = [];           // 이번에 새로 만든 카드(사진 읽기)
-                for (const r of (J.results || []).slice().sort((a, b) => cands[a.i].pubMs - cands[b.i].pubMs)) {
+                const fresh = new Set();    // 이번에 새로 만들었거나 대표 기사가 바뀐 카드(사진 읽기)
+                const BATCH = require('./news_judge').BATCH;
+                for (let b = 0; b < arts.length; b += BATCH) {
+                const J = await doJudge(arts.slice(b, b + BATCH), known());
+                for (const [k, v] of Object.entries(J.providers || {})) st.providers[k] = (st.providers[k] || 0) + v;
+                judgeErrors.push(...(J.errors || []));
+                for (const i of J.failed || []) failedSet.add(b + i);
+                for (const r0 of (J.results || []).slice().sort((x, y) => cands[b + x.i].pubMs - cands[b + y.i].pubMs)) {
+                    const r = Object.assign({}, r0, { i: b + r0.i, group: r0.group ? 'b' + b + ':' + r0.group : '' });
                     const a = cands[r.i];
                     seen[urlKey(a.originallink)] = t0; if (titleKey(a.title)) seen['t:' + titleKey(a.title)] = t0;
                     const d = kstDate(a.pubMs), host = hostOf(a.originallink);
@@ -207,16 +212,28 @@ function createNews({ dir = path.join(DATA, 'news'), configFile = path.join(DATA
                         continue;
                     }
                     st.kept++;
-                    // 같은 사건: 이미 실은 카드와 같고 새 사실이 없으면 그 카드에 더한다 · 같은 묶음이면 그 묶음 카드에 더한다
-                    let card = (r.same && !r.newInfo && findCard(r.same)) || (r.group && groups.get(r.group)) || null;
+                    // 같은 사건: 같은 묶음이면 그 묶음 카드 · 이미 실은 카드면 같은 날이거나 새 사실이 없을 때 그 카드에 더한다
+                    const prevCard = r.same ? findCard(r.same) : null;
+                    let card = (r.group && groups.get(r.group)) || (prevCard && (prevCard.date === d || !r.newInfo) ? prevCard : null);
+                    if (card && card === prevCard && r.newInfo && card.date === d && a.pubMs > card.rep.pubMs) {
+                        // 같은 날 새 소식 — 카드를 새로 만들지 않고 머리를 최신 소식으로(「외 N건」은 그대로 늘린다)
+                        card.count = (card.count || 1) + 1;
+                        if (host && !card.hosts.includes(host)) card.hosts.push(host);
+                        Object.assign(card, { title: a.title, summary: r.summary, summaryFixed: r.summaryFixed, cat: r.cat, score: Math.max(card.score, r.score) });
+                        card.rep = { title: a.title, desc: a.desc, link: a.link, originallink: a.originallink, host, pubMs: a.pubMs };
+                        fresh.add(card); st.merged++; st.updated = (st.updated || 0) + 1;
+                        if (r.group) groups.set(r.group, card);
+                        continue;
+                    }
                     if (card) {
                         card.count = (card.count || 1) + 1;
                         if (host && !card.hosts.includes(host)) card.hosts.push(host);
                         // 「요약이 가장 충실한 기사」를 대표로 — 원문 요약이 더 긴 기사가 오면 대표를 바꾼다(묶음 안에서만, 이미 실은 카드는 그대로)
-                        if (r.group && groups.get(r.group) === card && a.desc.length > (card.rep.desc || '').length) {
+                        if (r.group && groups.get(r.group) === card && fresh.has(card) && card.addedAt === new Date(t0).toISOString() && a.desc.length > (card.rep.desc || '').length) {
                             Object.assign(card, { title: a.title, summary: r.summary, summaryFixed: r.summaryFixed });
                             card.rep = { title: a.title, desc: a.desc, link: a.link, originallink: a.originallink, host, pubMs: a.pubMs };
                         }
+                        if (r.group && !groups.has(r.group)) groups.set(r.group, card);
                         st.merged++;
                         continue;
                     }
@@ -225,11 +242,15 @@ function createNews({ dir = path.join(DATA, 'news'), configFile = path.join(DATA
                         site: '', image: '', hidden: false, addedAt: new Date(t0).toISOString(), provider: r.provider, followOf: r.same && r.newInfo ? r.same : '' };
                     const day = getDay(d);
                     if (day.cards.some((c) => c.id === card.id)) continue;
-                    day.cards.push(card); fresh.push(card); st.added++;
+                    day.cards.push(card); fresh.add(card); st.added++;
                     if (r.group) groups.set(r.group, card);
                 }
+                }
+                st.judgeErrors = judgeErrors.slice(0, 5);
+                st.failed = failedSet.size; st.judged = cands.length - failedSet.size;
+                const newPending = cands.filter((_, i) => failedSet.has(i));
                 // ④ 새 카드의 사진·언론사 이름(사진 파일은 저장하지 않는다)
-                for (const c of fresh) { const m = await meta(c.rep.originallink || c.rep.link); c.image = m.image || ''; c.site = m.site || ''; }
+                for (const c of fresh) { const m = await meta(c.rep.originallink || c.rep.link); c.image = m.image || ''; c.site = m.site || ''; }   // 대표 기사가 바뀐 카드도 다시 읽는다(사진이 다른 기사 것이 되지 않게)
                 for (const d of Object.keys(days)) if (DAY_RE.test(d) && (days[d].cards.length || days[d].rejected.length)) { days[d].date = d; days[d].updatedAt = new Date(t0).toISOString(); write(dayFile(d), days[d]); }
                 write(f('seen.json'), seen);
                 write(f('pending.json'), newPending);

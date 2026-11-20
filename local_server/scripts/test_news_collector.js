@@ -89,7 +89,7 @@ const mk = (f, dir) => N.createNews({ dir, configFile: path.join(dir, 'cfg.json'
     st = await c.run();
     ok('지난 확인과 15분 겹쳐 봐서 늦게 올라온 기사를 놓치지 않는다', st.ok && st.fetched === 1 && st.candidates === 1, st);
 
-    console.log('④ 이미 실은 카드와 같은 사건 — 새 사실 없으면 더하고, 있으면 새 카드');
+    console.log('④ 이미 실은 카드와 같은 사건 — 같은 날은 한 장(새 소식이면 머리를 최신으로), 다른 날은 새 소식일 때만 새 카드');
     f.clock = T0 + 2 * H;
     f.results['해경 단속'].unshift(
         item('대게 단속 또 보도', '같은 내용', 'https://c.com/r', T0 + 1.5 * H),
@@ -98,7 +98,39 @@ const mk = (f, dir) => N.createNews({ dir, configFile: path.join(dir, 'cfg.json'
     st = await c.run();
     const D2 = c.day('2026-11-21');
     ok('판정에 오늘·어제 카드 목록을 준다', f.judged[f.judged.length - 1].cards.includes(crab.id));
-    ok('새 사실 없음 → 기존 카드 「외 2건」 · 새 사실 → 새 카드(사용자 「새소식 있을 때만」)', st.merged === 1 && st.added === 1 && D2.cards.length === 3 && D2.cards.find((x) => x.id === crab.id).more === 2, { st, cards: D2.cards.map((x) => [x.title, x.more]) });
+    const crab2 = D2.cards.find((x) => x.id === crab.id);
+    ok('같은 날: 반복 보도·새 소식 모두 그 카드에 더한다(「외 3건」) · 새 소식이면 카드 머리가 최신 소식 · 카드 수 그대로', st.merged === 2 && st.added === 0 && st.updated === 1 && D2.cards.length === 2
+        && crab2.more === 3 && /12건 적발/.test(crab2.title), { st, cards: D2.cards.map((x) => [x.title, x.more]) });
+    ok('대표 기사가 바뀐 카드는 사진을 다시 읽는다', f.metas.includes('https://c.com/n'), f.metas);
+    {
+        // 다음 날 — 새 소식이면 새 카드(followOf), 반복이면 어제 카드에 더한다
+        const g = fake(), dd = tmp(), cc = mk(g, dd);
+        await cc.setKeywords(['k']);
+        g.results.k = [item('해광호 실종 사흘째 수색', '수색 중', 'https://a.com/1', T0 - 2 * H)];
+        g.verdict = () => ({ score: 5, cat: 'safety' });
+        await cc.run();
+        const first = cc.day('2026-11-21').cards[0];
+        g.clock = T0 + DAY;
+        g.results.k.unshift(item('해광호 선체 발견', '선체를 발견했다', 'https://a.com/2', T0 + DAY - H), item('해광호 수색 계속', '수색 중', 'https://a.com/3', T0 + DAY - 0.5 * H));
+        g.verdict = (t) => /발견/.test(t) ? { score: 5, cat: 'safety', same: first.id, newInfo: true } : { score: 5, cat: 'safety', same: first.id, newInfo: false };
+        const s2 = await cc.run();
+        const next = cc.day('2026-11-22').cards;
+        ok('다른 날 새 소식 → 그날 새 카드 · 반복 보도 → 어제 카드 「외 1건」', s2.added === 1 && next.length === 1 && /발견/.test(next[0].title) && cc.day('2026-11-21').cards[0].more === 1, { s2, next: next.map((x) => x.title) });
+    }
+    {
+        // 묶음(20건)을 넘어서도 같은 사건을 본다 — 앞 묶음에서 만든 카드를 다음 묶음에 준다(실제 시험: 해광호 카드 3장으로 갈라짐)
+        const g = fake(), dd = tmp(), cc = mk(g, dd);
+        await cc.setKeywords(['k']);
+        g.results.k = Array.from({ length: 25 }, (_, i) => item(i === 24 ? '평택해경 대조기 주의보 (B)' : i === 0 ? '평택해경 대조기 주의보 (A)' : '기타 ' + i, '내용 ' + i, 'https://p.com/' + i, T0 - (30 - i) * 60000));
+        let firstId = null;
+        g.verdict = (t, cards) => {
+            if (/\(A\)/.test(t)) return { score: 4, cat: 'safety' };
+            if (/\(B\)/.test(t)) { const c0 = cards.find((c) => true); firstId = c0 && c0.id; return { score: 4, cat: 'safety', same: firstId || '', newInfo: false }; }
+            return { score: 1 };
+        };
+        const s3 = await cc.run();
+        ok('판정을 20건씩 나눠 부르고, 둘째 묶음에 첫 묶음 카드를 준다 → 같은 사건 한 장(「외 1건」)', g.judged.length === 2 && g.judged[1].cards.length === 1 && s3.added === 1 && cc.day('2026-11-21').cards[0].more === 1, { judged: g.judged.map((j) => [j.titles.length, j.cards.length]), s3 });
+    }
 
     console.log('⑤ 판정이 실패하면 다음 시간에 다시');
     f.clock = T0 + 3 * H; f.judgeFail = true;
@@ -160,6 +192,9 @@ const mk = (f, dir) => N.createNews({ dir, configFile: path.join(dir, 'cfg.json'
         ok('요약의 숫자가 원문에 있으면 그대로', J.fixSummary('12월 1일부터 3개월 단속.', '12월 1일부터 3개월간', 'x').fixed === false);
         const fx = J.fixSummary('단속으로 30% 줄었다.', '단속을 시작했다. 대상은 대게다. 셋째 문장.', '단속을 시작했다. 대상은 대게다. 셋째 문장.');
         ok('원문에 없는 숫자 → 원문 요약 앞 2문장으로', fx.fixed === true && fx.text === '단속을 시작했다. 대상은 대게다.', fx);
+        const fu = J.fixSummary('https://youtu.be/4xPMXU5Vf98', 'https://youtu.be/4xPMXU5Vf98', 'https://youtu.be/4xPMXU5Vf98?si=C1wh', '외국인 선원 55% 시대… 정부 개편에 어업현장 반발');
+        ok('요약·원문 요약이 주소뿐이면 제목을 쓴다(실제 시험에서 유튜브 주소가 나갔다)', fu.fixed === true && fu.text === '외국인 선원 55% 시대… 정부 개편에 어업현장 반발', fu);
+        ok('지시문: 시·군 이름이면 그 시·도(태안→충남)', /태안→충남/.test(J.prompt([{ title: 'T', desc: 'D', source: 's', time: 't' }], [])));
         const calls = [];
         const good = await J.judge([{ title: 'A', desc: '12월 1일', source: 's', time: 't' }, { title: 'B', desc: 'b', source: 's', time: 't' }], [], { call: async (fName, prm, o) => {
             calls.push(fName); const text = JSON.stringify({ items: [{ i: 0, score: 4, cat: 'duty', region: '경북', group: 'g1', summary: '12월 1일부터 단속', reason: 'r' }, { i: 1, score: 1, cat: 'none' }] });

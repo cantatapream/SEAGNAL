@@ -64,7 +64,7 @@ function prompt(arts, cards) {
 
 [요약 summary — 점수 3 이상만]
 - 한국어 2~3문장. 제목과 기사 요약에 있는 사실만 쓴다. 숫자·날짜·지명·기관명은 원문 그대로. 원문에 없는 내용·추측·평가를 더하지 않는다.
-- region: 기사에 나온 시·도 하나(${REGIONS.slice(0, -1).join('·')}) 또는 여러 곳·전국 단위면 "전국".
+- region: 기사의 장소가 속한 시·도 하나(${REGIONS.slice(0, -1).join('·')}). 시·군·항구 이름만 나와도 그것이 속한 시·도를 쓴다(예: 태안→충남, 울진·포항→경북, 통영·거제→경남, 속초·삼척→강원, 평택→경기). 여러 시·도에 걸치거나 전국 단위일 때만 "전국".
 
 [이미 실은 카드]
 ${have}
@@ -94,21 +94,24 @@ function shapeOk(p, n) {
     return true;
 }
 
+const URL_RE = /https?:\/\/\S+|www\.\S+/gi;
 /** 글 속 숫자 덩이. 예: '12월 1일부터 9cm 이하' → ['12','1','9'] */
 const numbersOf = (s) => String(s || '').match(/\d+(?:[.,]\d+)?/g) || [];
 /**
  * 요약을 검사해 쓸 글을 돌려준다 — 원문(그 기사·같은 묶음 기사)에 없는 숫자가 있거나 너무 길거나 비면 원문 요약(앞 2문장)으로 바꾼다.
- * 예: fixSummary('12월 1일부터 단속', '…12월 1일부터…') → { text:'12월 1일부터 단속', fixed:false } · 원문에 없는 '30%' → { text:원문 요약, fixed:true }
- * @param {string} s AI 요약 @param {string} source 원문 글(제목+요약 이어 붙임) @param {string} fallback 원문 요약
+ * 예: fixSummary('12월 1일부터 단속', '…12월 1일부터…') → { text:'12월 1일부터 단속', fixed:false } · 원문에 없는 '30%' → { text:원문 요약, fixed:true } · 원문 요약이 주소뿐 → 제목
+ * @param {string} s AI 요약 @param {string} source 원문 글(제목+요약 이어 붙임) @param {string} fallback 원문 요약 @param {string} [title] 원문 요약도 못 쓰면 쓸 제목
  * @returns {{text:string, fixed:boolean}}
  * [연계] ← judge — 없으면: AI 가 지어낸 숫자(기간·금액·인원)가 그대로 카드에 나간다
  */
-function fixSummary(s, source, fallback) {
+function fixSummary(s, source, fallback, title) {
     const text = String(s || '').replace(/\s+/g, ' ').trim();
     const src = String(source || '').replace(/,/g, '');
-    const bad = !text || text.length > SUMMARY_MAX || numbersOf(text).some((n) => !src.includes(n.replace(/,/g, '')));
+    // 주소가 든 요약도 버린다 — 실제 시험(2026-11-21)에서 기사 요약이 유튜브 주소뿐이라 카드 요약 칸에 주소가 나갔다
+    const bad = !text || text.length > SUMMARY_MAX || /https?:\/\/|www\./i.test(text) || numbersOf(text).some((n) => !src.includes(n.replace(/,/g, '')));
     if (!bad) return { text, fixed: false };
-    const fb = String(fallback || '').replace(/\s+/g, ' ').trim().split(/(?<=[.다])\s+/).slice(0, 2).join(' ');
+    let fb = String(fallback || '').replace(URL_RE, ' ').replace(/\s+/g, ' ').trim().split(/(?<=[.다])\s+/).slice(0, 2).join(' ');
+    if (fb.length < 15) fb = String(title || '').trim();   // 원문 요약이 비었거나 주소뿐이면 제목
     return { text: fb.slice(0, SUMMARY_MAX), fixed: true };
 }
 
@@ -143,7 +146,7 @@ async function judge(arts, cards, o) {
             // 같은 묶음 기사들의 글도 원문으로 친다 — 묶음 요약은 여러 기사의 사실을 합칠 수 있다
             const grp = it.group ? p.items.filter((x) => x.group === it.group).map((x) => part[x.i]) : [a];
             const source = grp.map((x) => x.title + ' ' + x.desc).join(' ');
-            const sum = it.score >= 3 ? fixSummary(it.summary, source, a.desc) : { text: '', fixed: false };
+            const sum = it.score >= 3 ? fixSummary(it.summary, source, a.desc, a.title) : { text: '', fixed: false };
             results.push({
                 i: idx, score: it.score, cat: Object.prototype.hasOwnProperty.call(CATS, it.cat) ? it.cat : 'none',
                 region: REGIONS.includes(it.region) ? it.region : '', group: it.group ? 'b' + b + ':' + String(it.group).slice(0, 20) : '',
