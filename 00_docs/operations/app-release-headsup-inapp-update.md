@@ -224,6 +224,13 @@
    - 확인: 빌드 뒤 `android/app/build/intermediates/merged_manifests/release/.../AndroidManifest.xml` 에
      `RECORD_AUDIO` 가 **없고** `default_notification_channel_id` 가 **있는지** 본다.
 3. Android Studio 에서 서명된 번들(AAB)을 만든다 — versionCode 15 · versionName 1.3.0 (이미 올려 뒀다).
+   - ★**깃허브에서 만드는 길(2026-11-20 추가 — 사용자 요청 「깃허브에서 할 수 있도록 해줄래 ?」)**: GitHub → Actions → 「Build Release AAB (스토어용)」 → [Run workflow].
+     끝나면 Artifacts 의 `seagnal-release-aab` 안에 서명된 `.aab` 가 있다. 위 2번(`npm install` → `cap sync`)과 병합 매니페스트 검사를 그 절차가 직접 한다.
+     - 서명 키: 저장소의 `apk_build/android.keystore`(PKCS12 · alias `android` · 2025-12-26 생성). 비밀번호는 깃허브
+       Settings → Secrets and variables → Actions 의 **`ANDROID_KEYSTORE_PASSWORD`** 에서만 읽는다(키 비밀번호를 따로 정했으면 `ANDROID_KEY_PASSWORD` 도).
+     - 절차가 맨 먼저 비밀번호를 확인한다 — 없거나 틀리면 빌드 전에 멈추고 까닭을 적는다.
+     - ⚠이 키가 **Play 에 등록된 업로드 키와 같은지는 저장소로는 알 수 없다.** Play 콘솔의 업로드 키 인증서 지문과 실행 로그의 「키 인증서 SHA-1」을 견준다.
+       다르면 Play 가 올리기를 거부할 뿐이다(기존 앱·사용자에게는 영향 없음).
 4. Play 콘솔 → 테스트 → **내부 테스트** 에 올리고, 테스터(본인 계정)로 등록한 폰에서 스토어를 통해 설치한다.
    - ★가능하면 **스토어판 1.1.1 이 깔린 폰을 그대로 1.3.0 으로 올려서** 본다 — 실제 사용자가 겪는 길이다
      (옛 「기타」 알림 채널이 이미 있는 상태에서 올라온다. 시험용 APK 로는 이 길을 볼 수 없다).
