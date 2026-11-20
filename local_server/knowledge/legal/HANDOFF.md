@@ -1551,6 +1551,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 
 ### [2026-11-20 11:35 KST] 🟢착수 — 스토어용 서명 AAB 를 깃허브에서 만드는 빌드 절차 추가(Build Release AAB)
 사용자 요청(2026-11-20): 시험 폰에서 앱을 끈 상태 헤드업 확인됨 → 스토어용 파일을 깃허브에서 만들게 해 달라. 할 일: .github/workflows/build-release-aab.yml 신설(workflow_dispatch). 디버그 빌드 절차(build-apk.yml)와 같은 준비(npm install → cap sync) 뒤 bundleRelease → 병합 매니페스트 검사(release) → 저장소의 apk_build/android.keystore(alias android, PKCS12)로 jarsigner 서명 → 서명 검증·지문 대조 → Artifacts 로 올림. 비밀번호는 깃허브 Secrets 의 ANDROID_KEYSTORE_PASSWORD(선택: ANDROID_KEY_PASSWORD)에서만 읽는다. build.gradle 은 안 건드린다. 병합 전 브랜치에서 임시 push 트리거로 release 빌드가 되는지 먼저 본다.
+### [2026-11-20 12:32 KST] ✅완료 — AI 브리핑 오류 자동 처리 세션(가) + 누적 오류 E20261120-110944(나) — PR #1545 머지
+(나) 오류 27건: G01 지명 오판 고침(관형 어미 꼴·바깥쪽 해구·잔잔하더라도·보여도·동해 쪽 먼바다 — 사용자 허용), 장소 수 범위 8~9곳 허용(사용자 (가)), 검사 v24. 처리 완료 기록 G01. 나머지는 AI 어김·코드 밖 → 관리자 버튼. (가) 서버 automation/error-export·autofix-done, 머지 담당 briefing 종류(조건부 자동 머지 — 허용 파일 5개·내용 검사·표식 한 줄·결정 필요 0·그 세션 첫 PR), 관리자 AI 브리핑 탭 「오류 자동 처리」 칸. 독립 검토 3건 반영. 예약 작업 「연안 브리핑 오류 자동 처리」(trig_01Wd7dtxim4BFpuJbTM4Ecgj, 매일 05:48 KST, shin 환경, 새 세션) 생성 — 첫 실행 11-21 05:48. 다음: 첫 실행 결과(앱 「오류 자동 처리」 칸·Claude 앱 알림) 확인.
+
+
 ### [2026-11-20 11:28 KST] ✅완료 — 해상 기상 요약 지시문 — 기간이 다른 해역은 줄을 나누라는 규칙·예시 추가
 [한 것] regional_sea_summary.PROMPT 의 zones 규칙에 「기간이 서로 다른 해역은 숫자가 같아도 한 줄에 묶지 않는다 · period 칸에는 기간 하나만」과 「A에 풍랑특보가 발효된 가운데, B는 …까지, C는 …까지 바람이 …」 꼴의 예시(A 는 배경이라 줄로 쓰지 않는다)를 넣음. 검사 규칙은 그대로. [운영 확인 — 직전 수정] 배포 뒤 「시험 요약」(수도권)에서 업스테이지가 두 줄로 옳게 답해 요약됨(59초), Gemma 는 한 줄로 묶어 새 검사에 걸림 — 사용자 화면으로 확인. [확인] test_regional_sea_summary 85 · verify_all 전체 통과(끝 실패 모음 19줄 종전과 같음). [못 한 것] Gemma 가 새 예시로 실제로 줄을 나누는지 — 키가 없어 배포 뒤 「시험 요약」으로만 확인 가능. [다음] PR → 사용자 머지 → 수도권 「시험 요약」에서 답한 AI 가 gemma 인지 확인.
 
