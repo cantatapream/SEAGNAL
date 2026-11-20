@@ -61,7 +61,7 @@
 |---|---|---|
 | 어황정보 서버 | ✅ 2026-11-21 | `local_server/services/fishcond_collector.js` · `local_server/routes/fishcond.js` · 검사 `local_server/scripts/test_fishcond_collector.js` |
 | 판정 AI 고르기(관리자 ⑦) | ✅ 2026-11-21 | `services/bulletin_ai.js`(news) · `client/js/admin/admin_bulletin_ai.js` · 검사 `test_bulletin_ai.js` 81/81 · `test_bulletin_ai_ui.js` 11/11 |
-| 오늘의 뉴스 서버 | 다음 | `news_collector.js` · `news_judge.js` · `routes/news.js`(예정) |
+| 오늘의 뉴스 서버 | ✅ 2026-11-21 | `local_server/services/news_collector.js` · `news_judge.js` · `routes/news.js` · `naver_search.searchNews` · 검사 `test_news_collector.js` 39/39 |
 | 앱 화면 | 시안 선택 대기 | `client/js/notice/hub/` · `news/` · `fishcond/`(예정) |
 | 관리자 화면 | 시안 선택 대기 | `client/js/admin/` 게시판 관리 |
 
@@ -70,3 +70,14 @@
 - 경로 확인: `GET /api/fishcond`(목록 7건) · `/view`(그림 5장) · `/page/1`(PNG) · `/pdf`(첨부, 한글 이름) · 꼴이 아닌 ID·쪽은 404.
 - ⚠ 운영 서버(Fly, 도쿄)에서 국립수산과학원 사이트가 열리는지는 아직 모른다. 막혀 있으면 `state.json` 의 `ok:false` 와 이유로 드러난다(관리자 화면 단계에서 띄움).
 - 남동해(남동해수산연구소) 글은 「남해」 꼬리표로 붙인다 — 통영 소재, 남해 동부. 사용자 확인은 받지 않은 판단이다.
+
+### 오늘의 뉴스 서버 — 동작 요약
+- 매시 2분(KST): 검색어(기본 46개, 관리자가 바꿀 수 있게 `data/news_config.json`)마다 최신순 100건, 모두 지난 확인 뒤 기사면 다음 쪽(최대 3쪽).
+  창 = 지난 정상 확인 15분 전부터(늦게 색인되는 기사), 처음·오래 멈춘 뒤는 26시간.
+- 겹침(주소·제목) 제거 → 3일 안에 판정한 기사(`seen.json`) 제외 → 마트 할인만 기계로 버림 → AI 판정 20건씩(⑦ 순서) → 3점 이상 카드.
+- 같은 묶음 = 한 장(대표 = 원문 요약이 더 긴 기사), 이미 실은 카드와 같으면 새 사실 있을 때만 새 카드(`followOf`), 아니면 「외 N건」만 늘림.
+- 판정이 끝까지 실패한 기사는 `pending.json` → 다음 시간에 다시(26시간 지나면 버림). 검색어 전부 실패·판정 전부 실패는 `state.json` `ok:false` + 이유.
+- 새 카드만 대표 기사 페이지에서 og:image·og:site_name(로고로 보이는 주소는 버림). http 사진은 `/api/news/img` 가 우리 카드 사진일 때만 받아 바로 전달.
+- 앱 API: `GET /api/news?date=` · `POST /api/news/:date/:id/open`(펼친 횟수, 관리자 하루 1번) · 30일 지난 날짜 파일 삭제.
+- 관리자 API(숨기기·살리기·싣기·검색어·지금 갱신·상태)는 관리자 화면 단계에서 만든다.
+
