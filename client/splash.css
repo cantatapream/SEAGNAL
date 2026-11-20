@@ -57,7 +57,8 @@
     justify-content: flex-start;
     width: 100%;
     height: 100%;
-    padding: 5% 6% 6%;
+    /* 아래 34px = 버전 줄(.splash-version)과 출처 줄 자리 — 진행바 글자와 겹치지 않게(2026-11-20) */
+    padding: 5% 6% calc(6% + 34px);
 }
 
 /* 로고 컨테이너 - 크기 50% 증가 */
@@ -359,6 +360,19 @@
     font-size: clamp(8px, 2vw, 10px);
     color: rgba(200, 215, 235, .16);
     letter-spacing: .2px;
+}
+
+/* 앱 버전·업데이트 날짜 — 맨 아래 가운데, 작고 흐리게(주인공은 마스코트·로고). 2026-11-20 */
+.splash-version {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 28px;   /* 출처(bottom 12px) 한 줄 위 — 좁은 폰에서 출처와 옆으로 겹치지 않게 */
+    text-align: center;
+    font-size: clamp(10px, 2.6vw, 12px);
+    color: rgba(200, 215, 235, .42);
+    letter-spacing: .3px;
+    pointer-events: none;
 }
 
 /* 심장박동: 빠르게 두 번(9%,27%) 수축 → 36~100% 잠깐 쉼 */
