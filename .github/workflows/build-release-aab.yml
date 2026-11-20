@@ -3,11 +3,13 @@ name: Build Release AAB (스토어용)
 # Play 스토어에 올리는 서명된 앱 파일(AAB)을 만든다. 사람이 Actions 화면에서 [Run workflow] 를 눌러야만 돈다.
 # 산출물: Actions 실행 → Artifacts 의 seagnal-release-aab (그 안의 .aab 를 Play 콘솔 「내부 테스트」에 올린다).
 #
-# [서명]
-#   키 파일   : 저장소의 apk_build/android.keystore (PKCS12 · alias android) — 첫 출시 때 만든 것
-#   비밀번호  : 깃허브 Settings → Secrets and variables → Actions 의 ANDROID_KEYSTORE_PASSWORD
-#               (키 비밀번호를 따로 정했으면 ANDROID_KEY_PASSWORD 도 — 없으면 위 값을 같이 쓴다)
-#   비밀번호는 로그에 찍지 않는다(환경변수로만 넘긴다: -storepass:env).
+# [서명] 깃허브 Settings → Secrets and variables → Actions 에 등록한 값만 쓴다.
+#   ANDROID_KEYSTORE_BASE64   : 릴리즈 키 파일(seagnal-release-key · PKCS12)을 base64 글자로 바꾼 것
+#   ANDROID_KEYSTORE_PASSWORD : 그 키 파일의 비밀번호
+#   ANDROID_KEY_PASSWORD      : (선택) 키 비밀번호를 따로 정했을 때만 — 없으면 위 값을 같이 쓴다
+#   ★키 파일을 저장소에 넣지 않는다 — 이 저장소는 공개 저장소다.
+#     (apk_build/android.keystore 는 다른 옛 키다. 등록된 비밀번호로 열리지 않았다 — run #2, 2026-11-20.)
+#   비밀번호는 로그에 찍지 않는다(환경변수로만 넘긴다: -storepass:env). 키의 별칭(alias)은 키 파일에서 읽는다.
 #   android/app/build.gradle 에는 서명 설정을 넣지 않았다 — 서명 없는 번들을 만든 뒤 여기서 jarsigner 로 서명한다.
 #
 # [준비 단계는 build-apk.yml(시험용 APK)과 같다] npm install → cap sync 를 빼면 플러그인·서버 주소가 빠진 앱이 나온다
@@ -16,21 +18,15 @@ name: Build Release AAB (스토어용)
 
 on:
   workflow_dispatch: {}
-  push:   # [임시-시험] 병합 전 이 가지에서 release 빌드가 되는지 본다 — 병합 전에 지운다
-    branches: [ccr-dcbed43b-yg4tlo]
-    paths: ['.github/workflows/build-release-aab.yml']
 
 jobs:
   build-release-aab:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      KS_FILE: apk_build/android.keystore
-      KS_ALIAS: android
+      KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
       KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD || secrets.ANDROID_KEYSTORE_PASSWORD }}
-      # apk_build/app-release-signed.apk(옛 출시용 서명본)에서 읽은 인증서 지문. 키 파일이 같은 키인지 견주는 데만 쓴다(다르면 경고).
-      OLD_RELEASE_SHA256: 'E4:62:F2:C9:C6:74:74:69:26:97:63:1E:E4:D0:89:32:ED:92:57:D2:C9:4A:C1:A9:66:3D:AA:0F:97:50:67:94'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,30 +38,41 @@ jobs:
           java-version: '21'
 
       # 5분 넘게 빌드한 뒤에야 "비밀번호가 틀렸다"를 알게 되지 않도록 맨 먼저 본다.
-      - name: Check signing key (비밀번호 등록·일치 확인)
-        if: env.KS_PASS != ''   # [임시-시험]
+      - name: Check signing key (키·비밀번호 등록·일치 확인)
         id: key
         run: |
-          test -f "$KS_FILE" || { echo "::error::키 파일이 없다: $KS_FILE"; exit 1; }
-          if [ -z "$KS_PASS" ]; then
-            echo "::error::깃허브 Secrets 에 ANDROID_KEYSTORE_PASSWORD 가 없다 — Settings → Secrets and variables → Actions 에 등록한 뒤 다시 실행"
+          MISSING=""
+          test -n "$KS_B64"  || MISSING="$MISSING ANDROID_KEYSTORE_BASE64"
+          test -n "$KS_PASS" || MISSING="$MISSING ANDROID_KEYSTORE_PASSWORD"
+          if [ -n "$MISSING" ]; then
+            echo "::error::깃허브 Secrets 에 없는 값:$MISSING — Settings → Secrets and variables → Actions 에 등록한 뒤 다시 실행"
             exit 1
           fi
-          if ! INFO=$(keytool -list -v -keystore "$KS_FILE" -alias "$KS_ALIAS" -storepass:env KS_PASS 2>&1); then
+          KS="$RUNNER_TEMP/release.keystore"
+          if ! printf '%s' "$KS_B64" | tr -d ' \r\n' | base64 -d > "$KS" 2>/dev/null || [ ! -s "$KS" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 를 키 파일로 되돌리지 못했다 — 붙여 넣다 잘렸을 수 있다(처음부터 끝까지 다시 복사해 등록)"
+            exit 1
+          fi
+          if ! INFO=$(keytool -list -v -keystore "$KS" -storepass:env KS_PASS 2>&1); then
             echo "$INFO" | grep -i 'error' || true
-            echo "::error::키 파일을 못 열었다 — ANDROID_KEYSTORE_PASSWORD 가 맞지 않는다(다시 등록한 뒤 실행)"
+            if echo "$INFO" | grep -q 'password was incorrect'; then
+              echo "::error::키 파일을 못 열었다 — ANDROID_KEYSTORE_PASSWORD 가 맞지 않는다(다시 등록한 뒤 실행)"
+            else
+              echo "::error::키 파일을 못 읽었다 — ANDROID_KEYSTORE_BASE64 가 잘렸거나 다른 글자가 섞였다(처음부터 끝까지 다시 복사해 등록)"
+            fi
             exit 1
           fi
+          N=$(echo "$INFO" | grep -c '^Alias name:' || true)
+          test "$N" = "1" || { echo "::error::키 파일 안의 키가 1개가 아니다($N개) — 어느 것을 쓸지 정할 수 없다"; exit 1; }
+          ALIAS=$(echo "$INFO" | grep -m1 '^Alias name:' | sed 's/^Alias name: *//')
           SHA256=$(echo "$INFO" | grep -m1 'SHA256:' | awk '{print $2}')
-          test -n "$SHA256" || { echo "::error::키의 인증서 지문을 못 읽었다"; exit 1; }
-          echo "키 인증서 SHA-1  : $(echo "$INFO" | grep -m1 'SHA1:' | awk '{print $2}')"
+          test -n "$ALIAS" && test -n "$SHA256" || { echo "::error::키의 별칭·인증서 지문을 못 읽었다"; exit 1; }
+          echo "키 별칭(alias)   : $ALIAS"
+          echo "키 인증서 SHA-1  : $(echo "$INFO" | grep -m1 'SHA1:' | awk '{print $2}')   ← Play 콘솔의 「업로드 키 인증서」 지문과 견준다"
           echo "키 인증서 SHA-256: $SHA256"
+          echo "file=$KS" >> "$GITHUB_OUTPUT"
+          echo "alias=$ALIAS" >> "$GITHUB_OUTPUT"
           echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
-          if [ "$SHA256" = "$OLD_RELEASE_SHA256" ]; then
-            echo "✅ 옛 출시용 서명본(apk_build/app-release-signed.apk)과 같은 키다"
-          else
-            echo "::warning::이 키는 옛 출시용 서명본(apk_build/app-release-signed.apk)의 키와 다르다 — Play 콘솔의 업로드 키 지문과 견줘 볼 것"
-          fi
 
       - name: Set up Node 20
         uses: actions/setup-node@v4
@@ -150,15 +157,14 @@ jobs:
           echo "✅ capacitor.config.json(서버 주소·알림 표시 설정) 있음"
 
       - name: Sign bundle (서명 + 서명 확인)
-        if: env.KS_PASS != ''   # [임시-시험]
         run: |
           SRC=android/app/build/outputs/bundle/release/app-release.aab
           test -f "$SRC" || { echo "::error::번들이 없다: $SRC"; ls -R android/app/build/outputs || true; exit 1; }
           mkdir -p out
           OUT="out/SEAGNAL-${{ steps.manifest.outputs.vn }}-${{ steps.manifest.outputs.vc }}-release.aab"
           cp "$SRC" "$OUT"
-          jarsigner -keystore "$KS_FILE" -storepass:env KS_PASS -keypass:env KEY_PASS \
-            -sigalg SHA256withRSA -digestalg SHA-256 "$OUT" "$KS_ALIAS" > jarsigner.log 2>&1 \
+          jarsigner -keystore "${{ steps.key.outputs.file }}" -storepass:env KS_PASS -keypass:env KEY_PASS \
+            -sigalg SHA256withRSA -digestalg SHA-256 "$OUT" "${{ steps.key.outputs.alias }}" > jarsigner.log 2>&1 \
             || { cat jarsigner.log; echo "::error::서명 실패 — 키 비밀번호를 따로 정했다면 Secrets 에 ANDROID_KEY_PASSWORD 를 등록"; exit 1; }
           jarsigner -verify "$OUT" > verify.log 2>&1 || true
           grep -q 'jar verified' verify.log || { cat verify.log; echo "::error::서명 검증 실패"; exit 1; }
@@ -168,7 +174,6 @@ jobs:
           echo "✅ 서명 확인 — $(basename "$OUT") ($(stat -c %s "$OUT") bytes)"
 
       - name: Upload AAB artifact
-        if: env.KS_PASS != ''   # [임시-시험]
         uses: actions/upload-artifact@v4
         with:
           name: seagnal-release-aab
