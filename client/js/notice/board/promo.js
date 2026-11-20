@@ -1469,7 +1469,11 @@ document.addEventListener('DOMContentLoaded', async function () {
 
             if (unifiedAdminClickCount >= threshold) {
                 unifiedAdminClickCount = 0;
-                if (isAdminMode) {
+                // ★2026-11-20 관리자 모드라도 서버 열쇠(로그인 토큰)가 없으면 비밀번호를 받는다 — 푸시 발송·발송 기록 삭제가
+                //   관리자 확인을 받게 되어(routes/push.js), 열쇠 없이 들어가면 화면은 열려도 발송·삭제가 401 로 막힌다(독립 검토 A).
+                //   getStoredAdminToken 은 admin.js(이 파일보다 뒤에 로드되지만 클릭 시점에는 있다)의 전역 함수.
+                const hasServerKey = typeof getStoredAdminToken === 'function' && !!getStoredAdminToken();
+                if (isAdminMode && hasServerKey) {
                     // 관리자 모드: 비밀번호 없이 바로 진입
                     adminAuthenticated.api = true;
                     adminAuthenticated.notice = true;
@@ -1477,7 +1481,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                     adminAuthenticated.alert = true;
                     showUnifiedAdminModal('alert');
                 } else {
-                    // 일반 모드: 비밀번호 입력 필요
+                    // 일반 모드(또는 관리자 모드인데 서버 열쇠가 없음): 비밀번호 입력 필요
                     showUnifiedLoginModal('alert', '통합 관리자 인증', 'fa-user-shield');
                 }
             }

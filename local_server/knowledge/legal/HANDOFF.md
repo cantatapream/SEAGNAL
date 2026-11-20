@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-20 22:40 KST] ✅완료 — 푸시 관리자 확인 — 독립 검토 2건 반영
+검토 A(막히는 경로)·B(우회·유출) 모두 '막을 사유 못 찾음'. B: 대소문자·끝 슬래시·인코딩·메서드 우회·열쇠 위조 21건 전부 401/404, 내부 열쇠 유출 경로 없음, 같은 프로세스 확인. A 발견1(중간, 확인함): promo.js 관리자 모드 10회 클릭은 비밀번호·토큰 없이 들어가 발송·삭제가 401 → promo.js 가 getStoredAdminToken() 없으면 로그인 창, alert_push.js 삭제 3종이 401 을 '관리자 로그인이 필요합니다'로 알림(종전 무표시). 분기 로직은 vm 으로 3경우 확인(헤더 클릭 e2e 는 이 환경에서 fetchAllData 가 끝나지 않아 못 봄), 삭제 안내는 브라우저로 확인. 캐시 번호 promo.js·alert_push.js PushAuth_20261120. test_push_route_auth 30 PASS. 그대로 둔 것(문서화): 태풍 '알림 완료' 선기록 → 거절 시 재시도 없음(로그는 남김), 크롤러 단독 실행 시 401, /api/unsubscribe 의 FCM 500 기존 결함, /api/test-push 무방비(한 대에만, mockWarningData 미사용), GET 조회 공개. 다음: verify_all → PR → 사용자 확인 후 병합.
+
+
 ### [2026-11-20 22:33 KST] ✅완료 — 푸시 발송·발송 기록 삭제 주소에 관리자 확인 — 자동 특보·태풍 푸시는 내부 열쇠로 통과
 다른 세션 지적(사용자 전달): /api/push-custom·/api/push-typhoon·DELETE /api/push-history(/:id) 에 관리자 확인 없음 — 코드로 확인함. 사용자: '이것 반영하고자 하는데, 주의할 점이 발생하지 않도록 그 부분에 대해서는 재검토 할 수 있도록 해줘.' 주의할 점 실재: push_sender.js(자동 특보, localhost:3001/api/push-custom)·services/typhoon_notifier.js(자동 태풍, /api/push-typhoon)가 서버 안에서 HTTP 로 부른다(scheduler 경유 같은 프로세스). 구현: services/internal_push_auth.js(프로세스 시작 때 32바이트 내부 열쇠, X-Seagnal-Internal, timingSafeEqual, requireAdminOrInternal = 내부 열쇠 또는 admin_auth.requireAdminToken). push.js 네 주소에 붙임. push_sender·typhoon_notifier 가 internalHeaders() 를 붙임(typhoon 은 거절을 '성공 0'으로 삼키지 않게 res.ok 검사 추가). admin.js fetch 래퍼가 push-custom·push-typhoon·push-history 에도 X-Admin-Token 을 붙임, index2.html admin.js 캐시 번호 PushAuth_20261120. 시험 test_push_route_auth.js 27 PASS(verify_all 등록, _RULES 재생성). 관련 시험 6종 통과. 실제 라우터 e2e: 내부 열쇠 → 태풍 200 · 특보 문지기 통과 / 열쇠 없음 → 401. 브라우저 e2e: 로그인 전 401, 로그인 뒤 직접 발송 200·기록 삭제 200, 열쇠 자동 첨부. 남은 것: /api/test-push(한 대에만 발송, mockWarningData 는 아무도 안 읽음)·GET push-history 는 그대로. 다음: 독립 검토 2건 → 반영 → verify_all → PR(병합 전 사용자 확인).
 

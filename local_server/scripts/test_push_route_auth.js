@@ -97,6 +97,11 @@ async function call(app, method, url, headers = {}, body) {
     check('typhoon_notifier.js 가 거절(401 등)을 「성공 0」으로 삼키지 않는다', /if \(!res\.ok\) \{ console\.error\(`\[typhoon-notify\] 발송 거절/.test(typhoon));
     const admin = read('client/js/admin/admin.js');
     check('관리자 화면 fetch 래퍼가 /api/push-custom·push-typhoon·push-history 에도 관리자 열쇠를 붙인다', /isPushAdminApi = url\.indexOf\('\/api\/push-custom'\) !== -1 \|\| url\.indexOf\('\/api\/push-typhoon'\) !== -1 \|\| url\.indexOf\('\/api\/push-history'\) !== -1/.test(admin) && /\|\| isPushAdminApi;/.test(admin));
+    const promo = read('client/js/notice/board/promo.js');
+    check('관리자 모드 비밀번호 없는 진입은 서버 열쇠가 있을 때만(없으면 로그인 창) — 열쇠 없이 들어가 발송·삭제가 401 로 막히지 않게(독립 검토 A)', /const hasServerKey = typeof getStoredAdminToken === 'function' && !!getStoredAdminToken\(\);\s*if \(isAdminMode && hasServerKey\) \{/.test(promo));
+    const ap = read('client/js/push/alert_push.js');
+    check('발송 기록 삭제 3종이 거절(401 등)을 화면에 알린다(종전에는 아무 표시 없음)', (ap.match(/\} else \{\s*_alertHistoryDeleteFailed\(res\);\s*\}/g) || []).length === 3 && /res\.status === 401\) alert\('관리자 로그인이 필요합니다/.test(ap));
+    check('index2.html 이 바뀐 promo.js·alert_push.js 를 새로 받는다(캐시 번호)', /promo\.js\?v=PushAuth_20261120/.test(read('client/index2.html')) && /alert_push\.js\?v=PushAuth_20261120/.test(read('client/index2.html')));
     check('index2.html 이 바뀐 admin.js 를 새로 받는다(캐시 번호)', /js\/admin\/admin\.js\?v=PushAuth_20261120/.test(read('client/index2.html')));
     // 서버 안에서 이 주소들을 HTTP 로 부르는 곳이 두 곳뿐인지 — 새로 생기면 내부 열쇠를 빠뜨리지 않았는지 이 시험이 알려 준다.
     const offenders = [];
