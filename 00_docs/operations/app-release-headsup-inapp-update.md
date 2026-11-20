@@ -62,7 +62,7 @@
 |---|---|
 | `android/.../update/AppUpdatePlugin.java` (신설) | Capacitor 플러그인 `SeagnalAppUpdate` — `check`·`start`·`complete` + 사건 `installState` |
 | `MainActivity.java` | `registerPlugin(AppUpdatePlugin.class)` |
-| `android/app/build.gradle` | `com.google.android.play:app-update:2.1.0` · versionCode 15 · versionName 1.3.0 |
+| `android/app/build.gradle` | `com.google.android.play:app-update:2.1.0` · versionCode 16(2026-11-20 — 15 는 GPS 필수 선언이 든 채 Play 에 한 번 올려 번호가 쓰였다, §4-2) · versionName 1.3.0 |
 | `client/capacitor-plugins.js` | `tryInAppUpdate`·`showUpdateReadyBar` 신설, `checkAppUpdate` 가 앱 안 업데이트를 먼저 시도 |
 
 ### 못 쓰는 경우는 종전 방식 그대로
@@ -164,6 +164,29 @@
 
 이 작업 환경에는 휴대폰도 Play 스토어도 없다. **④⑤를 통과하기 전에는 일반 사용자에게 출시하지 않는다.**
 
+## 4-2. ★GPS 필수 선언 — 내부 테스트에 올리자마자 Play 가 잡은 것 (2026-11-20)
+
+1.3.0(versionCode 15)을 Play 「내부 테스트」에 올리니 「미리보기 및 확인」에 경고가 떴다(사용자 화면 캡처):
+
+| 폼 팩터 | 마지막 출시 | 더 이상 지원 안 됨 | 이번 출시 |
+|---|---|---|---|
+| 전화 | 12,543 | 223 (-2%) | 12,320 |
+| 태블릿 | 6,844 | 2,365 (-35%) | 4,479 |
+| TV | 4 | 3 | 1 |
+| Chromebook | 77 | 77 (-100%) | 0 |
+
+Play 가 적은 이유: **「필요한 기능을 지원하지 않습니다 — 시스템 기능」**. 경고문: *「이미 이러한 기기에 앱을 설치한 사용자에게 업데이트가 제공되지 않습니다.」*
+
+- **원인(파일로 확인)**: 번들의 최종 매니페스트에 필수 기능이 `android.hardware.location.gps` 하나 있었다.
+  `@capacitor-community/background-geolocation` 플러그인 매니페스트가 `<uses-feature android:name="android.hardware.location.gps" />` 를 끼워 넣는다(required 기본값 true).
+  우리 소스 매니페스트에는 없는 줄이라 **소스만 봐서는 안 보인다.**
+- **고침**: `AndroidManifest.xml` 에 같은 기능을 `android:required="false"` + `tools:replace="android:required"` 로 선언(병합 규칙이 "하나라도 true 면 true" 라서 덮어써야 한다).
+  GPS 가 없어도 안전한 까닭: 플러그인은 FusedLocationProvider, 우리 `LocationAlertLocator` 는 provider 마다 `isProviderEnabled`·try/catch 를 거쳐 NETWORK 로 넘어간다.
+- **다시 못 들어오게**: 두 빌드 절차(`build-apk.yml`·`build-release-aab.yml`)의 병합 매니페스트 검사에 **「필수로 선언된 기기 기능이 하나라도 있으면 실패」** 를 넣었다.
+- **버전**: 15 는 Play 에 한 번 올려 번호가 쓰였다 → **versionCode 16**(versionName 은 그대로 1.3.0). 15 는 출시하지 않았다(사용자: *「지금 이 버전으로 올리지 말고.」*).
+- **교훈**: 이 검사는 디버그 빌드에도 처음부터 넣을 수 있었다. 권한은 병합 매니페스트로 봤는데 **기능(uses-feature)은 안 봤다** — Play 의 기기 필터는 권한이 아니라 기능으로 건다.
+- ⚠나머지 경고 2개(가독화 파일 없음 · 네이티브 디버그 기호 없음)는 비정상 종료 분석용 부가 파일 안내다 — 출시를 막지 않는다.
+
 ## 4-1. ★이번이 "첫 스토어 업데이트"다 (2026-11-19 사용자 확인 + 커밋 이력)
 
 > 사용자 원문: *"우리 앱은 플레이스토어 배포하고 한번도 플레이스토어를 통해 업데이트 한적이 없어 다 서버로 머지해서."*
@@ -224,7 +247,7 @@
      백그라운드 위치·로컬 알림·Preferences 플러그인이 빠져 있었다(지금은 넣어 커밋했다). 그래도 `assets/` 쪽 때문에 sync 는 매번 필요하다.
    - 확인: 빌드 뒤 `android/app/build/intermediates/merged_manifests/release/.../AndroidManifest.xml` 에
      `RECORD_AUDIO` 가 **없고** `default_notification_channel_id` 가 **있는지** 본다.
-3. Android Studio 에서 서명된 번들(AAB)을 만든다 — versionCode 15 · versionName 1.3.0 (이미 올려 뒀다).
+3. Android Studio 에서 서명된 번들(AAB)을 만든다 — versionCode 16 · versionName 1.3.0 (이미 올려 뒀다. 15 는 쓰지 않는다 — §4-2).
    - ★**깃허브에서 만드는 길(2026-11-20 추가 — 사용자 요청 「깃허브에서 할 수 있도록 해줄래 ?」)**: GitHub → Actions → 「Build Release AAB (스토어용)」 → [Run workflow].
      끝나면 Artifacts 의 `seagnal-release-aab` 안에 서명된 `.aab` 가 있다. 위 2번(`npm install` → `cap sync`)과 병합 매니페스트 검사를 그 절차가 직접 한다.
      - 서명 키: 저장소의 **`android/seagnal-release-key`**(PKCS12 · alias `key0` · 2026-02-14 생성 — 사용자가 준 릴리즈 키와 같은 파일, 2026-11-20 지문 대조).
@@ -240,7 +263,7 @@
    - ★가능하면 **스토어판 1.1.1 이 깔린 폰을 그대로 1.3.0 으로 올려서** 본다 — 실제 사용자가 겪는 길이다
      (옛 「기타」 알림 채널이 이미 있는 상태에서 올라온다. 시험용 APK 로는 이 길을 볼 수 없다).
 5. 헤드업을 다시 확인한다(정식 서명본).
-6. 앱 안 업데이트 확인: versionCode 16 인 번들을 하나 더 만들어 내부 테스트에 올린다 → 15 가 깔린 폰에서 앱을 켠다 →
+6. 앱 안 업데이트 확인: versionCode 17 인 번들을 하나 더 만들어 내부 테스트에 올린다 → 16 이 깔린 폰에서 앱을 켠다 →
    Play 확인 창 → [업데이트] → 내려받기 → 「다시 시작」 띠 → 누르면 16 으로 바뀌는지.
    (스토어가 새 버전을 알아채는 데 시간이 걸릴 수 있다. Play 스토어 앱에서 내 앱 페이지를 한 번 열면 빨라진다.)
 

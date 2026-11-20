@@ -147,6 +147,16 @@ jobs:
           grep -q 'android:name="com.seagnal.app.SeagnalApplication"' "$M" \
             || { echo "::error::Application 클래스(SeagnalApplication) 지정이 없다"; exit 1; }
           echo "✅ SeagnalApplication 지정 있음"
+          echo "── 기기 기능(uses-feature) ──"
+          # ★2026-11-20 필수로 선언된 기능이 하나라도 있으면 실패시킨다. 플러그인이 끼워 넣은 GPS 필수 선언 때문에
+          #   Play 가 GPS 없는 기기(태블릿 35%·크롬북 전부)를 지원에서 뺐다(1.3.0/15 내부 테스트 경고). 매니페스트에서 required="false" 로 덮어썼다.
+          #   정말로 필수인 기능이 생기면 이 검사를 그 기능만 허용하도록 고친다.
+          FEATURES=$(echo "$FLAT" | grep -o '<uses-feature[^>]*>' || true)
+          echo "${FEATURES:-(없음)}"
+          if echo "$FEATURES" | grep -v '^$' | grep -v 'android:required="false"'; then
+            echo "::error::필수(required)로 선언된 기기 기능이 있다 — 그 기능이 없는 기기는 Play 에서 업데이트를 못 받는다"; exit 1
+          fi
+          echo "✅ 필수로 선언된 기기 기능 없음"
           SERVICES=$(echo "$FLAT" | grep -o '<service[^>]*>' | grep -o 'android:name="[^"]*"' | sed 's/android:name=//' | sort -u)
           echo "── 서비스 ──"
           echo "$SERVICES"

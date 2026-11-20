@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-20 12:22 KST] 🟢착수 — GPS 필수 선언 제거 + versionCode 16 — Play 내부 테스트 경고(태블릿 35% 지원 제외) 대응
+사용자가 1.3.0(15)을 Play 내부 테스트 화면에 올리자 '지원 기기 변경사항' 경고가 떴다: 전화 -223, 태블릿 -2,365(-35%), 크롬북 -77(-100%), 이유 '필요한 기능을 지원하지 않습니다(시스템 기능)'. 원인: 백그라운드 위치 플러그인 매니페스트의 uses-feature gps(필수). 사용자 지시: '고친 다음 버전을 만든 다음 내부 테스트에 올려보자. 지금 이 버전으로 올리지 말고. 그냥 진행.' 할 일: AndroidManifest 에 gps required=false(tools:replace), versionCode 16, 두 빌드 절차의 병합 매니페스트 검사에 '필수 기능 있으면 실패' 추가, 가지에서 디버그·릴리스 빌드로 병합 결과 확인, 서명 AAB(16)를 사용자에게 전달. PR #1544 에 함께 넣는다.
+
+
 ### [2026-11-20 11:53 KST] ✅완료 — 스토어용 서명 AAB 를 깃허브에서 만드는 빌드 절차(Build Release AAB) — 가지에서 실제 서명본까지 확인
 한 것: .github/workflows/build-release-aab.yml 신설(workflow_dispatch). 준비(npm install → cap sync) → bundleRelease → 병합 매니페스트(release) 검사 → jarsigner 서명 → 서명 검증·지문 대조 → Artifacts(seagnal-release-aab). 서명 키는 저장소의 android/seagnal-release-key(PKCS12, alias key0, 2026-02-14 생성 — 사용자가 채팅으로 준 릴리즈 키와 sha256 일치), 비밀번호는 깃허브 Secrets 의 ANDROID_KEYSTORE_PASSWORD(사용자가 등록함). 실행 기록: run #1(push, 서명 없이) 빌드·매니페스트 검사 통과 / run #2 실패 — 내가 apk_build/android.keystore 를 릴리즈 키로 잘못 봤다(확장자로만 찾아 android/seagnal-release-key 를 놓침, 비밀번호 불일치로 드러남) / run #3(workflow_dispatch, 가지 d333dedb) 성공 — SEAGNAL-1.3.0-15-release.aab, jar verified, 서명 인증서 SHA-1 9C:C8:DA:CA:45:FB:63:90:80:6F:C2:55:C6:A7:04:58:24:2D:AD:2A. 파일을 사용자에게 채팅으로 전달함. 사용자 보고(2026-11-20): 시험 폰에서 앱을 끈 상태로 헤드업 알림 확인됨 → 운영 문서 §4 ④ 갱신. 남은 것: ①이 절차를 main 에 넣는 PR(사용자가 Actions 화면에서 직접 누르려면 필요) ②사용자가 Play 내부 테스트에 AAB 올리기 — 이 키가 Play 에 등록된 업로드 키와 같은지는 거기서 드러난다 ③앱 안 업데이트 확인은 versionCode 16 을 한 번 더 올려야 한다. 알릴 것(사용자 결정 사항): 이 저장소는 공개 저장소인데 릴리즈 키 파일(android/seagnal-release-key)과 옛 키(apk_build/android.keystore)가 들어 있다 — 비밀번호가 유일한 방어선. 이 작업 환경: 산출물 내려받기 때문에 SEAGNAL 이라는 개인 환경을 만들어 깃허브 빌드 저장 서버 주소 두 개를 허용했다(productionresultssa30·sa16.blob.core.windows.net).
 
