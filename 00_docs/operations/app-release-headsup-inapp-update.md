@@ -146,6 +146,19 @@
 - 종전부터 서버에 있던 `/api/push-custom` 의 `adminToken`(그 토큰의 구독자로만 한정)은 쓰지 않았다 — 그 길은 값이 비면 전원 발송으로 떨어진다.
 - ⚠따로 남은 문제(이번에 고치지 않았다): `/api/push-custom`·`/api/push-typhoon`·`/api/test-push`·발송 이력 삭제에는 **관리자 인증이 없다**
   (`routes/push.js` 에 인증 참조 0건 — 코드로 확인, 운영 서버에 요청을 보내 본 것은 아니다). 별도 작업으로 제안해 뒀다.
+  - ✅**2026-11-20 고쳤다**(사용자 — *「이것 반영하고자 하는데, 주의할 점이 발생하지 않도록 그 부분에 대해서는 재검토 할 수 있도록 해줘.」*):
+    `/api/push-custom`·`/api/push-typhoon`·`DELETE /api/push-history(/:id)` 앞에 문지기(`services/internal_push_auth.js requireAdminOrInternal`).
+    관리자는 로그인 열쇠(X-Admin-Token — 관리자 화면 fetch 래퍼가 이 네 주소에도 붙인다), **서버 안의 자동 특보(push_sender.js)·자동 태풍(typhoon_notifier.js)
+    푸시는 서버가 켜질 때 만든 내부 열쇠**로 통과한다(같은 프로세스 메모리에만 있음). 시험 `test_push_route_auth.js`.
+    확인: 실제 라우터로 내부 열쇠 → 통과(태풍 200, 특보는 문지기 지나 처리 단계까지) · 열쇠 없음 → 401 · 브라우저에서 로그인 전 401 / 로그인 뒤 직접 발송·기록 삭제 200.
+  - 독립 검토 2건(2026-11-20): **막히는 자동 경로·우회 길·열쇠 유출 모두 못 찾음**(우회 시도 21건 전부 401/404).
+    반영한 지적 — 「관리자 모드」로 비밀번호 없이 들어간 기기(서버 열쇠가 없음)에서는 발송·삭제가 401 로 막힌다 →
+    `promo.js` 가 서버 열쇠가 없으면 로그인 창을 띄우고, 발송 기록 삭제 3종이 거절을 「관리자 로그인이 필요합니다」로 알린다(종전에는 아무 표시 없음).
+    알아 둘 것(그대로 둠) — ① 태풍 푸시는 「알림 완료」를 먼저 기록하고 보내서, 거절되면 재시도 없이 그 알림이 빠진다(이번에 거절 로그는 남게 했다. 특보 푸시는 실패분을 저장·재시도한다).
+    ② `node weather_alerts_crawler.js` 처럼 따로 실행하면 내부 열쇠가 달라 401(운영 경로에는 없음, 실패분은 저장·재시도).
+    ③ `/api/unsubscribe` 는 FCM 구독이 하나라도 있으면 500 이 나는 기존 결함(`s.subscription.endpoint` — push.js:272, 코드로만 확인).
+  - 남은 것: `/api/test-push`(push_test.js)는 그대로 — 받는 토큰 **한 대**에만 보내고, 거기서 설정하는 `global.mockWarningData` 는 지금 아무 데서도 읽지 않는다(코드 확인).
+    조회(`GET /api/push-history`)도 그대로 열려 있다.
 
 ## 4. 검증 — 무엇을 확인했고 무엇을 못 했나
 
@@ -307,6 +320,10 @@ Play 가 적은 이유: **「필요한 기능을 지원하지 않습니다 — �
    - ★2026-11-20 **[적용]만으로 끝난다**(사용자 확정 — *「적용만으로 끝나게 고쳐놓고 진행하자. 그래야 만약에 문제있어서 1.1.1 버전 3으로 적용만 하면 바로 적용되는거잖아.」*).
      종전에는 [적용]이 `client/app_version.json` 에 써서 **main 에 무엇이든 머지하면(자동 배포) 저장소 값으로 덮여** 조용히 사라졌다.
      이제 `local_server/data/app_version.json`(Fly.io 볼륨 — `.dockerignore` 에 빠져 있어 배포가 건드리지 않는다)에 쓰고, `/api/app-version` 이 그것을 먼저 읽는다
-     (`services/app_version_store.js`, 시험 `test_app_version_store.js`). **되돌리기도 [적용] 한 번.** ⚠한 번 적용한 뒤에는 저장소의 `client/app_version.json` 을 고쳐도 반영되지 않는다.
+     (`services/app_version_store.js`, 시험 `test_app_version_store.js`). **되돌리기도 [적용] 한 번.**
+   - ★2026-11-20 **시작 화면 맨 아래 「Ver 1.3.0(17) · Updated 2026.11.20」도 [적용]을 따라간다**(사용자 — *「이미지 2에서 내가 버전을 바꾸면 자동으로 반영되도록 해줄래 ? 그 첫 화면 업데이트 내용에 말이야.」*).
+     `client/js/core/app_init.js fillSplashVersion` 이 `/api/app-version` 의 latestVersion·latestVersionCode·updatedAt(적용한 때 — 한국 시각 날짜)로 채운다.
+     지난 값을 휴대폰에 남겨 먼저 보여 주고(시작 화면은 몇 초뿐), 서버를 못 부르면 그 값 → 그것도 없으면 index2.html 의 글자.
+     ⚠이 줄은 **스토어 최신판** 번호다 — 휴대폰에 깔린 판이 아니다(옛 앱에서도 최신판 번호가 보인다). ⚠한 번 적용한 뒤에는 저장소의 `client/app_version.json` 을 고쳐도 반영되지 않는다.
    - ⚠**출시가 100% 퍼지고 하루 이틀 뒤에** `latestVersion` 을 올린다 — 그 전에 올리면 스토어에 아직 업데이트가 안 보이는 사용자가 생긴다.
      1.3.0 이후 앱은 이 창 대신 Play 의 앱 안 업데이트 창이 먼저 뜬다(관리자 센터 값과 무관).

@@ -729,6 +729,16 @@ window.toggleAllHistoryChecks = function (checked) {
     document.querySelectorAll('.hist-item-check').forEach(function(cb) { cb.checked = checked; });
 };
 
+/**
+ * 발송 기록 삭제가 서버에서 거절됐을 때 알린다 — 종전에는 res.ok 가 아니면 아무 표시 없이 화면만 그대로였다.
+ * 2026-11-20 삭제가 관리자 확인을 받게 되어(routes/push.js) 401 이 날 수 있다(독립 검토 A).
+ * @param {Response} res [연계] ← deleteSingleHistory · deleteSelectedHistory · clearAllHistory
+ */
+function _alertHistoryDeleteFailed(res) {
+    if (res && res.status === 401) alert('관리자 로그인이 필요합니다. 관리자 센터에서 다시 로그인한 뒤 삭제해 주세요.');
+    else alert('삭제 실패' + (res ? ' (' + res.status + ')' : ''));
+}
+
 window.deleteSingleHistory = async function (id) {
     if (!confirm('해당 이력을 삭제하시겠습니까?')) return;
     try {
@@ -738,6 +748,8 @@ window.deleteSingleHistory = async function (id) {
             _invalidateHistoryCache();
             var container = document.getElementById('alert-admin-inner-content') || document.getElementById('alert-management-content');
             if (container) window.renderHistoryTab(container);
+        } else {
+            _alertHistoryDeleteFailed(res);
         }
     } catch (e) { alert('삭제 실패: ' + e.message); }
 };
@@ -752,6 +764,8 @@ window.deleteSelectedHistory = async function () {
             _invalidateHistoryCache();
             var container = document.getElementById('alert-admin-inner-content') || document.getElementById('alert-management-content');
             if (container) window.renderHistoryTab(container);
+        } else {
+            _alertHistoryDeleteFailed(res);
         }
     } catch (e) { alert('삭제 실패: ' + e.message); }
 };
@@ -764,6 +778,8 @@ window.clearAllHistory = async function () {
             _invalidateHistoryCache();
             var container = document.getElementById('alert-admin-inner-content') || document.getElementById('alert-management-content');
             if (container) window.renderHistoryTab(container);
+        } else {
+            _alertHistoryDeleteFailed(res);
         }
     } catch (e) { alert('삭제 실패: ' + e.message); }
 };

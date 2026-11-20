@@ -5,10 +5,10 @@
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : js/shared/utils/utils.js (appState)
- *  - 서버 API      : GET /api/visit (방문자 카운터), GET /api/admin/collect-failures ·
+ *  - 서버 API      : GET /api/visit (방문자 카운터), GET /api/app-version (시작 화면 버전 줄), GET /api/admin/collect-failures ·
  *                    /api/admin/review-needed (관리자 알림 배지)
  *  - 마크업        : index2.html #current-time, #current-date, #today-count,
- *                    #total-count, #admin-alert-banner, .header-content
+ *                    #total-count, #admin-alert-banner, .header-content, .splash-version(시작 화면 버전 줄)
  *  - 나를 쓰는 곳  : DOMContentLoaded 자가 실행 + 다수 feature 공용 —
  *                    FontSizeManager 는 settings.js·ocean_timeline.js 가,
  *                    updateVisitorStats()·updateTimeDisplay() 등은 data.js·marine.js 등이 호출
@@ -20,6 +20,7 @@
  * - handleHeaderRefresh(): 헤더 클릭 시 기상정보 탭 전환 + 데이터 새로고침
  * - updateVisitorStats(): 방문자 카운터 UI 업데이트
  * - DOMContentLoaded: 헤더 좀비 리스너 제거
+ * - fillSplashVersion(): 시작 화면 맨 아래 버전 줄을 관리자 센터 버전 값(GET /api/app-version)으로 채운다(2026-11-20)
  *
  * [로딩 순서] history.js 대체 (마지막)
  * ============================================================================
@@ -317,3 +318,48 @@ document.addEventListener('DOMContentLoaded', () => {
         showAdminAlertBanner();
     }
 });
+
+// ============================================================================
+// [시작 화면 버전 줄] 관리자 센터 버전 탭의 값을 그대로 보여 준다 (2026-11-20, 사용자 요청)
+// ============================================================================
+//   사용자 원문: 「이미지 2에서 내가 버전을 바꾸면 자동으로 반영되도록 해줄래 ? 그 첫 화면 업데이트 내용에 말이야.」
+//   - 시작 화면 맨 아래 「Ver 1.3.0(17) · Updated 2026.11.20」(index2.html .splash-version)을
+//     GET /api/app-version 의 latestVersion · latestVersionCode · updatedAt(관리자가 [적용]한 날, 한국 시각)으로 채운다.
+//   - ★이 줄은 "지금 스토어에 올라간 최신판"이다 — 이 휴대폰에 깔린 판이 아니다(옛 앱에서도 최신판 번호가 보인다).
+//   - 시작 화면은 몇 초만 보이므로: 지난번 받은 값을 휴대폰에 남겨 두고 먼저 보여 준 뒤, 서버 답이 오면 바꾼다.
+//     서버를 못 부르면 남겨 둔 값 → 그것도 없으면 index2.html 에 적힌 글자를 그대로 둔다(빈칸이 되지 않게).
+//   [연계] ← index2.html .splash-version · local_server/routes/version.js · services/app_version_store.js(updatedAt)
+//          · scripts/test_app_version_store.js [8]
+const SPLASH_VERSION_CACHE_KEY = 'seagnal_splash_version_v1';
+
+/**
+ * 버전 정보로 시작 화면 문구를 만든다.
+ * 예: formatSplashVersion({ latestVersion:'1.3.0', latestVersionCode:17, updatedAt:'2026-11-20T12:40:00Z' }) → 'Ver 1.3.0(17) · Updated 2026.11.20'
+ *     updatedAt 이 없으면 'Ver 1.3.0(17)' · 버전이 없으면 null
+ * @param {{latestVersion?:string, latestVersionCode?:number, updatedAt?:string}} v @returns {string|null}
+ */
+function formatSplashVersion(v) {
+    if (!v || !v.latestVersion) return null;
+    let s = 'Ver ' + v.latestVersion + (v.latestVersionCode !== undefined && v.latestVersionCode !== null && v.latestVersionCode !== '' ? '(' + v.latestVersionCode + ')' : '');
+    const t = v.updatedAt ? Date.parse(v.updatedAt) : NaN;
+    if (!isNaN(t)) s += ' · Updated ' + new Date(t + 9 * 60 * 60 * 1000).toISOString().slice(0, 10).replace(/-/g, '.'); // 한국 시각 날짜
+    return s;
+}
+
+(function fillSplashVersion() {
+    const el = document.querySelector('.splash-version');
+    if (!el) return;
+    try {
+        const cached = localStorage.getItem(SPLASH_VERSION_CACHE_KEY);
+        if (cached) el.textContent = cached;
+    } catch (_) { /* 저장소를 못 쓰면 index2.html 의 글자가 그대로 보인다 */ }
+    fetch('/api/app-version?_t=' + Date.now(), { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((v) => {
+            const text = formatSplashVersion(v);
+            if (!text) return;
+            el.textContent = text;
+            try { localStorage.setItem(SPLASH_VERSION_CACHE_KEY, text); } catch (_) { /* 다음 실행 때 다시 받는다 */ }
+        })
+        .catch((e) => console.warn('[앱] 시작 화면 버전 줄을 서버에서 못 받아 지난 값으로 둔다:', e && e.message));
+})();

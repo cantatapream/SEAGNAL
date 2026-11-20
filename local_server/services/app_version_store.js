@@ -44,13 +44,21 @@ function readJson(file) {
 
 /**
  * 지금 버전 정보를 읽는다.
- * 예: read() → { latestVersion:'1.3.0', latestVersionCode:17, updateMessage:'…', playStoreUrl:'…', minVersion:'1.0.0' }
+ * 예: read() → { latestVersion:'1.3.0', latestVersionCode:17, updateMessage:'…', playStoreUrl:'…', minVersion:'1.0.0', updatedAt:'2026-11-20T12:40:00.000Z' }
+ *     (updatedAt = 관리자가 [적용]한 때. 처음 값(client/app_version.json)에는 없다)
  * @returns {object|null} 둘 다 없거나 깨졌으면 null
  * [연계] ← routes/version.js GET /api/app-version(앱이 켤 때마다) · write(기존 값에 덮어쓰기)
  */
 function read() {
     const saved = readJson(FILE);
-    if (saved && saved !== 'broken') return saved;
+    if (saved && saved !== 'broken') {
+        // updatedAt(관리자가 [적용]한 때) — 시작 화면 「Updated 날짜」에 쓴다(client/js/core/app_init.js fillSplashVersion).
+        //   2026-11-20 이 칸을 넣기 전에 적용한 값에는 없으니, 파일이 마지막으로 쓰인 시각으로 채운다(그것이 곧 적용한 때다).
+        if (!saved.updatedAt) {
+            try { saved.updatedAt = fs.statSync(FILE).mtime.toISOString(); } catch (_) { /* 시각을 못 읽으면 날짜 없이 보인다 */ }
+        }
+        return saved;
+    }
     if (saved === 'broken') {
         console.warn('[AppVersion] ⚠저장된 버전 파일을 못 읽어 처음 값(client/app_version.json)으로 본다 — 관리자 센터 버전 탭에서 다시 [적용]할 것: ' + FILE);
     }
@@ -72,6 +80,7 @@ function write(patch) {
     next.latestVersion = patch.latestVersion;
     next.latestVersionCode = patch.latestVersionCode;
     if (typeof patch.updateMessage === 'string') next.updateMessage = patch.updateMessage;
+    next.updatedAt = new Date().toISOString(); // 시작 화면 「Updated 날짜」(2026-11-20 사용자 요청 — 버전을 바꾸면 첫 화면도 따라 바뀌게)
     fs.mkdirSync(path.dirname(FILE), { recursive: true });
     // 임시 파일에 쓰고 이름을 바꾼다 — 쓰는 도중 서버가 죽어도 반쯤 쓰인 파일이 남지 않는다(location_alert_exposure 와 같은 방식).
     fs.writeFileSync(FILE + '.tmp', JSON.stringify(next, null, 2), 'utf8');

@@ -104,6 +104,31 @@ async function getApi() {
     check('local_server/data 는 배포 이미지에 안 들어가고(볼륨) — 그래서 배포 뒤에도 남는다', /^local_server\/data$/m.test(dockerignore) && /destination = '\/app\/local_server\/data'/.test(flyToml));
     check('저장 파일은 저장소에 올리지 않는다(.gitignore)', /^local_server\/data\/app_version\.json$/m.test(fs.readFileSync(path.join(root, '.gitignore'), 'utf8')));
 
+    console.log('[8] 시작 화면 버전 줄 — 관리자가 [적용]한 버전·날짜를 따라간다(2026-11-20 사용자 요청)');
+    fs.writeFileSync(SEED, JSON.stringify({ latestVersion: '1.1.1', latestVersionCode: 3 }));
+    v = store.read();
+    check('한 번도 적용 안 했으면 updatedAt 이 없다(처음 값)', v && !v.updatedAt, v);
+    const before = Date.now();
+    const w = store.write({ latestVersion: '1.3.1', latestVersionCode: 18 });
+    check('[적용]하면 적용한 때(updatedAt)를 남긴다', w.updatedAt && Date.parse(w.updatedAt) >= before - 1000 && Date.parse(w.updatedAt) <= Date.now() + 1000, w.updatedAt);
+    const old = JSON.parse(fs.readFileSync(SAVED, 'utf8')); delete old.updatedAt; fs.writeFileSync(SAVED, JSON.stringify(old));
+    const mt = new Date('2026-11-20T12:34:00Z'); fs.utimesSync(SAVED, mt, mt);
+    check('updatedAt 칸이 생기기 전에 적용한 값 → 파일이 쓰인 시각으로 채운다', store.read().updatedAt === mt.toISOString(), store.read().updatedAt);
+    r = await getApi();
+    check('GET /api/app-version 에 updatedAt 이 실린다', r.body.updatedAt === mt.toISOString(), r.body);
+    const appInit = fs.readFileSync(path.join(root, 'client', 'js', 'core', 'app_init.js'), 'utf8');
+    const fa = appInit.indexOf('function formatSplashVersion('); const fb = appInit.indexOf('(function fillSplashVersion()');
+    const fmt = fa > 0 && fb > fa ? new Function(appInit.slice(fa, fb) + '; return formatSplashVersion;')() : null;
+    check('화면 코드에서 문구 만드는 함수를 찾았다', typeof fmt === 'function');
+    if (fmt) {
+        check('「Ver 1.3.1(18) · Updated 2026.11.20」 모양', fmt({ latestVersion: '1.3.1', latestVersionCode: 18, updatedAt: '2026-11-20T12:34:00Z' }) === 'Ver 1.3.1(18) · Updated 2026.11.20');
+        check('날짜는 한국 시각 — 2026-11-20T16:00Z(한국 21일 01시) → 2026.11.21', fmt({ latestVersion: '1.3.1', latestVersionCode: 18, updatedAt: '2026-11-20T16:00:00Z' }) === 'Ver 1.3.1(18) · Updated 2026.11.21');
+        check('적용 날짜가 없으면 날짜 없이', fmt({ latestVersion: '1.1.1', latestVersionCode: 3 }) === 'Ver 1.1.1(3)');
+        check('버전이 없으면 null(화면 글자를 그대로 둔다)', fmt(null) === null && fmt({}) === null);
+    }
+    check('시작 화면이 /api/app-version 을 부르고, 지난 값을 휴대폰에 남겨 먼저 보여 준다', /fetch\('\/api\/app-version\?_t='/.test(appInit) && /localStorage\.getItem\(SPLASH_VERSION_CACHE_KEY\)/.test(appInit) && /document\.querySelector\('\.splash-version'\)/.test(appInit));
+    check('index2.html 에 버전 줄이 있고 app_init.js 를 새로 받는다(캐시 번호)', /class="splash-version"/.test(fs.readFileSync(path.join(root, 'client', 'index2.html'), 'utf8')) && /js\/core\/app_init\.js\?v=SplashVer_20261120/.test(fs.readFileSync(path.join(root, 'client', 'index2.html'), 'utf8')));
+
     console.warn = origWarn;
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log(`\n결과: ${pass} PASS / ${fail} FAIL`);

@@ -542,7 +542,8 @@ async function sendToApi(payload, adminToken = null) {
         console.log(`[PushSender] API 호출: ${API_URL} (${payload.templateId} ${payload.typeName} ${payload.level})`);
         const response = await fetch(API_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            // 내부 열쇠 — /api/push-custom 은 관리자 또는 서버 자신만 받는다(services/internal_push_auth.js, 2026-11-20).
+            headers: Object.assign({ 'Content-Type': 'application/json' }, require('./services/internal_push_auth').internalHeaders()),
             body: JSON.stringify({
                 isManualGroupSend: true,
                 type: 'auto',
