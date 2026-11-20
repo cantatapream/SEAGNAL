@@ -5024,7 +5024,8 @@ async function renderUnifiedVersionContent(container) {
                 사용자 안내 창(옛 앱 1.1.1 이하에 뜨는 「새 버전이 나왔어요」)의 <b>바뀐 점 목록</b>이 됩니다.<br>
                 · 한 줄 = 목록 한 칸 · 줄 맨 앞 이모지 = 왼쪽 아이콘(없으면 •) · 「|」 뒤 = 작은 설명<br>
                 · 안내 창은 위 latestVersion 이 사용자 앱 버전보다 높을 때만 뜹니다. 「나중에」를 누르면 24시간 동안 다시 뜨지 않습니다.<br>
-                · [적용]하면 <b>바로</b> 반영되고 서버를 다시 배포해도 유지됩니다. 되돌릴 때도 예전 값으로 [적용]만 하면 됩니다.
+                · [적용]하면 <b>바로</b> 반영되고 서버를 다시 배포해도 유지됩니다. 되돌릴 때도 예전 값으로 [적용]만 하면 됩니다.<br>
+                · 시작 화면 맨 아래 「Ver 1.3.0(17) · Updated 날짜」도 [적용]한 버전·날짜(한국 시각)로 바뀝니다.
             </div>
             <button type="button" onclick="previewUpdatePopup()" style="margin-top:10px;padding:9px 14px;background:rgba(68,138,255,0.15);color:#93c5fd;border:1px solid rgba(68,138,255,0.4);border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;">
                 <i class="fa-solid fa-eye"></i> 이 휴대폰에서 미리 보기

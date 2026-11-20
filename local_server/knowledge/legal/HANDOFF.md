@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-20 22:49 KST] ✅완료 — 시작 화면 버전 줄을 관리자 센터 [적용]에 맞춰 자동으로
+사용자: '이미지 2에서 내가 버전을 바꾸면 자동으로 반영되도록 해줄래 ? 그 첫 화면 업데이트 내용에 말이야.' + 'PR #1553 과 묶어서 머지'. 다른 세션 PR #1552(시작 화면 맨 아래 'Ver 1.3.0(17) · Updated 2026.11.20' 고정 글자, 이미 main 병합)를 이 가지에 합친 뒤: app_version_store.write 가 updatedAt 기록, read 는 updatedAt 없으면 파일 mtime 으로 채움(이미 적용한 1.3.0/17 도 날짜가 나옴). client/js/core/app_init.js fillSplashVersion — 휴대폰에 남긴 지난 값을 먼저 보여 주고 /api/app-version 답으로 'Ver x(y) · Updated YYYY.MM.DD'(KST) 갱신, 실패 시 지난 값 → HTML 글자. index2.html app_init.js 캐시 번호 SplashVer_20261120, 관리자 화면 안내 한 줄. 시험 test_app_version_store 32 PASS([8] 11건). 브라우저: 1.3.1/18/2026-11-21 로 띄워 시작 화면 글자 확인(스크린샷). 주의: 이 줄은 스토어 최신판 번호(휴대폰에 깔린 판 아님). 진행 중이던 verify_all 은 main 을 합치면서 파일이 바뀌어 중단 → 다시 돌린다.
+
+
 ### [2026-11-20 22:40 KST] ✅완료 — 푸시 관리자 확인 — 독립 검토 2건 반영
 검토 A(막히는 경로)·B(우회·유출) 모두 '막을 사유 못 찾음'. B: 대소문자·끝 슬래시·인코딩·메서드 우회·열쇠 위조 21건 전부 401/404, 내부 열쇠 유출 경로 없음, 같은 프로세스 확인. A 발견1(중간, 확인함): promo.js 관리자 모드 10회 클릭은 비밀번호·토큰 없이 들어가 발송·삭제가 401 → promo.js 가 getStoredAdminToken() 없으면 로그인 창, alert_push.js 삭제 3종이 401 을 '관리자 로그인이 필요합니다'로 알림(종전 무표시). 분기 로직은 vm 으로 3경우 확인(헤더 클릭 e2e 는 이 환경에서 fetchAllData 가 끝나지 않아 못 봄), 삭제 안내는 브라우저로 확인. 캐시 번호 promo.js·alert_push.js PushAuth_20261120. test_push_route_auth 30 PASS. 그대로 둔 것(문서화): 태풍 '알림 완료' 선기록 → 거절 시 재시도 없음(로그는 남김), 크롤러 단독 실행 시 401, /api/unsubscribe 의 FCM 500 기존 결함, /api/test-push 무방비(한 대에만, mockWarningData 미사용), GET 조회 공개. 다음: verify_all → PR → 사용자 확인 후 병합.
 

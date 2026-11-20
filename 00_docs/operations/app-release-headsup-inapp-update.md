@@ -320,6 +320,10 @@ Play 가 적은 이유: **「필요한 기능을 지원하지 않습니다 — �
    - ★2026-11-20 **[적용]만으로 끝난다**(사용자 확정 — *「적용만으로 끝나게 고쳐놓고 진행하자. 그래야 만약에 문제있어서 1.1.1 버전 3으로 적용만 하면 바로 적용되는거잖아.」*).
      종전에는 [적용]이 `client/app_version.json` 에 써서 **main 에 무엇이든 머지하면(자동 배포) 저장소 값으로 덮여** 조용히 사라졌다.
      이제 `local_server/data/app_version.json`(Fly.io 볼륨 — `.dockerignore` 에 빠져 있어 배포가 건드리지 않는다)에 쓰고, `/api/app-version` 이 그것을 먼저 읽는다
-     (`services/app_version_store.js`, 시험 `test_app_version_store.js`). **되돌리기도 [적용] 한 번.** ⚠한 번 적용한 뒤에는 저장소의 `client/app_version.json` 을 고쳐도 반영되지 않는다.
+     (`services/app_version_store.js`, 시험 `test_app_version_store.js`). **되돌리기도 [적용] 한 번.**
+   - ★2026-11-20 **시작 화면 맨 아래 「Ver 1.3.0(17) · Updated 2026.11.20」도 [적용]을 따라간다**(사용자 — *「이미지 2에서 내가 버전을 바꾸면 자동으로 반영되도록 해줄래 ? 그 첫 화면 업데이트 내용에 말이야.」*).
+     `client/js/core/app_init.js fillSplashVersion` 이 `/api/app-version` 의 latestVersion·latestVersionCode·updatedAt(적용한 때 — 한국 시각 날짜)로 채운다.
+     지난 값을 휴대폰에 남겨 먼저 보여 주고(시작 화면은 몇 초뿐), 서버를 못 부르면 그 값 → 그것도 없으면 index2.html 의 글자.
+     ⚠이 줄은 **스토어 최신판** 번호다 — 휴대폰에 깔린 판이 아니다(옛 앱에서도 최신판 번호가 보인다). ⚠한 번 적용한 뒤에는 저장소의 `client/app_version.json` 을 고쳐도 반영되지 않는다.
    - ⚠**출시가 100% 퍼지고 하루 이틀 뒤에** `latestVersion` 을 올린다 — 그 전에 올리면 스토어에 아직 업데이트가 안 보이는 사용자가 생긴다.
      1.3.0 이후 앱은 이 창 대신 Play 의 앱 안 업데이트 창이 먼저 뜬다(관리자 센터 값과 무관).
