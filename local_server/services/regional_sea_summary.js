@@ -292,6 +292,8 @@ function check(p, items, rawText) {
         if (!str(z.zone, 160)) return '해역 이름이 없거나 너무 길다';
         if (!str(z.period, 40)) return '기간이 없다: ' + z.zone;
         if (/\{\{|\}\}/.test(z.zone + z.period)) return '해역·기간 칸에 색 표시가 들어 있다: ' + z.zone;
+        // 한 줄 = 한 기간. 해역 둘을 한 줄에 묶고 기간도 둘을 이어 적으면 어느 기간이 어느 해역 것인지 화면에서 알 수 없다(실제 Gemma 답 2026-11-20: 「서해중부먼바다 · 인천·경기앞바다 | 내일(21일) 오전까지 · 오늘(20일) 오후까지」)
+        if (/[·ㆍ‧,\/]/.test(z.period)) return '기간 칸에 기간이 둘 이상이다(해역마다 줄을 나눠야 한다): ' + z.period;
         if (LIFT.test(z.zone + z.period)) return '해역·기간 칸에 해제 예고가 들어 있다: ' + z.zone;
         const wind = z.wind, wave = z.wave;
         if (wind === null && wave === null) return '바람·물결 숫자가 둘 다 없다: ' + z.zone;
@@ -347,10 +349,16 @@ function check(p, items, rawText) {
         const b = bare(line);
         if (!lineHasWind(b)) continue;
         let open = String(line); for (let k = 0; k < 6 && /\([^()]*\)/.test(open); k++) open = open.replace(/\([^()]*\)/g, ' ');
-        const names = zoneTokens(open).filter((t) => !/해안$/.test(t));
+        // 「X에 풍랑특보가 발효된 가운데, A는 내일까지, B는 오늘까지 바람이 …」 — 앞 절의 X 는 숫자의 임자가 아니라 배경이다(숫자는 뒤의 A·B 것). 뒤에 해역이 또 있으면 앞 절의 해역은 요구하지 않는다.
+        //   「X에 풍랑특보가 발효된 가운데, 오늘까지 바람이 …」처럼 뒤에 해역이 없으면 X 가 숫자의 임자 — 종전대로 요구한다.
+        //   운영 「시험 요약」 2026-11-20(수도권): 다섯 AI 가 모두 「서해중부먼바다 / 인천.경기앞바다」로 옳게 답했는데 「서해중부전해상」이 없다고 전부 거절했다.
+        //   조사 자료: 바람 숫자 줄 3,639 가운데 「…가운데,」 절에 해역이 든 줄 209 — 뒤에 해역이 또 있는 꼴 137.
+        const lead = open.match(/^(.*?(?:특보|주의보|경보)[^,]{0,12}가운데)[,\s]/);
+        const tail = lead ? open.slice(lead[0].length) : '';
+        const names = zoneTokens(lead && zoneTokens(tail).some((t) => !/해안$/.test(t)) ? tail : open).filter((t) => !/해안$/.test(t));
         for (const t of names) {
             const covered = zones.some((z) => {
-                const zb = bare(z.zone).replace(/\./g, '');
+                const zb = bare(z.zone).replace(/[.·ㆍ‧]/g, '');   // 「인천.경기앞바다」를 「인천·경기앞바다」로 적은 답도 같은 이름으로 본다(실제 Gemma 답 2026-11-20)
                 const same = zb.includes(t);
                 return same && z.wind != null && windIn(b, z.wind) && (lineHasWave(b) ? z.wave != null && waveIn(b, z.wave) : z.wave == null || waveIn(b, z.wave));
             });
