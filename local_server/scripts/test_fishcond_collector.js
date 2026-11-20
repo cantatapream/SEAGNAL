@@ -168,6 +168,6 @@ const mk = (f, dir) => F.createFishcond({ dir, fetchText: f.fetchText, fetchPdf:
     ok('bulletin_docs: convertPdf 를 내보낸다', typeof require('../services/bulletin_docs').convertPdf === 'function');
     ok('운영이 아니면 start 하지 않는다', (() => { const was = process.env.FLY_ALLOC_ID; delete process.env.FLY_ALLOC_ID; const r = mk(fake(), tmp()).start(); if (was) process.env.FLY_ALLOC_ID = was; return r === false; })());
 
-    console.log(`\n결과: ${pass} 통과 / ${fail} 실패`);
+    console.log(`\n결과: ${pass} PASS / ${fail} FAIL`);
     process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

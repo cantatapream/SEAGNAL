@@ -169,10 +169,14 @@ function createFishcond({ dir = DIR, fetchText = realFetchText, fetchPdf = realF
         running = (async () => {
             const t0 = now(), today = kstDate(t0);
             const st = { lastRun: new Date(t0).toISOString(), ok: false, listed: 0, added: 0, ready: 0, failed: 0, removed: 0, total: 0, error: null };
+            let logged = false;   // 잡은 자리에서 이미 로그를 남겼으면 끝에서 또 남기지 않는다
             try {
                 fs.mkdirSync(dir, { recursive: true });
                 let rows = [];
-                try { rows = parseList(await fetchText(LIST_URL)); } catch (err) { st.error = '게시판 목록을 받지 못함: ' + String((err && err.message) || err).split('\n')[0]; }
+                try { rows = parseList(await fetchText(LIST_URL)); } catch (err) {
+                    st.error = '게시판 목록을 받지 못함: ' + String((err && err.message) || err).split('\n')[0];
+                    console.warn('[fishcond] 확인 실패:', st.error); logged = true;   // state.json 에도 남는다(관리자 화면이 띄운다)
+                }
                 st.listed = rows.length;
                 if (!rows.length && !st.error) st.error = '게시판 목록에서 글을 하나도 읽지 못함(게시판 모양이 바뀌었을 수 있음)';
                 const index = readIndex(), have = new Set(index.map((e) => e.id));
@@ -207,10 +211,11 @@ function createFishcond({ dir = DIR, fetchText = realFetchText, fetchPdf = realF
                 st.ok = !st.error;
             } catch (err) {
                 st.error = '확인 중 오류: ' + String((err && err.message) || err).split('\n')[0];
+                console.error('[fishcond] 확인 실패:', st.error); logged = true;
             }
             st.ms = now() - t0;
             try { fs.mkdirSync(dir, { recursive: true }); writeFileAtomic(stateFile, JSON.stringify(st)); } catch (_) { /* 상태 파일을 못 써도 다음 시간에 다시 */ }
-            if (!st.ok) console.warn('[fishcond] 확인 실패:', st.error);
+            if (!st.ok && !logged) console.warn('[fishcond] 확인 실패:', st.error);
             return st;
         })().finally(() => { running = null; });
         return running;
