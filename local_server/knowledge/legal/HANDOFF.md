@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-20 23:49 KST] ✅완료 — 해양 뉴스 아침 브리핑 — 사전 조사·네이버 뉴스 API 시험 (앱 코드 미착수)
+사용자 요청: 매일 09:00 KST 지난 24시간 어업·수산·해양법·해경·사고·레저 뉴스 중 해양종사자에게 직접 영향 있는 것만(홍보·인사·MOU·행사 제외) 모아 주는 기능. 이번 세션은 설계 전 조사만 했다. ①구글 뉴스 RSS 견본(11/19 23:39~11/20 23:39 KST, 키워드 40개): 180건 수집 → 제외어 필터는 14건만 걸러 166건 남음(대부분 무관) → 수동 AI 판정으로 16개 사건. 교훈: 제외어 '수상'이 '수상레저' 법안 기사를 잘못 버림, 같은 사건 34건 중복(해광호), 법 개정 뉴스는 거의 없어 legal_amendment_scanner·입법예고 별도 연결 필요, RSS 1회 429. ②사용자가 NAVER API HUB(console.ncloud.com) SEAGNAL 앱에 '뉴스' API를 추가함(이미지도 체크됨). ③임시 GitHub Actions(naver-news-probe.yml, 확인 후 삭제)로 저장소 Secrets 의 NAVER_CLIENT_ID/SECRET 으로 GET /search/v1/news 4개 키워드 호출 → 전부 HTTP 200, 필드 title/description/link/originallink/pubDate, sort=date·display=100. 100건이 덮는 기간: '어선 사고' 약 29시간, '금어기' 3주 이상 → 많은 키워드는 start=101 두 번째 쪽 필요할 수 있음. 검색이 낱말을 떼어 맞춤('어선 사고'에 '이념적인 사고' 섞임) → AI 판정 필수. title·description 의 <b> 태그·&quot; 정리 필요. Fly 운영 서버 키가 저장소 Secrets 와 같은 값인지는 확인 안 함. 다음: 사용자 결정 대기 — 분량(전체 vs 핵심 5건), 가격·CPTPP류 포함 여부, 받는 사람(본인 vs 전체), 받는 곳(푸시 vs 앱 화면).
+
+
 ### [2026-11-20 23:17 KST] ✅완료 — [임시] 자동 푸시 경로 점검 버튼
 사용자: '직접 발송하는 것으로 자동 푸시 온다고 볼 수 있니 ?'(아니다 — 관리자 열쇠 길 vs 내부 열쇠 길) → '자동 푸시 경로 점검 버튼 임시로 만들어보자.' 참고: 시작 화면 버전 줄이 안 뜬 까닭 = PR #1552 배포(Deploy #2360)가 Fly 이미지 저장소 TLS access denied 로 실패, PR #1553 배포(#2361)로 반영됨(사용자 '어 뜬다' 확인). 구현: services/push_auto_path_check.js(validate: 주소 20자 미만이면 거절 — 빈 adminToken=전체 발송 방지 / run: push_sender 와 같은 localhost:3001/api/push-custom 에 내부 열쇠 + adminToken=이 휴대폰 → 한 대만·기록 없음, push-typhoon 은 빈 본문으로 문지기만 400/401 확인), routes/push.js POST /api/admin/push-auto-path-check(requireAdminToken), alert_push.js 직접 발송 탭 버튼 + runAutoPushPathCheck(주소 없으면 서버 요청 안 함), index2.html 캐시 번호 AutoPathCheck_20261120. 시험 test_push_auto_path_check 23 PASS(verify_all 등록), test_push_route_auth 30 PASS(서버 내부 호출처 목록에 점검 서비스 추가). 실제 서버 e2e: 로그인 전 → 로그인 필요 안내, 주소 없음 → 안내, 정상 → 특보 길 200·태풍 길 400(구독자 1명 매칭, 이 환경엔 Firebase 없어 0건). 확인이 끝나면 지운다.
 
