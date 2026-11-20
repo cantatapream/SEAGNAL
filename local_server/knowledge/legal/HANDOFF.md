@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-20 23:17 KST] ✅완료 — [임시] 자동 푸시 경로 점검 버튼
+사용자: '직접 발송하는 것으로 자동 푸시 온다고 볼 수 있니 ?'(아니다 — 관리자 열쇠 길 vs 내부 열쇠 길) → '자동 푸시 경로 점검 버튼 임시로 만들어보자.' 참고: 시작 화면 버전 줄이 안 뜬 까닭 = PR #1552 배포(Deploy #2360)가 Fly 이미지 저장소 TLS access denied 로 실패, PR #1553 배포(#2361)로 반영됨(사용자 '어 뜬다' 확인). 구현: services/push_auto_path_check.js(validate: 주소 20자 미만이면 거절 — 빈 adminToken=전체 발송 방지 / run: push_sender 와 같은 localhost:3001/api/push-custom 에 내부 열쇠 + adminToken=이 휴대폰 → 한 대만·기록 없음, push-typhoon 은 빈 본문으로 문지기만 400/401 확인), routes/push.js POST /api/admin/push-auto-path-check(requireAdminToken), alert_push.js 직접 발송 탭 버튼 + runAutoPushPathCheck(주소 없으면 서버 요청 안 함), index2.html 캐시 번호 AutoPathCheck_20261120. 시험 test_push_auto_path_check 23 PASS(verify_all 등록), test_push_route_auth 30 PASS(서버 내부 호출처 목록에 점검 서비스 추가). 실제 서버 e2e: 로그인 전 → 로그인 필요 안내, 주소 없음 → 안내, 정상 → 특보 길 200·태풍 길 400(구독자 1명 매칭, 이 환경엔 Firebase 없어 0건). 확인이 끝나면 지운다.
+
+
 ### [2026-11-20 22:49 KST] ✅완료 — 시작 화면 버전 줄을 관리자 센터 [적용]에 맞춰 자동으로
 사용자: '이미지 2에서 내가 버전을 바꾸면 자동으로 반영되도록 해줄래 ? 그 첫 화면 업데이트 내용에 말이야.' + 'PR #1553 과 묶어서 머지'. 다른 세션 PR #1552(시작 화면 맨 아래 'Ver 1.3.0(17) · Updated 2026.11.20' 고정 글자, 이미 main 병합)를 이 가지에 합친 뒤: app_version_store.write 가 updatedAt 기록, read 는 updatedAt 없으면 파일 mtime 으로 채움(이미 적용한 1.3.0/17 도 날짜가 나옴). client/js/core/app_init.js fillSplashVersion — 휴대폰에 남긴 지난 값을 먼저 보여 주고 /api/app-version 답으로 'Ver x(y) · Updated YYYY.MM.DD'(KST) 갱신, 실패 시 지난 값 → HTML 글자. index2.html app_init.js 캐시 번호 SplashVer_20261120, 관리자 화면 안내 한 줄. 시험 test_app_version_store 32 PASS([8] 11건). 브라우저: 1.3.1/18/2026-11-21 로 띄워 시작 화면 글자 확인(스크린샷). 주의: 이 줄은 스토어 최신판 번호(휴대폰에 깔린 판 아님). 진행 중이던 verify_all 은 main 을 합치면서 파일이 바뀌어 중단 → 다시 돌린다.
 
