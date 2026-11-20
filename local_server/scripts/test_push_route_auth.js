@@ -101,13 +101,13 @@ async function call(app, method, url, headers = {}, body) {
     check('관리자 모드 비밀번호 없는 진입은 서버 열쇠가 있을 때만(없으면 로그인 창) — 열쇠 없이 들어가 발송·삭제가 401 로 막히지 않게(독립 검토 A)', /const hasServerKey = typeof getStoredAdminToken === 'function' && !!getStoredAdminToken\(\);\s*if \(isAdminMode && hasServerKey\) \{/.test(promo));
     const ap = read('client/js/push/alert_push.js');
     check('발송 기록 삭제 3종이 거절(401 등)을 화면에 알린다(종전에는 아무 표시 없음)', (ap.match(/\} else \{\s*_alertHistoryDeleteFailed\(res\);\s*\}/g) || []).length === 3 && /res\.status === 401\) alert\('관리자 로그인이 필요합니다/.test(ap));
-    check('index2.html 이 바뀐 promo.js·alert_push.js 를 새로 받는다(캐시 번호)', /promo\.js\?v=PushAuth_20261120/.test(read('client/index2.html')) && /alert_push\.js\?v=PushAuth_20261120/.test(read('client/index2.html')));
+    check('index2.html 이 바뀐 promo.js·alert_push.js 를 새로 받는다(캐시 번호)', /promo\.js\?v=PushAuth_20261120/.test(read('client/index2.html')) && /alert_push\.js\?v=(PushAuth|AutoPathCheck)_20261120/.test(read('client/index2.html')));
     check('index2.html 이 바뀐 admin.js 를 새로 받는다(캐시 번호)', /js\/admin\/admin\.js\?v=PushAuth_20261120/.test(read('client/index2.html')));
     // 서버 안에서 이 주소들을 HTTP 로 부르는 곳이 두 곳뿐인지 — 새로 생기면 내부 열쇠를 빠뜨리지 않았는지 이 시험이 알려 준다.
     const offenders = [];
     const walk = (dir) => { for (const n of fs.readdirSync(dir)) { if (n === 'node_modules' || n === 'knowledge' || n === 'scripts' || n.startsWith('.')) continue; const p = path.join(dir, n); const st = fs.statSync(p); if (st.isDirectory()) walk(p); else if (/\.js$/.test(n)) { const s = fs.readFileSync(p, 'utf8'); if (/localhost:\d+\/api\/(push-custom|push-typhoon|push-history)/.test(s)) offenders.push(path.relative(root, p)); } } };
     walk(path.join(root, 'local_server'));
-    check('서버 안에서 이 주소를 부르는 곳은 push_sender.js·typhoon_notifier.js 둘뿐', JSON.stringify(offenders.sort()) === JSON.stringify(['local_server/push_sender.js', 'local_server/services/typhoon_notifier.js']), offenders);
+    check('서버 안에서 이 주소를 부르는 곳은 push_sender.js·typhoon_notifier.js·[임시] push_auto_path_check.js 뿐(모두 내부 열쇠)', JSON.stringify(offenders.sort()) === JSON.stringify(['local_server/push_sender.js', 'local_server/services/push_auto_path_check.js', 'local_server/services/typhoon_notifier.js']), offenders);
 
     console.log(`\n결과: ${pass} PASS / ${fail} FAIL`);
     process.exit(fail ? 1 : 0);

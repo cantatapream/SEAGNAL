@@ -649,6 +649,30 @@ router.post('/api/admin/push-test-device',
     });
 
 // ============================================================================
+// [임시] 자동 푸시 경로 점검 — POST /api/admin/push-auto-path-check (2026-11-20, 사용자 「자동 푸시 경로 점검 버튼 임시로 만들어보자.」)
+// ============================================================================
+//   자동 특보·태풍 푸시가 쓰는 길(내부 열쇠)이 운영 서버에서 열리는지 본다(services/push_auto_path_check.js).
+//   - 특보 길: 이 휴대폰 한 대에만 실제로 보낸다(push-custom 관리자 테스트 모드 — 발송 기록 없음).
+//   - 태풍 길: 제목·본문 없이 불러 문지기만 본다(400 = 통과, 401 = 막힘) — 발송 없음.
+//   - 관리자 열쇠가 있어야 부를 수 있다. 확인이 끝나면 이 라우트·서비스·버튼을 지워도 된다.
+router.post('/api/admin/push-auto-path-check',
+    (req, res, next) => require('../services/admin_auth').requireAdminToken(req, res, next),
+    async (req, res) => {
+        res.setHeader('Cache-Control', 'no-store');
+        try {
+            const check = require('../services/push_auto_path_check');
+            const v = check.validate(req.body && req.body.token);
+            if (!v.ok) return res.status(400).json({ ok: false, error: v.error });
+            const out = await check.run(v.token, { fetchImpl: fetch, headers: require('../services/internal_push_auth').internalHeaders });
+            console.log(`[Push/auto-path-check] tok=${_maskTok(v.token)} 특보길=${out.custom && out.custom.status} 태풍길=${out.typhoon && out.typhoon.status}`);
+            return res.json(out);
+        } catch (e) {
+            console.error('[Push/auto-path-check] 오류:', e && e.message);
+            return res.status(500).json({ ok: false, error: e.message });
+        }
+    });
+
+// ============================================================================
 // 태풍 발생/소멸 푸시 발송 API (전국 단위 브로드캐스트)
 // ============================================================================
 //   - services/typhoon_notifier.js 가 호출. 특보(zone 기반 개인화)와 달리
