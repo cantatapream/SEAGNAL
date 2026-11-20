@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-20 12:32 KST] ✅완료 — GPS 필수 선언 제거 + versionCode 16 — 서명 AAB(16) 사용자에게 전달
+한 것: AndroidManifest.xml 에 gps uses-feature 를 required=false + tools:replace 로 선언, versionCode 16(versionName 1.3.0 그대로), build-apk.yml·build-release-aab.yml 의 병합 매니페스트 검사에 '필수 기기 기능이 있으면 실패' 추가(주석을 걷어 낸 뒤 센다). 확인: Build Release AAB run #5 · Build Debug APK run #47 성공(커밋 9f55f5f1). 받은 번들을 직접 열어 15 와 견줌 — 15 는 gps 태그에 required 속성 없음(필수), 16 은 required=false. 서명 SHA-1 동일(9C:C8:DA:CA:…:2D:AD:2A), jar verified. SEAGNAL-1.3.0-16-release.aab 를 채팅으로 전달. 첫 시도(run #46·#4)는 새 검사가 소스 매니페스트 주석 속 태그 글자를 선언으로 세어 실패 → 고침. 15 는 Play 에 올리기만 하고 출시하지 않았다(사용자 지시). 남은 것(사용자): 16 을 Play 내부 테스트에 올려 ①지원 기기 수가 돌아왔는지 ②스토어판 1.1.1 → 1.3.0 업데이트 ③헤드업을 확인. 그 뒤 정식 출시. 관리자 센터의 버전 값은 정식 출시가 다 퍼진 뒤에 올린다(그 전에 올리면 닫기 버튼 없는 안내 창에 사용자가 갇힌다). 참고(사용자와 확인한 것): 저장소를 비공개로 돌리면 Actions 무료 할인이 사라진다 — 이번 달 20일까지 gross 49달러(전부 Actions Linux, 분당 0.006달러), 예산은 Actions 25달러. 공개 유지가 현재 결론. PR #1544 에 전부 들어 있다(검증 게이트 통과하면 병합 — 사용자 '진행').
+
+
 ### [2026-11-20 12:22 KST] 🟢착수 — GPS 필수 선언 제거 + versionCode 16 — Play 내부 테스트 경고(태블릿 35% 지원 제외) 대응
 사용자가 1.3.0(15)을 Play 내부 테스트 화면에 올리자 '지원 기기 변경사항' 경고가 떴다: 전화 -223, 태블릿 -2,365(-35%), 크롬북 -77(-100%), 이유 '필요한 기능을 지원하지 않습니다(시스템 기능)'. 원인: 백그라운드 위치 플러그인 매니페스트의 uses-feature gps(필수). 사용자 지시: '고친 다음 버전을 만든 다음 내부 테스트에 올려보자. 지금 이 버전으로 올리지 말고. 그냥 진행.' 할 일: AndroidManifest 에 gps required=false(tools:replace), versionCode 16, 두 빌드 절차의 병합 매니페스트 검사에 '필수 기능 있으면 실패' 추가, 가지에서 디버그·릴리스 빌드로 병합 결과 확인, 서명 AAB(16)를 사용자에게 전달. PR #1544 에 함께 넣는다.
 
