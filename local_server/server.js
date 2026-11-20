@@ -396,6 +396,9 @@ async function runNariyaNightly() {
     const which = ar.nightlyScanFor(Date.now());
     // 처리 결과 요약 푸시(2026-11-17 사용자 「각 매일마다 모든 사이클이 완료되면 완료되었다는 푸시알림」·「처리결과에 관한 알림」)를 위해 결과를 모은다.
     let scan = null, scanError = null, approved = 0, sweep = null, sweepError = null;
+    // 배포 뒤 다시 점검(원문신선도)이 도는 중이면 끝나기를 먼저 기다린다 — law.go.kr 점검 둘이 겹치지 않고,
+    //   원문신선도 차례가 「이미 진행 중」을 실패로 받지 않게. setHold 보다 **먼저** 기다린다(켬/끔 하나라 서로 풀지 않게 · 2026-11-20 검토 M1).
+    try { await require('./services/admrul_fresh_scanner').waitIdle(); } catch (e) { console.error('AI 챗봇 새벽 점검 — 앞선 점검 기다리기 실패(점검은 계속):', e.message); }
     try { ar.setHold(true); } catch (e) { console.error('AI 챗봇 새벽 점검 — 세션 깨우기 보류 실패(점검은 계속):', e.message); }
     try {
         if (which === 'amend') {
@@ -514,6 +517,14 @@ app.listen(PORT, '0.0.0.0', () => {
             require('./routes/legal').replayApprovalsOnStart();
         } catch (e) {
             console.error('[startup] 승인 이력 다시 맞추기 실패:', e && e.message);
+        }
+        // 원문신선도 — 배포로 고친 원문이 올라왔으면 점검을 스스로 한 번 돌려 카드를 닫는다(services/admrul_fresh_scanner.js · 2026-11-20)
+        //   사장님 「지금점검도 자동으로 하는 로직을 만들면 좋겠는데?」. 운영 서버에서만 돈다. 실패해도 서버는 그대로.
+        try {
+            require('./services/admrul_fresh_scanner').rescanIfFixesDeployed()
+                .catch((e) => console.error('[startup] 원문신선도 배포 뒤 점검 오류:', e && e.message));
+        } catch (e) {
+            console.error('[startup] 원문신선도 배포 뒤 점검 시작 실패:', e && e.message);
         }
         // VM 대신 이 서버 안에서 Codex(ChatGPT) 작업자 띄우기 — 시크릿 CODEX_AUTH_JSON 이 있을 때만 (services/codex_inproc.js)
         try {
