@@ -3,12 +3,14 @@ name: Build Release AAB (스토어용)
 # Play 스토어에 올리는 서명된 앱 파일(AAB)을 만든다. 사람이 Actions 화면에서 [Run workflow] 를 눌러야만 돈다.
 # 산출물: Actions 실행 → Artifacts 의 seagnal-release-aab (그 안의 .aab 를 Play 콘솔 「내부 테스트」에 올린다).
 #
-# [서명] 깃허브 Settings → Secrets and variables → Actions 에 등록한 값만 쓴다.
-#   ANDROID_KEYSTORE_BASE64   : 릴리즈 키 파일(seagnal-release-key · PKCS12)을 base64 글자로 바꾼 것
-#   ANDROID_KEYSTORE_PASSWORD : 그 키 파일의 비밀번호
-#   ANDROID_KEY_PASSWORD      : (선택) 키 비밀번호를 따로 정했을 때만 — 없으면 위 값을 같이 쓴다
-#   ★키 파일을 저장소에 넣지 않는다 — 이 저장소는 공개 저장소다.
-#     (apk_build/android.keystore 는 다른 옛 키다. 등록된 비밀번호로 열리지 않았다 — run #2, 2026-11-20.)
+# [서명]
+#   키 파일   : 저장소의 android/seagnal-release-key (PKCS12 · alias key0 · 2026-02-14 생성) — 사용자가 준 릴리즈 키와 같은 파일이다
+#               (2026-11-20 파일 지문 대조). apk_build/android.keystore 는 다른 옛 키다 — 쓰지 않는다.
+#   비밀번호  : 깃허브 Settings → Secrets and variables → Actions 의 ANDROID_KEYSTORE_PASSWORD
+#               (키 비밀번호를 따로 정했으면 ANDROID_KEY_PASSWORD 도 — 없으면 위 값을 같이 쓴다)
+#   ⚠이 저장소는 공개 저장소인데 키 파일이 들어 있다(이 절차가 넣은 것이 아니다 — 전부터 있었다).
+#     키 파일을 저장소에서 빼기로 하면: 파일을 base64 글자로 바꿔 Secrets 의 ANDROID_KEYSTORE_BASE64 에 등록한다.
+#     그 값이 있으면 이 절차는 저장소 파일 대신 그것을 쓴다.
 #   비밀번호는 로그에 찍지 않는다(환경변수로만 넘긴다: -storepass:env). 키의 별칭(alias)은 키 파일에서 읽는다.
 #   android/app/build.gradle 에는 서명 설정을 넣지 않았다 — 서명 없는 번들을 만든 뒤 여기서 jarsigner 로 서명한다.
 #
@@ -24,6 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
+      KS_REPO_FILE: android/seagnal-release-key
       KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
       KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD || secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -41,16 +44,22 @@ jobs:
       - name: Check signing key (키·비밀번호 등록·일치 확인)
         id: key
         run: |
-          MISSING=""
-          test -n "$KS_B64"  || MISSING="$MISSING ANDROID_KEYSTORE_BASE64"
-          test -n "$KS_PASS" || MISSING="$MISSING ANDROID_KEYSTORE_PASSWORD"
-          if [ -n "$MISSING" ]; then
-            echo "::error::깃허브 Secrets 에 없는 값:$MISSING — Settings → Secrets and variables → Actions 에 등록한 뒤 다시 실행"
+          if [ -z "$KS_PASS" ]; then
+            echo "::error::깃허브 Secrets 에 ANDROID_KEYSTORE_PASSWORD 가 없다 — Settings → Secrets and variables → Actions 에 등록한 뒤 다시 실행"
             exit 1
           fi
           KS="$RUNNER_TEMP/release.keystore"
-          if ! printf '%s' "$KS_B64" | tr -d ' \r\n' | base64 -d > "$KS" 2>/dev/null || [ ! -s "$KS" ]; then
-            echo "::error::ANDROID_KEYSTORE_BASE64 를 키 파일로 되돌리지 못했다 — 붙여 넣다 잘렸을 수 있다(처음부터 끝까지 다시 복사해 등록)"
+          if [ -n "$KS_B64" ]; then
+            echo "키 파일: Secrets 의 ANDROID_KEYSTORE_BASE64"
+            if ! printf '%s' "$KS_B64" | tr -d ' \r\n' | base64 -d > "$KS" 2>/dev/null || [ ! -s "$KS" ]; then
+              echo "::error::ANDROID_KEYSTORE_BASE64 를 키 파일로 되돌리지 못했다 — 붙여 넣다 잘렸을 수 있다(처음부터 끝까지 다시 복사해 등록)"
+              exit 1
+            fi
+          elif [ -f "$KS_REPO_FILE" ]; then
+            echo "키 파일: 저장소의 $KS_REPO_FILE"
+            cp "$KS_REPO_FILE" "$KS"
+          else
+            echo "::error::키 파일이 없다 — 저장소에 $KS_REPO_FILE 도 없고 Secrets 에 ANDROID_KEYSTORE_BASE64 도 없다"
             exit 1
           fi
           if ! INFO=$(keytool -list -v -keystore "$KS" -storepass:env KS_PASS 2>&1); then
@@ -58,7 +67,7 @@ jobs:
             if echo "$INFO" | grep -q 'password was incorrect'; then
               echo "::error::키 파일을 못 열었다 — ANDROID_KEYSTORE_PASSWORD 가 맞지 않는다(다시 등록한 뒤 실행)"
             else
-              echo "::error::키 파일을 못 읽었다 — ANDROID_KEYSTORE_BASE64 가 잘렸거나 다른 글자가 섞였다(처음부터 끝까지 다시 복사해 등록)"
+              echo "::error::키 파일을 못 읽었다 — 키 파일이 깨졌다(ANDROID_KEYSTORE_BASE64 를 썼다면 잘렸거나 다른 글자가 섞였다)"
             fi
             exit 1
           fi

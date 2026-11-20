@@ -226,11 +226,12 @@
 3. Android Studio 에서 서명된 번들(AAB)을 만든다 — versionCode 15 · versionName 1.3.0 (이미 올려 뒀다).
    - ★**깃허브에서 만드는 길(2026-11-20 추가 — 사용자 요청 「깃허브에서 할 수 있도록 해줄래 ?」)**: GitHub → Actions → 「Build Release AAB (스토어용)」 → [Run workflow].
      끝나면 Artifacts 의 `seagnal-release-aab` 안에 서명된 `.aab` 가 있다. 위 2번(`npm install` → `cap sync`)과 병합 매니페스트 검사를 그 절차가 직접 한다.
-     - 서명에 쓰는 것은 전부 깃허브 Settings → Secrets and variables → Actions 에 등록한 값이다:
-       **`ANDROID_KEYSTORE_BASE64`**(릴리즈 키 파일 `seagnal-release-key` 를 base64 글자로 바꾼 것 — PKCS12 · alias `key0` · 2026-02-14 생성) ·
-       **`ANDROID_KEYSTORE_PASSWORD`**(그 키 파일의 비밀번호) · 선택 `ANDROID_KEY_PASSWORD`(키 비밀번호를 따로 정했을 때만).
-     - ★**키 파일을 저장소에 넣지 않는다 — 이 저장소는 공개 저장소다.** 저장소의 `apk_build/android.keystore`(2025-12-26 · alias `android`)는
-       **다른 옛 키**다. 처음에 그것이 릴리즈 키라고 보고 절차를 만들었는데, 등록된 비밀번호로 열리지 않았고(run #2) 사용자가 진짜 키 파일을 따로 줬다.
+     - 서명 키: 저장소의 **`android/seagnal-release-key`**(PKCS12 · alias `key0` · 2026-02-14 생성 — 사용자가 준 릴리즈 키와 같은 파일, 2026-11-20 지문 대조).
+       비밀번호는 깃허브 Settings → Secrets and variables → Actions 의 **`ANDROID_KEYSTORE_PASSWORD`** 에서만 읽는다(키 비밀번호를 따로 정했으면 `ANDROID_KEY_PASSWORD` 도).
+     - `apk_build/android.keystore`(2025-12-26 · alias `android`)는 **다른 옛 키**다. 처음에 확장자(.jks·.keystore)로만 찾아 이것을 릴리즈 키로 잘못 봤다
+       (등록된 비밀번호로 열리지 않아 run #2 에서 드러났다). 쓰지 않는다.
+     - ⚠**이 저장소는 공개 저장소인데 릴리즈 키 파일이 들어 있다**(전부터 있었다). 비밀번호가 유일한 방어선이다 — 저장소를 비공개로 돌리거나
+       키 파일을 빼는 것은 사용자 결정 사항. 빼기로 하면 파일을 base64 글자로 바꿔 Secrets 의 `ANDROID_KEYSTORE_BASE64` 에 등록한다(있으면 절차가 그것을 쓴다).
      - 절차가 맨 먼저 키와 비밀번호를 확인한다 — 없거나 틀리면 빌드 전에 멈추고 까닭을 적는다.
      - ⚠이 키가 **Play 에 등록된 업로드 키와 같은지는 저장소로는 알 수 없다.** Play 콘솔의 업로드 키 인증서 지문과 실행 로그의 「키 인증서 SHA-1」을 견준다.
        다르면 Play 가 올리기를 거부할 뿐이다(기존 앱·사용자에게는 영향 없음).
