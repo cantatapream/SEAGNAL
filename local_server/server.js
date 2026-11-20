@@ -560,6 +560,9 @@ app.listen(PORT, '0.0.0.0', () => {
         // 자동 반영 PR 의 조건부 자동 머지 — 검사를 기다리던 PR 의 확인 타이머를 되살린다(services/nariya_pr_merge.js, 2026-11-16 C).
         try { require('./services/nariya_pr_merge').start(); }
         catch (e) { console.error('[startup] AI 챗봇 PR 자동 머지 복원 실패:', e && e.message); }
+        // 브리핑 누적 오류 자동 처리 PR 도 같은 머지 담당(종류 briefing — 설계서 §11.10.59) — 검사를 기다리던 PR 의 확인 타이머를 되살린다.
+        try { require('./services/nariya_pr_merge').forBriefing().start(); }
+        catch (e) { console.error('[startup] 브리핑 오류 자동 처리 PR 자동 머지 복원 실패:', e && e.message); }
 
         // 해구별예측(소해구) 시정 캐시: 디스크 로드 + 런 변경 시에만 수집(자동 갱신).
         try {
