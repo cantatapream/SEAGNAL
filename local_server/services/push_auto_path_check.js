@@ -68,9 +68,10 @@ async function run(token, deps) {
                 adminToken: v.token,
             }),
         });
-        const j = await r.json().catch(() => ({}));
+        const j = await r.json().catch((e) => { console.warn('[auto-path-check] 특보 길 응답을 읽지 못했다:', e && e.message); return {}; });
         custom = { passed: r.status !== 401 && r.status !== 403, status: r.status, successCount: j.successCount || 0, failCount: j.failCount || 0, message: j.message || j.error || '' };
     } catch (e) {
+        console.warn('[auto-path-check] 특보 길 요청 실패:', e && e.message);
         custom = { passed: false, status: 0, message: '서버 자신에게 요청하지 못했다: ' + (e && e.message) };
     }
 
@@ -80,6 +81,7 @@ async function run(token, deps) {
         const r = await f(PUSH_TYPHOON_URL, { method: 'POST', headers: H, body: JSON.stringify({}) });
         typhoon = { passed: r.status === 400, status: r.status };
     } catch (e) {
+        console.warn('[auto-path-check] 태풍 길 요청 실패:', e && e.message);
         typhoon = { passed: false, status: 0, message: '서버 자신에게 요청하지 못했다: ' + (e && e.message) };
     }
 
