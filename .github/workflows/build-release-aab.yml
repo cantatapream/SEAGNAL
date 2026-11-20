@@ -151,7 +151,9 @@ jobs:
           # ★2026-11-20 필수로 선언된 기능이 하나라도 있으면 실패시킨다. 플러그인이 끼워 넣은 GPS 필수 선언 때문에
           #   Play 가 GPS 없는 기기(태블릿 35%·크롬북 전부)를 지원에서 뺐다(1.3.0/15 내부 테스트 경고). 매니페스트에서 required="false" 로 덮어썼다.
           #   정말로 필수인 기능이 생기면 이 검사를 그 기능만 허용하도록 고친다.
-          FEATURES=$(echo "$FLAT" | grep -o '<uses-feature[^>]*>' || true)
+          # 주석(<!-- … -->)을 먼저 걷어 낸다 — 소스 매니페스트의 설명 주석에 태그 글자가 그대로 들어 있어 주석을 태그로 세었다(run #46).
+          grep -n 'uses-feature\|location\.gps' "$M" || true
+          FEATURES=$(perl -0pe 's/<!--.*?-->//gs' "$M" | tr '\n' ' ' | grep -o '<uses-feature[^>]*>' || true)
           echo "${FEATURES:-(없음)}"
           if echo "$FEATURES" | grep -v '^$' | grep -v 'android:required="false"'; then
             echo "::error::필수(required)로 선언된 기기 기능이 있다 — 그 기능이 없는 기기는 Play 에서 업데이트를 못 받는다"; exit 1
