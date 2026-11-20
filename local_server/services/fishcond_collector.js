@@ -22,7 +22,9 @@
  * [연계]
  *  - 사용하는 파일 : services/bulletin_docs(convertPdf — 기상특보 원문과 같은 크기·같은 변환기) · services/atomic_write
  *  - 바깥          : https://www.nifs.go.kr/board/actionBoard0014List.do (목록) · /cmmnFile/fileDownloadStat.do?FILE_ID=… (PDF)
- *  - 저장          : data/fishcond/index.json · state.json · <글ID>.pdf · <글ID>-<쪽>.png
+ *  - 저장          : data/fishcond/index.json · state.json · views.json(조회 수) · <글ID>.pdf · <글ID>-<쪽>.png
+ *  조회 수(2026-11-21 사용자 「날짜 왼쪽에 조회 눈 붙이고」): 팝업을 열 때마다 1 — 공지 게시글 조회수와 같은 규칙(관리자 기기는 같은 글을 하루 1번만).
+ *   index.json 과 따로 둔다 — 1시간 확인(run)이 index.json 을 읽고 쓰는 사이에 들어온 조회가 덮여 사라지지 않게.
  *  - 나를 쓰는 곳  : server.js(운영에서만 start) · routes/fishcond.js(목록·그림·PDF 내려주기) · 검사 scripts/test_fishcond_collector.js
  * [로드 순서] 없음(서버 모듈)
  * ============================================================================
@@ -113,7 +115,7 @@ async function realFetchPdf(url) {
  */
 function createFishcond({ dir = DIR, fetchText = realFetchText, fetchPdf = realFetchPdf, convert = null, now = Date.now } = {}) {
     const doConvert = convert || ((pdf, prefix) => require('./bulletin_docs').convertPdf(pdf, prefix));
-    const indexFile = path.join(dir, 'index.json'), stateFile = path.join(dir, 'state.json');
+    const indexFile = path.join(dir, 'index.json'), stateFile = path.join(dir, 'state.json'), viewsFile = path.join(dir, 'views.json');
     let running = null, timer = null;
     const ls = () => { try { return fs.readdirSync(dir); } catch (_) { return []; } };
     const readJson = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (_) { return d; } };
@@ -189,11 +191,15 @@ function createFishcond({ dir = DIR, fetchText = realFetchText, fetchPdf = realF
                 st.removed = index.length - keep.length;
                 const ids = new Set(keep.map((e) => e.id));
                 for (const f of ls()) {
-                    if (f === 'index.json' || f === 'state.json' || f.endsWith('.tmp')) continue;
+                    if (f === 'index.json' || f === 'state.json' || f === 'views.json' || f.endsWith('.tmp')) continue;
                     const m = f.match(/^(\d{17}[A-Z]{3})(?:\.pdf|(?:\.part)?-\d+\.png)$/);
                     if (m && !ids.has(m[1])) { try { fs.unlinkSync(path.join(dir, f)); } catch (_) { /* 이미 없다 */ } }
                 }
                 keep.sort((a, b) => (b.date + b.id).localeCompare(a.date + a.id));
+                // 지운 글의 조회 수도 뺀다(읽고 쓰기를 한 번에 — 그 사이에 다른 일이 끼지 않는다)
+                const vw = readViews(); let cut = false;
+                for (const k of Object.keys(vw.count)) if (!ids.has(k)) { delete vw.count[k]; delete vw.adminDay[k]; cut = true; }
+                if (cut) writeFileAtomic(viewsFile, JSON.stringify(vw));
                 writeFileAtomic(indexFile, JSON.stringify(keep, null, 1));
                 st.total = keep.length;
                 st.ready = keep.filter((e) => e.status === 'ok').length;
@@ -210,9 +216,27 @@ function createFishcond({ dir = DIR, fetchText = realFetchText, fetchPdf = realF
         return running;
     }
 
-    /** 앱에 보일 목록(최신순). 예: list() → [{ id, title, dept, date, sea, pages, status, sourceUrl }] */
+    const readViews = () => { const v = readJson(viewsFile, null) || {}; return { count: v.count || {}, adminDay: v.adminDay || {} }; };
+    /** 앱에 보일 목록(최신순). 예: list() → [{ id, title, dept, date, sea, pages, status, views, sourceUrl }] */
     function list() {
-        return readIndex().map((e) => ({ id: e.id, title: e.title, dept: e.dept, date: e.date, sea: e.sea, pages: e.pages || 0, status: e.status, fileName: e.fileName, sourceUrl: VIEW_URL + e.id }));
+        const vw = readViews().count;
+        return readIndex().map((e) => ({ id: e.id, title: e.title, dept: e.dept, date: e.date, sea: e.sea, pages: e.pages || 0, status: e.status, fileName: e.fileName, views: vw[e.id] || 0, sourceUrl: VIEW_URL + e.id }));
+    }
+    /**
+     * 조회 수를 1 올린다(없는 글이면 무시). 관리자 기기는 같은 글을 하루(KST) 1번만 센다 — 공지 게시글(routes/content.js GET /api/promo/:id)과 같은 규칙.
+     * 예: hit('20261120132915271ZVR') → 7 · hit(같은 ID, true) 를 같은 날 두 번 → 두 번째는 그대로
+     * @param {string} id @param {boolean} [isAdmin] @returns {number|null} 지금 조회 수(없는 글이면 null)
+     * [연계] ← routes/fishcond.js GET /api/fishcond/:id/view(팝업이 여는 보기 페이지)
+     */
+    function hit(id, isAdmin) {
+        id = String(id || '');
+        if (!ID_RE.test(id) || !readIndex().some((e) => e.id === id)) return null;
+        const vw = readViews(), day = kstDate(now());
+        if (isAdmin && vw.adminDay[id] === day) return vw.count[id] || 0;
+        vw.count[id] = (vw.count[id] || 0) + 1;
+        if (isAdmin) vw.adminDay[id] = day;
+        try { fs.mkdirSync(dir, { recursive: true }); writeFileAtomic(viewsFile, JSON.stringify(vw)); } catch (_) { /* 조회 수를 못 써도 보기는 막지 않는다 */ }
+        return vw.count[id];
     }
     /** 글 하나(없으면 null). */
     function get(id) { return list().find((e) => e.id === String(id)) || null; }
@@ -242,7 +266,7 @@ function createFishcond({ dir = DIR, fetchText = realFetchText, fetchPdf = realF
         timer.unref();
         return true;
     }
-    return { run, list, get, file, state, start };
+    return { run, list, get, file, state, start, hit };
 }
 
 let real = null;
@@ -254,6 +278,7 @@ module.exports = {
     get: (id) => getReal().get(id),
     file: (id, w) => getReal().file(id, w),
     state: () => getReal().state(),
+    hit: (id, admin) => getReal().hit(id, admin),
     start: () => getReal().start(),
     createFishcond, parseList, seaOf, kstDate, ID_RE, KEEP_DAYS, BACKFILL_DAYS, LIST_URL, VIEW_URL,
 };

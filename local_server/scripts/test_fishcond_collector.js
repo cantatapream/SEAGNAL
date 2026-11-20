@@ -134,6 +134,28 @@ const mk = (f, dir) => F.createFishcond({ dir, fetchText: f.fetchText, fetchPdf:
         ok('딱 30일째는 남긴다', c4.list().length === 1 && s.removed === 0, { s, l: c4.list() });
     }
 
+    console.log('⑦-2 조회 수 — 열 때마다 1, 관리자는 하루 1번, 지운 글은 빠짐');
+    {
+        const g = fake(), d5 = tmp(), c5 = mk(g, d5);
+        g.html = page([row(IDS.a, '서해', '부서', '2026-11-20', 'DX5-1-1', 'a.pdf'), row(IDS.d, '전국', '부서', '2026-11-19', 'DX5-2-1', 'd.pdf')]); g.pdf = { 'DX5-1-1': 1, 'DX5-2-1': 1 };
+        await c5.run();
+        ok('처음엔 0', c5.list().every((e) => e.views === 0), c5.list());
+        c5.hit(IDS.a); c5.hit(IDS.a); const r = c5.hit(IDS.a);
+        ok('일반 조회는 매번 1(3번 → 3)', r === 3 && c5.get(IDS.a).views === 3);
+        c5.hit(IDS.d, true); c5.hit(IDS.d, true);
+        ok('관리자는 같은 날 두 번 열어도 1', c5.get(IDS.d).views === 1);
+        g.clock += DAY; c5.hit(IDS.d, true);
+        ok('다음 날 관리자 조회는 다시 1', c5.get(IDS.d).views === 2);
+        ok('없는 글·꼴이 아닌 ID 는 null', c5.hit(IDS.b) === null && c5.hit('../x') === null);
+        const n0 = c5.get(IDS.a).views; await c5.run();
+        ok('1시간 확인(run)이 조회 수를 덮지 않는다', c5.get(IDS.a).views === n0);
+        g.clock = Date.parse('2026-12-20T00:30:00Z');   // 11-19 글만 30일 넘김(31일)
+        g.html = page([]); await c5.run();
+        const vw = JSON.parse(fs.readFileSync(path.join(d5, 'views.json'), 'utf8'));
+        ok('지운 글의 조회 수는 views.json 에서도 빠진다', vw.count[IDS.d] === undefined && vw.count[IDS.a] === 3, vw);
+        ok('views.json 은 찌꺼기로 지우지 않는다', fs.existsSync(path.join(d5, 'views.json')));
+    }
+
     console.log('⑧ 연결(글자 확인)');
     const root = path.join(__dirname, '..');
     const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
@@ -142,6 +164,7 @@ const mk = (f, dir) => F.createFishcond({ dir, fetchText: f.fetchText, fetchPdf:
     const route = fs.readFileSync(path.join(root, 'routes', 'fishcond.js'), 'utf8');
     ok('라우트: 목록·보기·쪽·PDF', ['/api/fishcond\'', '/api/fishcond/:id/view', '/api/fishcond/:id/page/:n', '/api/fishcond/:id/pdf'].every((s) => route.includes(s)));
     ok('라우트: PDF 는 첨부 + 한글 이름(filename*)', route.includes("attachment; filename=\"") && route.includes("filename*=UTF-8"));
+    ok('라우트: 보기 페이지가 조회 수를 센다(관리자 ?admin=true)', route.includes("fc().hit(id, req.query.admin === 'true')"));
     ok('bulletin_docs: convertPdf 를 내보낸다', typeof require('../services/bulletin_docs').convertPdf === 'function');
     ok('운영이 아니면 start 하지 않는다', (() => { const was = process.env.FLY_ALLOC_ID; delete process.env.FLY_ALLOC_ID; const r = mk(fake(), tmp()).start(); if (was) process.env.FLY_ALLOC_ID = was; return r === false; })());
 
