@@ -16,11 +16,14 @@
  *  ③ 법령 카드의 `raw/*` 경로를 펼쳐서 본다
  *  ④ 이름바뀜의심 카드는 후보 번호로 본다
  *  ⑤ 파일이 둘인 카드는 둘 다 새 판이어야 고른다 · 파일이 없거나 번호가 없는 카드·닫힌 카드는 안 고른다
+ *  ⑤-2 기다리는 번호를 카드가 이미 갖고 있었으면(법령 「번호 같고 시행일만 뒤짐」) 안 고른다(독립 검토 M4)
  *  ⑥ 운영이 아니면 아무것도 안 한다(점검·푸시 없음)
- *  ⑦ 고른 카드가 있으면 점검을 1회 돌리고, 닫힌 수·남은 수를 푸시한다
- *  ⑧ 점검이 실패하면 기록하지 않아 다음 시작 때 다시 돈다 · 성공하면 같은 카드로는 다시 안 돈다
+ *  ⑦ 고른 카드가 있으면 점검을 1회 돌리고, 닫힌 수·남은 수를 푸시한다 · 점검 동안 세션 깨우기를 붙들었다 푼다
+ *  ⑧ 점검이 실패해도 기록해 같은 카드로 되풀이하지 않는다(검토 M3) · 성공한 뒤에도 같은 카드로는 다시 안 돈다
+ *  ⑧-2 일부 점검만 실패했으면 푸시에 그 사실을 적는다(검토 L1)
  *  ⑨ 고른 카드가 없으면 점검도 푸시도 없다
- *  ⑩ server.js 가 켜질 때 부르는 배선이 살아 있다
+ *  ⑩ server.js 배선 — 켜질 때 부른다 · 새벽 점검은 세션 보류 **전에** waitIdle() 로 앞선 점검을 기다린다(검토 M1)
+ *  ⑪ waitIdle() 은 도는 점검이 없으면 곧바로 끝난다
  *
  * [연계]
  * - services/admrul_fresh_scanner.js → fixedOnDisk() · rescanIfFixesDeployed()
@@ -81,6 +84,7 @@ const card = (id, serial, files, extra) => Object.assign({ id, title: id, status
     card('f_gone', '2100000999001', ['raw/10_a/법A/행정규칙/없는파일.txt']),
     card('g_noser', '', ['raw/10_a/법A/행정규칙/새판.txt']),
     card('h_done', '2100000999001', ['raw/10_a/법A/행정규칙/새판.txt'], { status: 'done' }),
+    card('i_sameno', '291999', ['raw/*/수산법/법률.txt'], { tier: '법률', held_ids: ['291999'] }),
   ]);
   const got = new Set(fresh.fixedOnDisk(q, root));
   check('① 새 판 번호가 파일에 있으면 고른다', got.has('a_new'));
@@ -92,34 +96,61 @@ const card = (id, serial, files, extra) => Object.assign({ id, title: id, status
   check('⑤ 파일이 없는 카드는 안 고른다', !got.has('f_gone'));
   check('⑤ 기다리는 번호가 없는 카드는 안 고른다', !got.has('g_noser'));
   check('⑤ 이미 닫힌 카드는 안 고른다', !got.has('h_done'));
+  check('⑤-2 카드가 이미 갖고 있던 번호(번호 같고 시행일만 뒤짐)면 안 고른다', !got.has('i_sameno'));
 
   // ⑥~⑨ rescanIfFixesDeployed — 가짜 점검·가짜 푸시로 바꿔 끼운다
   const stateFile = path.join(dir, 'rescan.json');
   let scans = 0; const pushes = [];
   const push = async (t, b, d) => { pushes.push({ t, b, d }); };
+  const holds = [];
+  const autorun = { setHold: (on) => { holds.push(on); } };
   const closeA = async () => { scans++; queues.updateJsonlById(q, 'a_new', { status: 'done', auto_closed: true }); return { ok: true }; };
 
-  let r = await fresh.rescanIfFixesDeployed({ queueFile: q, root, stateFile, prod: false, scan: closeA, push });
-  check('⑥ 운영이 아니면 점검도 푸시도 없다', !r.started && scans === 0 && pushes.length === 0, JSON.stringify(r));
+  let r = await fresh.rescanIfFixesDeployed({ queueFile: q, root, stateFile, prod: false, scan: closeA, push, autorun });
+  check('⑥ 운영이 아니면 점검도 푸시도 없다', !r.started && scans === 0 && pushes.length === 0 && holds.length === 0, JSON.stringify(r));
 
-  r = await fresh.rescanIfFixesDeployed({ queueFile: q, root, stateFile, prod: true, scan: async () => { scans++; return { ok: false, error: '응답없음' }; }, push });
-  check('⑧ 점검이 실패하면 기록하지 않는다', r.started && r.ok === false && !fs.existsSync(stateFile) && pushes.length === 0, JSON.stringify(r));
-
-  r = await fresh.rescanIfFixesDeployed({ queueFile: q, root, stateFile, prod: true, scan: closeA, push });
-  check('⑦ 고른 카드가 있으면 점검을 1회 돌린다', r.started && r.ok && scans === 2, JSON.stringify(r));
+  r = await fresh.rescanIfFixesDeployed({ queueFile: q, root, stateFile, prod: true, scan: closeA, push, autorun });
+  check('⑦ 고른 카드가 있으면 점검을 1회 돌린다', r.started && r.ok && scans === 1, JSON.stringify(r));
   check('⑦ 닫힌 수·남은 수를 센다(a_new 만 닫힘 → 닫힘 1 · 남음 3)', r.closed === 1 && r.left === 3, JSON.stringify(r));
   check('⑦ 결과를 관리자 푸시로 알린다', pushes.length === 1 && /닫힘 1건/.test(pushes[0].b) && /아직 대기 3건/.test(pushes[0].b)
-    && pushes[0].d.type === 'admrul_fresh_rescan', JSON.stringify(pushes));
+    && !/일부 점검/.test(pushes[0].b) && pushes[0].d.type === 'admrul_fresh_rescan', JSON.stringify(pushes));
+  check('⑦ 점검 동안 세션 깨우기를 붙들었다가 푼다', JSON.stringify(holds) === '[true,false]', JSON.stringify(holds));
 
-  r = await fresh.rescanIfFixesDeployed({ queueFile: q, root, stateFile, prod: true, scan: closeA, push });
-  check('⑧ 성공한 뒤에는 같은 카드로 다시 돌리지 않는다', !r.started && scans === 2 && pushes.length === 1, JSON.stringify(r));
+  r = await fresh.rescanIfFixesDeployed({ queueFile: q, root, stateFile, prod: true, scan: closeA, push, autorun });
+  check('⑧ 성공한 뒤에는 같은 카드로 다시 돌리지 않는다', !r.started && scans === 1 && pushes.length === 1, JSON.stringify(r));
+
+  // 실패하는 점검 — 기록은 남기고(되풀이 방지) 푸시는 점검기 몫이라 여기서는 안 보낸다
+  const d3 = fs.mkdtempSync(path.join(os.tmpdir(), 'rescan3-'));
+  const q3 = queue(d3, [card('y_new', '2100000999001', ['raw/10_a/법A/행정규칙/새판.txt'])]);
+  const s3 = path.join(d3, 's3.json');
+  const failScan = async () => { scans++; return { ok: false, error: '응답없음' }; };
+  r = await fresh.rescanIfFixesDeployed({ queueFile: q3, root, stateFile: s3, prod: true, scan: failScan, push, autorun });
+  const r2 = await fresh.rescanIfFixesDeployed({ queueFile: q3, root, stateFile: s3, prod: true, scan: failScan, push, autorun });
+  check('⑧ 점검이 실패해도 기록해 같은 카드로 되풀이하지 않는다', r.started && r.ok === false && !r2.started && scans === 2 && pushes.length === 1,
+    JSON.stringify([r, r2]));
+  check('⑧ 실패해도 세션 깨우기 보류는 푼다', holds[holds.length - 1] === false, JSON.stringify(holds));
+
+  // 일부만 실패한 점검 — 푸시에 적는다
+  const d4 = fs.mkdtempSync(path.join(os.tmpdir(), 'rescan4-'));
+  const q4 = queue(d4, [card('z_new', '2100000999001', ['raw/10_a/법A/행정규칙/새판.txt'])]);
+  r = await fresh.rescanIfFixesDeployed({ queueFile: q4, root, stateFile: path.join(d4, 's.json'), prod: true, push, autorun,
+    scan: async () => ({ ok: true, partialError: '행정규칙: 653건을 하나도 확인하지 못했다' }) });
+  check('⑧-2 일부 점검만 실패했으면 푸시에 적는다', r.ok && /일부 점검은 확인하지 못했습니다/.test(pushes[pushes.length - 1].b), JSON.stringify(pushes[pushes.length - 1]));
 
   const q2 = queue(fs.mkdtempSync(path.join(os.tmpdir(), 'rescan2-')), [card('x_old', '2100000999009', ['raw/10_a/법A/행정규칙/옛판.txt'])]);
-  r = await fresh.rescanIfFixesDeployed({ queueFile: q2, root, stateFile: path.join(dir, 's2.json'), prod: true, scan: closeA, push });
-  check('⑨ 고른 카드가 없으면 점검도 푸시도 없다', !r.started && scans === 2 && pushes.length === 1, JSON.stringify(r));
+  const before = pushes.length;
+  r = await fresh.rescanIfFixesDeployed({ queueFile: q2, root, stateFile: path.join(dir, 's2.json'), prod: true, scan: closeA, push, autorun });
+  check('⑨ 고른 카드가 없으면 점검도 푸시도 없다', !r.started && pushes.length === before, JSON.stringify(r));
 
   const server = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
   check('⑩ server.js 가 켜질 때 rescanIfFixesDeployed() 를 부른다', /admrul_fresh_scanner'\)\.rescanIfFixesDeployed\(\)/.test(server));
+  const night = server.slice(server.indexOf('async function runNariyaNightly'));
+  const iWait = night.indexOf('.waitIdle()'), iHold = night.indexOf('ar.setHold(true)');
+  check('⑩ 새벽 점검은 세션 보류 전에 waitIdle() 로 앞선 점검을 기다린다', iWait > 0 && iHold > iWait, `waitIdle@${iWait} setHold@${iHold}`);
+
+  const t0 = Date.now();
+  await fresh.waitIdle();
+  check('⑪ 도는 점검이 없으면 waitIdle() 은 곧바로 끝난다', Date.now() - t0 < 1000);
 
   console.log(`\n${fail ? '❌' : '✅'} test_fresh_rescan_on_deploy — ${pass} PASS / ${fail} FAIL`);
   process.exit(fail ? 1 : 0);
