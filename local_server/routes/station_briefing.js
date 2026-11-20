@@ -166,11 +166,11 @@ function createRouter({
     // 「오류 자동 처리」 칸(§11.10.59 — 관리자만): 마지막 세션 검사·최근 기록·PR(머지 버튼). 열 때마다 열린 PR 을 GitHub 에서 다시 읽는다(실패해도 기록은 준다).
     router.get(admin + '/autofix', async (req, res) => {
         try { try { await af().refresh(); } catch (e) { console.error('[station_briefing] 자동 처리 PR 새로 읽기 실패(기록만 줌):', e && e.message); } res.set('Cache-Control', 'no-store').json({ ok: true, ...af().status() }); }
-        catch (e) { fail(res, e); }
+        catch (e) { console.error('[station_briefing] 자동 처리 칸 읽기 실패:', e && e.message); fail(res, e); }
     });
     router.post(admin + '/autofix/prs/:n/merge', async (req, res) => {
         try { const n = Number(req.params.n), r = await af().mergeNow(Number.isInteger(n) ? n : -1, '관리자(앱)'); res.set('Cache-Control', 'no-store').status(r.ok ? 200 : (r.status || 409)).json(r); }
-        catch (e) { fail(res, e); }
+        catch (e) { console.error('[station_briefing] 자동 처리 PR 머지 버튼 실패:', e && e.message); fail(res, e); }
     });
     router.post(admin + '/autofix/prs/:n/dismiss', (req, res) => {
         try { const n = Number(req.params.n), r = af().dismiss(Number.isInteger(n) ? n : -1); res.set('Cache-Control', 'no-store').status(r.ok ? 200 : (r.status || 409)).json(r); }
