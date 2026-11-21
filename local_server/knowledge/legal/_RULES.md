@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 168 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 174 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -419,6 +419,8 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_bulletin_ai_trial` | 참고사항 AI 시험(services/bulletin_ai_trial) · 관리자 창구(routes/bulletin_watch) · 「통보문 관찰」 탭(client/js/admin/admin_bull… |
 | `test_bulletin_status` | 통보문 기준 특보현황(services/bulletin_status) 검사. |
 | `test_bulletin_docs` | 통보문 원문 보관(services/bulletin_docs) 검사 — 발자취에 든 통보문의 PDF 를 받아 쪽 그림으로 바꿔 두고, |
+| `test_fishcond_collector` | 어황정보 수집기(services/fishcond_collector) 검사 — 게시판 목록 읽기, 최근 1주치만 더하기, PDF 받기·쪽 그림 만들기, |
+| `test_news_collector` | 오늘의 뉴스(services/news_collector · services/news_judge) 검사 — 모으기·겹침 지우기·확실한 것만 거르기·AI 판정·같은 사건 묶기· |
 | `test_bulletin_escalation` | 격상 가능성(services/bulletin_escalation) 검사 — 통보문 참고사항·날씨해설에서 「풍랑경보로 변경될 가능성」「태풍특보로 변경될 가능성」의 |
 | `test_regional_sea_summary` | 지방청 단기 전망 「해상 기상 요약」 검사 — 바다 항목 뽑기(규칙) · AI 답의 원문 대조(check) · 요약 흐름(없음/요약됨/원문 그대로) · |
 | `test_regional_sea_ui` | 「지방기상청 단기 전망」 칸(2026-11-19 종전 「종합 예보」 칸 + 지방청 카드를 한 단계로)의 모양을 실제 Chromium 으로 index2.html 전체를 띄워 본다(2026-11-19 … |
@@ -432,6 +434,10 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_promo_youtube_shorts` | 2026-11-19: 게시글 편집기 「동영상」(필름 모양) 버튼에 쇼츠 주소를 넣으면 Quill 1.3.6 이 |
 | `test_promo_detail_ui` | 공지사항 게시글 상세 팝업의 새 모양(2026-11-19 사용자 확정 시안)을 실제 Chromium 으로 index2.html 전체를 띄워 본다. |
 | `test_promo_detail_keyboard` | 2026-11-19 사용자 지적: 게시글 상세에서 댓글 입력창을 누르면 머리(제목)가 위로 밀려 올라가고 본문이 |
+| `test_news_hub_ui` | 「뉴스·공지·어황」 탭(2026-11-21)을 실제 Chromium 으로 index2.html 전체를 띄워 본다 — |
+| `test_news_admin` | 「뉴스·공지·어황」 관리자(2026-11-21 시안 8-1 A·8-2·8-3) 검사 — |
+| `test_news_hub_ui` | 「뉴스·공지·어황」 탭(2026-11-21)을 실제 Chromium 으로 index2.html 전체를 띄워 본다 — |
+| `test_news_admin` | 「뉴스·공지·어황」 관리자(2026-11-21 시안 8-1 A·8-2·8-3) 검사 — |
 | `test_location_alert_exposure` | 위치기반 「노출 범위」(일반 공개/관리자만/모두 비노출) 검증 |
 | `test_inapp_update_flow` | 앱 안 업데이트(유연형) 화면 흐름 검증 |
 | `test_push_device_test` | 「직접 발송」의 "이 휴대폰에만 보내기(시험)" 검증 |

@@ -3,7 +3,7 @@
  * 파일명: js/admin/admin_bulletin_ai.js
  * 역할  : 통합관리자 → AI 탭 → 하위 탭 「AI 모델 설정」(2026-11-16 이름 바꿈 — 종전 「AI 특보 분석」).
  *         맨 위 「AI 챗봇 모델」 = AI 챗봇 답변 AI 순서·일반 사용자 적용·ChatGPT 실행 위치(ai_chat.js renderModelSettingsInto — 종전 자리는 AI 챗봇 → 🤖 AI 모델).
- *         그 아래 「AI 특보 분석」 = 기능마다(① 특보 통보문 읽기 · ② 참고사항 해석 · ③ 해상 기상 전망 색칠 · ④ 연안 안전 브리핑) AI 우선순위.
+ *         그 아래 「AI 특보 분석」 = 기능마다(① 특보 통보문 읽기 · ② 참고사항 해석 · ③ 해상 기상 전망 색칠 · ④ 연안 안전 브리핑 · ⑤ 격상 가능성 · ⑥ 해상 기상 요약 · ⑦ 오늘의 뉴스 판정) AI 우선순위.
  *         ④ 연안 안전 브리핑(2026-11-16 사용자 「ai 모델 선택 및 설정 부분은 … ① 특보 통보문 읽기에 해당하는 리스트와 같이 디자인을 수정해줘. 그리고 그 탭으로 넣어줘」 ·
  *           다시 시도 「(나)」 · 처음 순서 「클로드 2번, 클로드 1번, 업스테이지, gpt, gemini」): 칸마다 시도 횟수(1~3번)·Gemini 모델(브리핑만)까지 고르고,
  *           맨 아래 「규칙 분석」(고정) 줄. 「AI 분석」 켜기/끄기는 AI 브리핑 탭(설계서 §11.10.51).
@@ -40,6 +40,8 @@
         // 2026-11-19 사용자 「관리자페이지에서 어떤 ai 쓸건지 결정하는 부분도 ui 만들어야」 — 서버 services/bulletin_escalation.js
         escalation: ['⑤ 격상 가능성 읽기', '통보문 참고사항·기상청 날씨해설(본청 단기·초단기 전망)의 「풍랑경보로 변경될 가능성」「태풍특보로 변경될 가능성」 문장 가운데 규칙이 해역·시점을 읽지 못한 것만 묻습니다(메인 화면 특보구역 카드의 🔺 표시). AI 답은 그 문장에 글자 그대로 있는 해역일 때만 쓰입니다.'],
         // 2026-11-19 사용자 「2.순서 - 전용칸 6」 — 서버 services/regional_sea_summary.js
+        // 2026-11-21 사용자 「Ai를 통합관리자센터에 있는거처럼 선택할수있도록 해줘. Ai모델선택하는것」 — 서버 services/news_judge.js(오늘의 뉴스)
+        news: ['⑦ 오늘의 뉴스 판정', '「뉴스·공지·어황」 탭의 오늘의 뉴스 — 매시 모은 기사가 해양종사자(어업인·양식·낚시·레저·해양경찰관 등)에게 영향이 있는지 판정하고, 분류·지역·요약을 만듭니다. 같은 사건은 하나로 묶습니다. 답이 기사 내용과 맞지 않으면 버리고 다음 순위로 넘어갑니다.'],
         seasummary: ['⑥ 해상 기상 요약', '메인 화면 지방청 단기 전망 카드의 「해상 기상 요약」 상자를 만듭니다(바다 얘기만 — 해역별 바람·물결과 너울·안개·조고·특보 가능성 등). 답의 숫자·해역 이름이 원문에 없으면 그 답은 버리고 다음 순위로 넘어가며, 끝까지 안 되면 원문의 바다 항목을 그대로 보입니다. 바다 얘기가 없는 글에는 AI 를 부르지 않습니다.'],
     };
     var RUNNER = { fly: 'Fly 서버', vm: 'VM' };
@@ -85,7 +87,7 @@
         var tryBtn = btn('시험 호출', function () { tryModel(gsel.value || (ch.gemma.tryModels && ch.gemma.tryModels[0]) || '', out); });   // 지금 화면에 고른 값(안 골랐으면 기본 Gemini 모델 — 그 모델이 아직 불리는지 볼 때)
         tryBtn.setAttribute('data-bai-try', f);
         row.appendChild(tryBtn);
-        var act = f === 'seasummary' ? '요약' : '색칠';   // ③ 은 색칠, ⑥ 은 요약
+        var act = f === 'seasummary' ? '요약' : f === 'news' ? '판정' : '색칠';   // ③ 은 색칠, ⑥ 은 요약, ⑦ 은 판정
         row.appendChild(el('div', 'flex-basis:100%;font-size:0.75rem;color:#94a3b8', 'Gemma 가 ' + act + '하지 못하면(오류·한도 초과·수요 과다·못 쓰는 답) 아래 순서대로 이어서 부릅니다.'));
         // 마지막 Gemma 결과 — 날짜·시각과 서버를 올린 뒤 누적 횟수를 함께(「마지막 한 번」만 보이면 절반이 실패해도 초록으로 보인다). 기록은 서버 메모리에만 있다.
         var last = state.gemma && state.gemma[f];
@@ -271,7 +273,7 @@
         if (!box || !document.body.contains(box)) return;   // 다른 하위 탭으로 바뀜 — 그리지 않는다
         host = box;
         host.innerHTML = '';
-        var title = el('div', 'font-weight:800;color:#e2e8f0;font-size:1rem;margin-bottom:4px', '기능별 AI 우선순위 — 특보 분석 · 연안 안전 브리핑');
+        var title = el('div', 'font-weight:800;color:#e2e8f0;font-size:1rem;margin-bottom:4px', '기능별 AI 우선순위 — 특보 분석 · 연안 안전 브리핑 · 오늘의 뉴스');
         host.appendChild(title);
         host.appendChild(el('div', 'color:#94a3b8;font-size:0.8rem;margin-bottom:12px', '위에서부터 시도하고, 실패하거나 쓸 수 없으면(키 없음·소진·작업자 연결 없음) 다음 순위로 넘어갑니다. 바꾸면 바로 저장됩니다.'));
         if (err) host.appendChild(el('div', 'color:#fca5a5;margin-bottom:10px', err));
@@ -282,6 +284,7 @@
         if (state.config.briefing) drawFeature(host, 'briefing');   // ④ — 옛 서버(briefing 없음)면 그리지 않는다
         if (state.config.escalation) drawFeature(host, 'escalation');   // ⑤ — 옛 서버면 그리지 않는다
         if (state.config.seasummary) drawFeature(host, 'seasummary');   // ⑥ — 옛 서버면 그리지 않는다
+        if (state.config.news) drawFeature(host, 'news');   // ⑦ 오늘의 뉴스 판정(2026-11-21) — 옛 서버면 그리지 않는다
     }
 
     /**

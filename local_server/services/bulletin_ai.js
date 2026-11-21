@@ -3,7 +3,7 @@
  * ============================================================================
  * 파일명: local_server/services/bulletin_ai.js
  * 역할  : 「AI 모델 설정」(종전 「AI 특보 분석」) — 기능마다(① read = 특보 통보문 읽기, ② interpret = 참고사항 해석, ③ forecast = 해상 기상 전망 색칠, ④ briefing = 연안 안전 브리핑,
- *         ⑤ escalation = 격상 가능성 읽기, ⑥ seasummary = 지방청 전망의 해상 기상 요약) AI 우선순위를 두고
+ *         ⑤ escalation = 격상 가능성 읽기, ⑥ seasummary = 지방청 전망의 해상 기상 요약, ⑦ news = 오늘의 뉴스 판정) AI 우선순위를 두고
  *         그 순서대로 시도한다(1순위가 실패하면 2순위 …). 칸마다 모델·노력, ChatGPT 칸은 실행 위치(Fly 서버|VM)까지 고른다.
  * 사용자 확정(2026-11-15):
  *   「ai 탭에서 ai 브리핑오른쪽에 특보분석 탭을만들고 기상청 통보문도 읽는 모델을 선택, gpt(vm 또는 fly)를 선택하는 모델을 선택, 통보문을 해석하는 모델 각각을 선택」
@@ -33,6 +33,9 @@
  *   · 순서는 「전용칸 6」): 지방청 단기 전망의 바다 항목(○ (해상)·(너울)·(조고)…)을 해역별 줄 + 종류별 한 줄로 줄인다(services/regional_sea_summary).
  *   「먼저 Gemma」가 처음부터 켜져 있다(gemma-4-26b-a4b-it — 저장한 적이 없을 때만. 「쓰지 않음」으로 저장하면 그대로 꺼진다). 안 되면 ⑥ 에 정해 둔 순서(기본 Gemini 만).
  *   어느 AI 의 답이든 부르는 쪽 검사(accept — 답의 숫자·해역 이름이 원문에 있는가)에 걸리면 못 쓰는 답으로 쳐 다음 AI 로 넘긴다.
+ * ⑦ news(2026-11-21 사용자 「Ai를 통합관리자센터에 있는거처럼 선택할수있도록 해줘. Ai모델선택하는것」): 「뉴스·공지·어황」 탭 오늘의 뉴스 — 매시 모은 기사가
+ *   해양종사자에게 영향이 있는지 판정·분류·요약한다(services/news_judge — 설계 client/js/notice/news_hub.design.md). ⑥ 과 같이 「먼저 Gemma」(무료)를 처음부터 켜 두고
+ *   (GEMMA_DEFAULT), 안 되면 ⑦ 에 정해 둔 순서(기본 Gemini 만 — 다른 AI 는 관리자가 「다시 추가」 해야 크레딧을 쓴다). 답 검사(accept)는 부르는 쪽이 한다.
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : services/llm_chain(검사·선택지·callDirect) · services/codex_bridge(ChatGPT 줄, runner 지정) ·
@@ -61,6 +64,8 @@ const FEATURES = {
     escalation: { name: '격상 가능성 읽기', order: ['gemini', 'claude2', 'claude1', 'upstage', 'chatgpt'], removed: ['claude2', 'claude1', 'upstage', 'chatgpt'] },
     // ⑥ 도 순서 기본은 Gemini 만(①③⑤ 와 같은 까닭). 「먼저 Gemma」는 처음부터 켜 둔다(GEMMA_DEFAULT — 사용자 「이 작업은 젬마가 진행하도록」).
     seasummary: { name: '해상 기상 요약', order: ['gemini', 'claude2', 'claude1', 'upstage', 'chatgpt'], removed: ['claude2', 'claude1', 'upstage', 'chatgpt'] },
+    // ⑦ 도 순서 기본은 Gemini 만(①③⑤⑥ 과 같은 까닭). 「먼저 Gemma」는 ⑥ 처럼 처음부터 켠다(GEMMA_DEFAULT — 매시 부르므로 무료 모델을 앞에).
+    news: { name: '오늘의 뉴스 판정', order: ['gemini', 'claude2', 'claude1', 'upstage', 'chatgpt'], removed: ['claude2', 'claude1', 'upstage', 'chatgpt'] },
 };
 // ④ 브리핑 칸별 시도 횟수(같은 묶음을 그 AI 로 몇 번까지 — 떨어진 관할만 다시). 기본: ChatGPT 3번(종전 브리핑 「VM 최대 3번」 그대로) · 나머지 1번.
 const ATTEMPT_CHOICES = [1, 2, 3];
@@ -71,9 +76,9 @@ const GEMINI_MODEL = 'gemini-2.5-flash-lite';   // ai_report_parser 가 쓰던 �
 // Gemma — Gemini API 가 제공하는 두 모델(2026-11 gemma.ai/deployment/gemini-api: 「hosts the two largest Gemma 4 models」). ③ 색칠에서만, 순서 맨 앞에 둔다.
 //   26b 를 앞에 둔다 — 실제로 불러 본 날 31b 는 「수요 과다」와 38~45초 지연이 잦았다.
 const GEMMA_MODELS = ['gemma-4-26b-a4b-it', 'gemma-4-31b-it'];
-const GEMMA_FEATURES = ['forecast', 'seasummary'];
+const GEMMA_FEATURES = ['forecast', 'seasummary', 'news'];
 // 저장한 적이 없을 때의 「먼저 Gemma」 — ③ 은 쓰지 않음(종전 그대로), ⑥ 은 26b(사용자 「이 작업은 젬마가 진행하도록」). 「쓰지 않음」('')으로 저장하면 그 값이 남는다.
-const GEMMA_DEFAULT = { forecast: '', seasummary: GEMMA_MODELS[0] };
+const GEMMA_DEFAULT = { forecast: '', seasummary: GEMMA_MODELS[0], news: GEMMA_MODELS[0] };   // ⑦ 도 26b 먼저(매시 부른다 — 무료 모델을 앞에)
 const gemmaLast = {};   // 기능 → 마지막 Gemma 호출 결과 { at, model, ok, error, okCount, failCount } — 서버가 켜져 있는 동안만(관리자 화면 표시용)
 const GEMMA_CONFIG = { thinkingConfig: { thinkingLevel: 'minimal' } };   // 생각 최소 — 기본(생각 켬)은 글 한 편에 2~3분이 걸렸다(실측)
 /** 색 표시 꼴이 온전한가 — `{{loc|num|warn:…}}` 를 다 걷어 낸 뒤에 `{{`·`}}` 가 남으면 깨진 것(실제 Gemma 답: `{{num:30~60km/h(8~16m/s)}for}로`). */
@@ -90,7 +95,7 @@ const GEMMA_OK = (p) => !!p && typeof p === 'object' && !Array.isArray(p)
     && markupOk(p);
 // 기능별 「쓸 수 있는 Gemma 답」의 바탕 모양 — ③ 은 색칠 칸, ⑥ 은 객체이기만 하면 된다(칸·색 표시·원문 대조는 부르는 쪽 accept 가 본다).
 //   ⑥ 은 색 표시도 여기서 보지 않는다 — 실제 Gemma 답에 없는 이름의 표시(`{{period:…}}`)가 섞여 오는데, 부르는 쪽이 그런 표시를 벗겨 낸 뒤 꼴을 본다(regional_sea_summary.normalize·check). 여기서 걸면 고쳐 쓸 수 있는 답이 버려진다.
-const GEMMA_SHAPE = { forecast: GEMMA_OK, seasummary: (p) => !!p && typeof p === 'object' && !Array.isArray(p) };
+const GEMMA_SHAPE = { forecast: GEMMA_OK, seasummary: (p) => !!p && typeof p === 'object' && !Array.isArray(p), news: (p) => !!p && typeof p === 'object' && !Array.isArray(p) };
 /**
  * 답 글에서 JSON 덩어리를 꺼낸다 — ```json 울타리, 뒤에 덧붙인 설명(「*(참고: …)」), 한 겹 배열(`[{…}]`)을 벗긴다. 못 꺼내면 undefined.
  * 예: '```json\n{"항목":[]}\n```\n*(참고: …)*' → {항목:[]} · '[{"항목":[]}]' → {항목:[]}
@@ -110,7 +115,7 @@ const RUNNERS = () => require('./codex_bridge').RUNNERS;
 /**
  * 저장값 한 기능을 정리한다(틀린 칸은 기본값). ChatGPT 칸은 {model, effort:null, runner}.
  * 예: normFeature('read', undefined) → { order:[gemini,…], removed:[], models:{…, chatgpt:{model:'gpt-6-luna', effort:null, runner:'fly'}} }
- * @param {'read'|'interpret'|'forecast'|'briefing'|'escalation'|'seasummary'} f @param {any} v @returns {{order:string[], removed:string[], models:object}}
+ * @param {'read'|'interpret'|'forecast'|'briefing'|'escalation'|'seasummary'|'news'} f @param {any} v @returns {{order:string[], removed:string[], models:object}}
  * [연계] ← getConfig·setConfig
  */
 function normFeature(f, v) {
@@ -136,7 +141,7 @@ function getConfig() {
     let raw = {};
     try { raw = JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch (e) { if (e.code !== 'ENOENT') console.warn('[AI 특보 분석] 설정 파일을 못 읽어 기본값을 씀:', e.message); }
     if (!raw || typeof raw !== 'object') raw = {};   // 파일 내용이 null·숫자 등이면 기본값(독립 검토 7 — AI 브리핑 실행이 이 설정을 읽으므로 던지면 실행이 통째로 실패)
-    return { read: normFeature('read', raw.read), interpret: normFeature('interpret', raw.interpret), forecast: normFeature('forecast', raw.forecast), briefing: normFeature('briefing', raw.briefing), escalation: normFeature('escalation', raw.escalation), seasummary: normFeature('seasummary', raw.seasummary) };
+    return { read: normFeature('read', raw.read), interpret: normFeature('interpret', raw.interpret), forecast: normFeature('forecast', raw.forecast), briefing: normFeature('briefing', raw.briefing), escalation: normFeature('escalation', raw.escalation), seasummary: normFeature('seasummary', raw.seasummary), news: normFeature('news', raw.news) };
 }
 
 /**
@@ -256,7 +261,7 @@ function briefingChain() {
  * 그 기능의 순서대로 AI 를 불러 첫 성공을 돌려준다. 전부 실패하면 마지막 오류.
  * 반환 모양은 gemini_client.callGemini 와 같다 + provider(누가 답했나)·tried(시도 기록).
  * 예: await call('read', '통보문…', { caller: 'AI Parser' }) → { success:true, text:'{…}', keyLabel:'claude2', provider:'claude2', tried:[…] }
- * @param {'read'|'interpret'|'forecast'|'escalation'|'seasummary'} f @param {string} prompt @param {{caller?:string, json?:boolean, gemmaAccept?:function(object): boolean, accept?:function(object): boolean}} [opt]
+ * @param {'read'|'interpret'|'forecast'|'escalation'|'seasummary'|'news'} f @param {string} prompt @param {{caller?:string, json?:boolean, gemmaAccept?:function(object): boolean, accept?:function(object): boolean}} [opt]
  *   gemmaAccept = ③ 에서 Gemma 답(꺼낸 JSON)을 받아 쓸 만한지 더 본다(부르는 쪽이 원문과 견줘 줄이 빠졌는지 등). false 면 순서의 다음 AI 로 넘긴다. Gemma 를 안 쓰면 불리지 않는다.
  *   accept = 어느 AI 의 답이든(Gemma 포함) 꺼낸 JSON 을 받아 쓸 만한지 본다(⑥ — 숫자·해역 이름이 원문에 있는가). false 면 그 AI 는 실패로 치고 다음 AI 로 넘긴다.
  *     없으면: 지어낸 숫자가 든 답이 「성공」으로 굳어 화면에 나간다.

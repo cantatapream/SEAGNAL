@@ -1537,12 +1537,32 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-21 11:18 KST] ✅완료 — 뉴스·공지·어황 — 전체 점검·main 합치기·PR 생성
+전체 verify_all(playwright-core 연결) 실패는 test_silent_catch 하나(이번 작업이 io catch 서버 8·화면 10곳 늘림) → 각 자리 운영 기록 추가로 server 36·client 121 복귀. main 16커밋 합침(충돌 HANDOFF 로그 1곳 — 양쪽 12개 보존·시각순), main 새 위키로 색인 재생성 포함. 합친 상태: check_order·silent_catch 22/22·tab_structure·news_hub_ui 20·news_admin 11·promo_detail_ui·regional_sea_ui·station_briefing_ui·simulate 통과. PR https://github.com/cantatapream/SEAGNAL/pull/1560 생성(main 대비 19커밋 앞, 0 뒤). 다음: 사용자가 PR 확인·머지 → 배포 → 운영 확인(nifs 접속·네이버/AI 판정·사진·앱 안 브라우저).
+
+
+### [2026-11-21 10:44 KST] ✅완료 — 뉴스·공지·어황 적대검증 2건 반영 완료
+별도 에이전트 2개(서버·화면) 독립 검토 → 지적을 검토자 재현 스크립트·직접 실행으로 확인한 뒤 고침. 서버(커밋 0ddb4d88): 다시 변환 중 숨기기·삭제 되돌아감(exclusive 한 줄 세우기), 요약 숫자 부분 문자열 비교(덩이 비교), 검색어 일부 실패 시 기사 영영 놓침(kwstate.json), 사진 전달 부하·내부 주소·리다이렉트·크기, 보관 30일, 싣기 원문 주소로. 화면: 기기 시간대가 한국이 아니면 처음 칸·N 틀림(promoKstMs), 다시 열 때 낡은 판정, 늦은 판정이 사용자 고른 칸 덮음·빈 화면, 좁은 폰 「오늘」 두 줄, 자정 넘어 어제에 갇힘, 게시글로 이동 시 공지 칸(NoticeHub.pick), 관리자 늦은 그리기, aria·방향키, N 30분마다. 사용자 확정: 숨긴 카드에 같은 사건 흡수 「이대로 두기」. 검사: test_news_hub_ui 20/20, test_news_admin 11/11, test_news_collector 48/48, test_fishcond_collector 45/45, promo_detail_ui 12/12, promo_detail_keyboard 16/16, tab_structure 42/42, life_safety_tab_keep 25/25, notice_markdown 9/9, simulate 회귀 없음. 남은 일: 배포 후 운영 확인(nifs·네이버·AI·사진·앱 안 브라우저) — 배포는 사용자 결정.
+
+
+### [2026-11-21 10:22 KST] ✅완료 — 뉴스·공지·어황 관리자 화면 완료 (4단계)
+관리자 → 게시판 관리: 위 3칸 [공지사항|어황정보|오늘의 뉴스](admin_collect.js switchNhubAdminTab), [게시판 관리|게시글 관리]는 공지사항 칸에만. 새 client/js/admin/admin_news_hub.js — 어황: 마지막 확인·결과·보관 건수·[지금 확인]·[원문]·[숨기기/다시 보이기]·[다시 변환]·[삭제]; 뉴스: 날짜·마지막 갱신·결과·받음→판정→실음·판정한 AI·받지 못한 검색어·[지금 갱신]·검색어 칩 추가/삭제·실린 기사 [원문]/[숨기기]·뺀 기사 [원문]/[싣기](분류 고름). 서버: routes/news.js·fishcond.js 에 /api/admin/*(services/admin_auth.requireAdminToken), news_collector adminDay·setHidden·publish·runNow(뺀 기사에 desc 저장), fishcond_collector adminList·setHidden·remove(removed.json — 다시 받지 않음)·reconvert·runNow, 둘 다 afterRun(수집 도는 중 변경은 끝난 뒤 적용). 앱 목록은 숨긴 것 제외. 검사 test_news_admin 10/10(인증 401·숨기기·싣기·삭제 후 재수집 안 함·도는 중 숨기기 덮이지 않음·관리자 화면 Chromium), news 45/45, fishcond 42/42. 남은 일: 별도 에이전트 적대검증(진행), 배포 후 운영 확인(nifs·네이버·AI·사진·앱 안 브라우저).
+
+
+### [2026-11-21 09:59 KST] ✅완료 — 뉴스·공지·어황 앱 화면 완료 (3단계)
+index2.html: 하단 탭·제목 「뉴스·공지·어황」, 안쪽 탭 3칸(밑줄+아이콘 4-B), 공지 알약 필터 삭제, 어황 팝업 마크업. 새 파일: client/js/notice/hub/notice_hub.js(처음 칸 = 24시간 안 공지 있으면 공지·없으면 뉴스 — body[data-active-tab] 변화를 봄, 칸별·하단 N), news/news.js(날짜줄 ◀날짜▶ 가운데·[오늘] ▶ 오른쪽·달력 맨 오른쪽, 보관 날짜만 달력, 카드 꼬리표 사진 위·오른쪽 아래 펼친 횟수+시각, 아코디언→다시 누르면 @capacitor/browser·웹은 새 탭, 최종 업데이트 3시간 넘으면 주황, 빈 날 [어제 뉴스 보기], http 사진 /api/news/img), fishcond/fishcond.js(목록 바다 꼬리표·쪽수 없음·조회/날짜/부서 오른쪽, 팝업 iframe /api/fishcond/:id/view·PDF 받기 downloadKmaFile·원문 보기·PopupStack). promo.js: 줄 메타 반응·조회·날짜 오른쪽 정렬, updateNewBadges → NoticeHub.setNoticeNew. style.css 끝에 nhub 스타일. 검사: test_news_hub_ui 14/14(신규, verify_all 등록), test_tab_structure 42/42(기대 라벨 갱신), promo_detail_ui 12/12, promo_detail_keyboard 16/16, youtube_shorts 33/33, notice_markdown 9/9, text_fit 28/28, life_safety_tab_keep 25/25, simulate 회귀 없음. ARCHITECTURE.md 재생성(기존 도면이 이미 낡아 있어 무관한 ├/└ 줄도 바뀜 — HEAD 깨끗한 사본에서도 72줄 차이 확인). 다음: 관리자 화면(8-1 A: 공지사항·어황정보·오늘의 뉴스 3칸, 숨기기/살리기/싣기/[원문], 검색어, 마지막 갱신 상태) — 서버 관리자 API 도 함께.
+
+
 ### [2026-11-21 09:02 KST] ✅완료 — 자동 반영 ar-202611210850-97c3 — 결정 필요 답 2건
 PR #1557 결정 필요 답 2건 처리: 수산과학조사선 관리운영지침(chg_20261121_cbd062, 관련 법 8)·환경성적표지 작성지침(chg_20261121_06ee90, 관련 법 2) — 사장님 답 「받지 마세요」대로 원문·위키 손대지 않고 amend_applied --ids 2건으로 장부에 닫음(note 에 받지 않음 사유). collect_approved --dry: 승인분 5건 전부 보류 — 나머지 3건(군산청 공유수면 면제·재활용가능자원 분리수거 지침 2027-01-01, 석면해체작업감리인 기준 2027-02-20)은 시행 전이라 그날 뒤 다시. 원문신선도 0·원문결손 0·충돌 0. 검사: test_amend_applied 22 PASS(local_server npm ci 뒤) · verify_all 위키 게이트 악화 0(V5-7 나빠진 문항 0), 남은 실패 = V4 + 화면 스위트(playwright-core 없음)·test_silent_catch(acorn 없음) 환경 탓. 다음: 시행일 지난 뒤 시행 전 3건 처리.
 
 
 ### [2026-11-21 08:51 KST] 🟢착수 — 자동 반영 ar-202611210850-97c3 — 결정 필요 답 2건
 PR #1557 결정 필요 답 2건(수산과학조사선 관리운영지침·환경성적표지 작성지침 — 사장님 답 「받지 마세요」) 처리. collect_approved --dry: 승인분 5건 전부 보류(시행 전 3 · 관련 법 둘 이상 2) — 받을 것 0. 답대로 2건은 받지 않고 장부에 닫는다.
+
+
+### [2026-11-21 08:47 KST] ✅완료 — 오늘의 뉴스 서버 + 관리자 AI ⑦ 완료 (뉴스·공지·어황 탭 2단계)
+만든 것: services/news_collector.js(매시 2분 KST, 검색어 46개 기본·data/news_config.json, 최신순 최대 3쪽, 창=지난 정상 확인 15분 전/처음 26시간, 겹침·seen 3일·마트 할인만 기계 제외, 20건씩 AI 판정·앞 묶음 카드를 다음 묶음에 줌, 3점 이상 카드, 같은 날 같은 사건 한 장(새 소식이면 머리 갱신)·다른 날 새 소식만 새 카드, 판정 실패 pending 26시간, og:image·og:site_name, 30일 정리, state.json), services/news_judge.js(지시문·답 검사·원문에 없는 숫자/주소 요약 막기), routes/news.js(GET /api/news?date · POST /api/news/:date/:id/open · GET /api/news/img 우리 카드 http 사진만), naver_search.searchNews, bulletin_ai ⑦ news(먼저 Gemma 26b→Gemini, 관리자 화면 칸). 검사 test_news_collector 45/45, test_bulletin_ai 81/81, test_bulletin_ai_ui 11/11. 실제 키 시험(GitHub Actions, 검색어 12개, 운영과 무관한 /tmp): 1차 52건 판정→11장(해광호 3장 갈라짐·유튜브 주소 요약·태안=전국) → 고침 → 3차 53건→8장(해광호 1장 외 20건·평택 1장·지역 충남/경북), Gemma 3묶음 154초, 뺀 기사 21건 판정 적절. 남은 것: AI 판정 흔들림(홍도 관광 기사 1차 2점→3차 3점 — 지시문 보강했으나 재시험 안 함, 관리자 숨기기로 처리 가능), 운영(Fly)에서 nifs·네이버·AI 실제 동작은 배포 뒤 확인. 다음: 앱 화면(탭 머리 B·날짜줄 B·카드 꼬리표 B·어황 목록 A·공지 정렬) → 관리자 화면(A).
 
 
 ### [2026-11-21 03:42 KST] ✅완료 — 자동 반영 ar-202611210311-1d35 — 개정 승인분 10건 (이식승인 기준 새 판 반영)
@@ -1553,8 +1573,22 @@ PR #1557 결정 필요 답 2건(수산과학조사선 관리운영지침·환경
 collect_approved --dry: 받을 것 3(수산자원의 이식승인 기준 개정·수열에너지 범위 고시 신규·전통식품 KS 인증 요령 신규), 이미 현행 2(낙동강 공공폐수·평택 유도선 — main 반영 확인, 장부만), 보류 5(시행 전 3·관련 법 둘 이상 2). 받은 뒤 위키 대조·다른 눈 읽기·검사·PR.
 
 
+### [2026-11-21 00:50 KST] ✅완료 — 어황정보 서버 수집기 완료 (뉴스·공지·어황 탭 1단계)
+사용자 답: 어황 글 별도 저장(추천대로)·댓글/반응 없음·법개정은 뉴스 보도분만·뉴스 카드에 펼친 횟수(시각 왼쪽). 만든 것: services/fishcond_collector.js(NIFS actionBoard0014 목록 첫 쪽 매시 7분 KST·최근 7일 새 글만 추가·PDF 받기·bulletin_docs.convertPdf 로 130dpi PNG·30일 지난 글 삭제·목록 못 읽으면 안 지움·state.json 에 결과), routes/fishcond.js(GET /api/fishcond · /:id/view · /:id/page/:n · /:id/pdf), server.js 연결(운영 FLY_ALLOC_ID 에서만 start), bulletin_docs 에 convertPdf 내보내기 1줄, 검사 test_fishcond_collector.js 33/33(verify_all SUITES 등록), 설계 기록 client/js/notice/news_hub.design.md. 실측: 실제 게시판 7건 받아 PNG 생성·재실행 0.8초·HTTP 경로 4개 정상·나쁜 ID 404. 미확인: Fly(도쿄)에서 nifs.go.kr 접속 가능 여부. 설계안 artifact 에 검토 기능(이 안으로·의견 32칸·자동 저장 db review/main·내보내기) 추가 — 사용자 작성 중: 탭머리 B·날짜줄 B(◀날짜▶ 가운데, [오늘]은 ▶ 바로 오른쪽, 달력 맨 오른쪽)·카드 꼬리표 B·어황 목록 A, 관리자 8-1 미선택. 다음: 사용자 '다 적었어' 후 반영 → 오늘의 뉴스 서버.
+
+
+### [2026-11-21 00:36 KST] ✅완료 — 뉴스·공지·어황 탭 — 설계안·화면 시안 발행 (코드 미착수, 사용자 선택 대기)
+공지사항 탭을 「뉴스·공지·어황」으로 바꾸는 설계안을 artifact 로 발행: https://claude.ai/artifact/6Wpmf7NFYcVj5Dgtkseq3B . 확정 사항(사용자 원문 인용 포함): 하단 탭·제목 이름 「뉴스·공지·어황」, 안쪽 밑줄 탭 3칸(오늘의 뉴스·공지사항·어황정보), 처음 탭 = 최근 24시간 공지 글(패치노트 등 포함, 어황 자동글 제외) 있으면 공지 아니면 뉴스, 뉴스는 1시간마다 갱신·날짜 하나=그날 0~24시 KST, [◀][오늘][▶][달력] 달력은 보관 날짜만, 카드=대표사진(og:image)+제목+요약 3줄+오른쪽 아래 발행 시각, 아코디언(누르면 펼침→다시 누르면 앱 안 브라우저 @capacitor/browser, 다른 카드 누르면 접힘), 최신순·상한 없음, 푸시 없음, 공지사항은 알약 필터만 삭제, 어황정보=국립수산과학원 actionBoard0014 전부·1시간마다·PDF→PNG(bulletin_docs 방식, 130dpi)·PDF 받기·바다 꼬리표·최근 1주 채움, 보관 뉴스·어황 각 30일. 뉴스 선정 기준(대상자 비중, 6개 영향 묶음 — 돈에 정부·지자체 보조금 명시, 3단계 판정·3점 이상)도 artifact 9절. 실측: NIFS 첨부 10건 PDF 9.1MB+PNG 41장 15.3MB, 한 달 약 80MB 어림. 사용자 답 대기 항목(artifact 11절): ①어황 글 저장 위치(공지 게시판 분류 vs 별도 — 추천 별도) ②어황 댓글·반응 필요 여부 ③시안 A/B 5곳(추천 전부 A) ④법령 개정 감지 결과를 뉴스 카드로 넣을지. 답을 받으면 작업 순서(12절): 어황 서버 → 뉴스 서버(며칠 돌려 결과 보고) → 앱 화면 → 관리자 → 시험·적대검증.
+
+
+### [2026-11-20 23:49 KST] ✅완료 — 해양 뉴스 아침 브리핑 — 사전 조사·네이버 뉴스 API 시험 (앱 코드 미착수)
+사용자 요청: 매일 09:00 KST 지난 24시간 어업·수산·해양법·해경·사고·레저 뉴스 중 해양종사자에게 직접 영향 있는 것만(홍보·인사·MOU·행사 제외) 모아 주는 기능. 이번 세션은 설계 전 조사만 했다. ①구글 뉴스 RSS 견본(11/19 23:39~11/20 23:39 KST, 키워드 40개): 180건 수집 → 제외어 필터는 14건만 걸러 166건 남음(대부분 무관) → 수동 AI 판정으로 16개 사건. 교훈: 제외어 '수상'이 '수상레저' 법안 기사를 잘못 버림, 같은 사건 34건 중복(해광호), 법 개정 뉴스는 거의 없어 legal_amendment_scanner·입법예고 별도 연결 필요, RSS 1회 429. ②사용자가 NAVER API HUB(console.ncloud.com) SEAGNAL 앱에 '뉴스' API를 추가함(이미지도 체크됨). ③임시 GitHub Actions(naver-news-probe.yml, 확인 후 삭제)로 저장소 Secrets 의 NAVER_CLIENT_ID/SECRET 으로 GET /search/v1/news 4개 키워드 호출 → 전부 HTTP 200, 필드 title/description/link/originallink/pubDate, sort=date·display=100. 100건이 덮는 기간: '어선 사고' 약 29시간, '금어기' 3주 이상 → 많은 키워드는 start=101 두 번째 쪽 필요할 수 있음. 검색이 낱말을 떼어 맞춤('어선 사고'에 '이념적인 사고' 섞임) → AI 판정 필수. title·description 의 <b> 태그·&quot; 정리 필요. Fly 운영 서버 키가 저장소 Secrets 와 같은 값인지는 확인 안 함. 다음: 사용자 결정 대기 — 분량(전체 vs 핵심 5건), 가격·CPTPP류 포함 여부, 받는 사람(본인 vs 전체), 받는 곳(푸시 vs 앱 화면).
+
+
 ### [2026-11-20 23:27 KST] ✅완료 — 자동 푸시 경로 점검 — 운영에서 통과, 버튼은 남김
 사용자가 운영(배포 #2362 뒤)에서 [자동 푸시 경로 점검 (임시)]를 눌러 확인: 자동 특보 푸시 길 통과(200) — 점검 알림이 헤드업으로 옴, 자동 태풍 푸시 길 통과(400, 발송 없이). → PR #1553 의 관리자 확인이 자동 푸시를 막지 않음이 운영에서 확인됨. 사용자 결정: '나중에 쓸 수 있도록 놔두자.' → 버튼·라우트·서비스·시험 유지(운영 문서에 기록). 참고: PR #1552 배포(#2360)는 Fly 이미지 저장소 TLS access denied 로 실패했고 #2361 에서 반영됨.
+
+
 
 
 ### [2026-11-20 23:17 KST] ✅완료 — [임시] 자동 푸시 경로 점검 버튼

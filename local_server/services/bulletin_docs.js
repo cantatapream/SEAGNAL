@@ -27,6 +27,7 @@
  *  - 저장          : data/bulletin_docs/<열쇠>.pdf · <열쇠>-<쪽>.png
  *  - 나를 쓰는 곳  : scheduler.js(통보문 기준 계산·격상 가능성 계산 다음 매분 sync — 안내 통보문도 extra 로) · routes/weather.js(GET /api/zone-bulletins 가 그림 주소를 붙임 · GET /api/bulletin-doc/… 가 파일을 내려줌) ·
  *                   regional_bulletin_collector.js(syncDocs → syncExtra — 지방청 날씨해설 원문) · routes/weather.js(GET /api/regional-forecast 가 doc 주소를 붙임)
+ *                   services/fishcond_collector.js(convertPdf 만 — 어황정보 PDF 를 같은 크기 그림으로)
  *                   검사 scripts/test_bulletin_docs.js · scripts/test_regional_sea_summary.js(날씨해설 쪽)
  * [로드 순서] 없음(서버 모듈)
  * ============================================================================
@@ -202,4 +203,5 @@ module.exports = {
     pages: (k) => getReal().pages(k),
     file: (k, w) => getReal().file(k, w),
     createDocs, docOf, needed, KEY_RE, DPI,
+    convertPdf: realConvert,   // 어황정보 원문(services/fishcond_collector)도 같은 크기·같은 변환기로 그림을 만든다(2026-11-21)
 };
