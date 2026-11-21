@@ -62,8 +62,8 @@
 | 어황정보 서버 | ✅ 2026-11-21 | `local_server/services/fishcond_collector.js` · `local_server/routes/fishcond.js` · 검사 `local_server/scripts/test_fishcond_collector.js` |
 | 판정 AI 고르기(관리자 ⑦) | ✅ 2026-11-21 | `services/bulletin_ai.js`(news) · `client/js/admin/admin_bulletin_ai.js` · 검사 `test_bulletin_ai.js` 81/81 · `test_bulletin_ai_ui.js` 11/11 |
 | 오늘의 뉴스 서버 | ✅ 2026-11-21 | `local_server/services/news_collector.js` · `news_judge.js` · `routes/news.js` · `naver_search.searchNews` · 검사 `test_news_collector.js` 39/39 |
-| 앱 화면 | 시안 선택 대기 | `client/js/notice/hub/` · `news/` · `fishcond/`(예정) |
-| 관리자 화면 | 시안 선택 대기 | `client/js/admin/` 게시판 관리 |
+| 앱 화면 | ✅ 2026-11-21 | `client/js/notice/hub/notice_hub.js` · `news/news.js` · `fishcond/fishcond.js` · `index2.html #promo-section` · `style.css` 끝 · `promo.js`(알약 제거·줄 정렬·N 넘김) · 검사 `test_news_hub_ui.js` 14/14(실제 Chromium) |
+| 관리자 화면 | 다음(시안 8-1 A) | `client/js/admin/` 게시판 관리 |
 
 ### 어황정보 서버 — 확인한 것
 - 실제 게시판에 연결해 돌림(2026-11-21 00:46 KST): 목록 10건 중 최근 7일 안 7건을 받아 PDF·쪽 그림 생성, 두 번째 실행은 다시 받지 않음(0.8초).

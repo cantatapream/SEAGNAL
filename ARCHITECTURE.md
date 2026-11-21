@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 132개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 135개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -137,12 +137,18 @@ client/js/
 │   │   ├── image_compress.js
 │   │   ├── markdown_import.js
 │   │   ├── promo.js
-│   └── comments/
-│       ├── promo_comment1.js
-│       ├── promo_comment2.js
-│       ├── promo_comment3.js
-│       ├── promo_comment4.js
-│       ├── promo_comment5.js
+│   ├── comments/
+│   │   ├── promo_comment1.js
+│   │   ├── promo_comment2.js
+│   │   ├── promo_comment3.js
+│   │   ├── promo_comment4.js
+│   │   ├── promo_comment5.js
+│   ├── fishcond/
+│   │   ├── fishcond.js
+│   ├── hub/
+│   │   ├── notice_hub.js
+│   └── news/
+│       ├── news.js
 ├── ocean-map/  ← [탭2] 해양종합정보
 │   ├── bottom-sheet/
 │   │   ├── ocean_bottom_sheet_vsby.js
@@ -417,6 +423,24 @@ client/js/
 | `promo_comment3.js` | 게시글 댓글 시스템 - 댓글 등록/수정/삭제 (사용자 액션) |
 | `promo_comment4.js` | 게시글 댓글 시스템 - 답글 입력 및 관리자 전용 기능 (원문 보기) |
 | `promo_comment5.js` | 게시글 댓글 시스템 - 댓글 섹션 초기화 진입점 및 새로고침 |
+
+### `client/js/notice/fishcond/`
+
+| 파일 | 역할 |
+|------|------|
+| `fishcond.js` | 「뉴스·공지·어황」 탭의 어황정보 화면 — 국립수산과학원 어황정보 글 목록(공지사항과 같은 모양, 시안 7-1 A)과 |
+
+### `client/js/notice/hub/`
+
+| 파일 | 역할 |
+|------|------|
+| `notice_hub.js` | 「뉴스·공지·어황」 탭의 안쪽 탭 3칸(오늘의 뉴스 · 공지사항 · 어황정보)을 바꾸고, 하단 탭을 누를 때 어느 칸부터 보일 |
+
+### `client/js/notice/news/`
+
+| 파일 | 역할 |
+|------|------|
+| `news.js` | 「뉴스·공지·어황」 탭의 오늘의 뉴스 화면 — 날짜줄(◀ 날짜 ▶ [오늘] … [달력]), 「최종 업데이트」, 뉴스 카드 목록 |
 
 ### `client/js/ocean-map/bottom-sheet/`
 

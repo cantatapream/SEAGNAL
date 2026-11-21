@@ -60,9 +60,9 @@ console.log('\n[1] 하단 메뉴 — 이름과 순서');
     if (!nav) return;
     const labels = (nav[0].match(/<span class="tab-btn-label">([^<]+)<\/span>/g) || [])
         .map(s => s.replace(/<[^>]+>/g, '').trim());
-    const EXPECT = ['특보정보', '해양종합정보', '해양안전생활', '공지사항'];
+    const EXPECT = ['특보정보', '해양종합정보', '해양안전생활', '뉴스·공지·어황'];   // 2026-11-21 사용자 「하단 탭 이름도 "뉴스·공지·어황"으로 바꾸고」(종전 공지사항)
     ok('하단 메뉴가 4개다', labels.length === 4, labels.join(' | '));
-    ok('이름과 순서가 특보정보 · 해양종합정보 · 해양안전생활 · 공지사항 이다',
+    ok('이름과 순서가 특보정보 · 해양종합정보 · 해양안전생활 · 뉴스·공지·어황 이다',
         JSON.stringify(labels) === JSON.stringify(EXPECT), labels.join(' | '));
     ok('옛 이름 "해양생활" 이 하단 메뉴에 남아 있지 않다', labels.indexOf('해양생활') < 0);
 })();

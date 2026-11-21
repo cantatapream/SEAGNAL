@@ -6,7 +6,8 @@
  * [연계]
  *  - 사용하는 파일 : image_compress.js(compressImageToJpeg/blobToDataURL), markdown_import.js(noticeMarkdown.toHtml — 마크다운 불러오기), promo_comment5.js(loadPromoComments), admin.js(showUnifiedLoginModal·adminAuthenticated), admin/pagination_helper.js
  *  - 서버 API      : /api/promo(/*), /api/boards, /api/comments/counts, /api/reactions(/counts), /api/upload, /api/upload-file
- *  - 마크업        : index2.html #promo-list(-pagination), #promo-detail-modal, #promo-editor-modal, #promo-tabs-container, #promo-attachment-list 등
+ *  - 마크업        : index2.html #promo-list(-pagination), #promo-detail-modal, #promo-editor-modal, #promo-attachment-list 등 (#promo-tabs-container 알약 필터는 2026-11-21 없앰 — renderPromoTabs 는 그 칸이 없으면 아무것도 안 한다)
+ *  - 뉴스·공지·어황(2026-11-21): updateNewBadges 가 공지 24시간 새 글 여부를 notice/hub/notice_hub.js(window.NoticeHub.setNoticeNew)로 넘긴다 — 하단 탭 N 은 그쪽이 단다
  *  - 나를 쓰는 곳  : 자체 초기화 및 탭/검색 시 renderPromoPosts 호출; admin_trigger.js·댓글 파일들이 promo 전역·상세보기 참조
  * ============================================================================
  *
@@ -270,7 +271,8 @@ function renderPromoTabs(boards) {
 
 // 24시간 이내 새 게시글 체크 및 뱃지 표시
 function updateNewBadges(posts) {
-    if (!posts || posts.length === 0) return;
+    // 뉴스·공지·어황 탭(2026-11-21): 공지가 없을 때도 「새 글 없음」을 알려야 처음 칸(오늘의 뉴스)이 바로 정해진다
+    if (!posts || posts.length === 0) { if (window.NoticeHub) window.NoticeHub.setNoticeNew(false); return; }
 
     const now = new Date();
     const ONE_DAY = 24 * 60 * 60 * 1000; // 24시간 (ms)
@@ -297,8 +299,10 @@ function updateNewBadges(posts) {
         }
     });
 
-    // 1. 메인 탭 (공지사항) 뱃지 업데이트
-    const mainTabBtn = document.querySelector('.main-tabs .tab-btn[data-target="promo-section"]');
+    // 1. 메인 탭 뱃지 — 뉴스·공지·어황 탭(2026-11-21)부터는 notice/hub/notice_hub.js 가 세 칸(뉴스·공지·어황)을 합쳐 단다.
+    //    여기서는 공지 24시간 새 글 여부만 넘긴다(그 값으로 「처음 보일 칸」도 정한다 — 사용자 「최근 1일 내 공지사항이 있다면 공지사항 부터」).
+    const mainTabBtn = window.NoticeHub ? null : document.querySelector('.main-tabs .tab-btn[data-target="promo-section"]');
+    if (window.NoticeHub) window.NoticeHub.setNoticeNew(!!hasNew['ALL']);
     if (mainTabBtn) {
         const existingBadge = mainTabBtn.querySelector('.new-badge');
         if (existingBadge) existingBadge.remove();
@@ -501,12 +505,10 @@ function renderPromoPosts(posts) {
                 ${pinIcon}
                 ${escapeHtml(post.title)}${newBadgeHtml}${commentCountHtml}
             </div>
-            <div class="promo-item-meta">
+            <div class="promo-item-meta nhub-right">
+                ${reactionHtml}
+                <span class="promo-item-views"><i class="fa-regular fa-eye"></i> ${post.views || 0}</span>
                 <span class="promo-item-date">${formatPromoDate(post.createdAt)}</span>
-                <div style="display:flex;align-items:center;gap:6px;">
-                    <span class="promo-item-views"><i class="fa-regular fa-eye"></i> ${post.views || 0}</span>
-                    ${reactionHtml}
-                </div>
             </div>
         </div>
         `;

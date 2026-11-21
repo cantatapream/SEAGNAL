@@ -4669,18 +4669,34 @@
 
             </section>
 
-            <!-- 섹션 5: 공지사항 (게시판) -->
+            <!-- 섹션 5: 뉴스·공지·어황 (2026-11-21 — 종전 「공지사항」. 설계 notice/news_hub.design.md · 시안 artifact 6Wpmf7NFYcVj5Dgtkseq3B)
+                 사용자: 「하단 탭 이름도 "뉴스·공지·어황"으로 바꾸고 위도 이렇게 바꾸자.」 · 「오늘의 뉴스, 공지사항, 어황정보 이렇게 3개 탭으로 구성(알약식말고)」
+                 안쪽 탭 = 밑줄형 + 아이콘(시안 4-B). 어느 탭부터 보일지·N 표시는 notice/hub/notice_hub.js. id(promo-section)는 그대로 둔다(다른 코드·검사가 이 id 로 탭을 연다). -->
             <section id="promo-section" class="tab-content">
                 <div class="section-header-with-info">
-                    <h2 class="section-title"><i class="fa-solid fa-bullhorn"></i> 공지사항</h2>
+                    <h2 class="section-title"><i class="fa-solid fa-bullhorn"></i> 뉴스·공지·어황</h2>
                 </div>
 
-                <div class="promo-container">
-                    <!-- 1. 카테고리 탭 (서버에서 동적 로드) -->
-                    <div class="promo-tabs" id="promo-tabs-container">
-                        <button class="promo-tab-btn active" onclick="filterPromo('ALL')">전체</button>
-                        <!-- 게시판 탭 버튼은 JS에서 동적으로 생성됨 -->
-                    </div>
+                <div class="nhub-tabs" id="nhub-tabs" role="tablist" aria-label="뉴스·공지·어황">
+                    <button type="button" class="nhub-tab" data-nhub="news" role="tab"><i class="fa-regular fa-newspaper" aria-hidden="true"></i><span class="nhub-tab-label">오늘의 뉴스</span></button>
+                    <button type="button" class="nhub-tab" data-nhub="notice" role="tab"><i class="fa-solid fa-bullhorn" aria-hidden="true"></i><span class="nhub-tab-label">공지사항</span></button>
+                    <button type="button" class="nhub-tab" data-nhub="fishcond" role="tab"><i class="fa-solid fa-fish" aria-hidden="true"></i><span class="nhub-tab-label">어황정보</span></button>
+                </div>
+
+                <!-- 오늘의 뉴스 — notice/news/news.js 가 채운다(날짜줄 시안 5-1 B · 카드 시안 5-2 B) -->
+                <div class="nhub-panel" id="nhub-news" role="tabpanel">
+                    <div id="news-dateline" class="news-dateline"></div>
+                    <div id="news-updated" class="news-updated"></div>
+                    <div id="news-list" class="news-list"></div>
+                </div>
+
+                <!-- 어황정보 — notice/fishcond/fishcond.js 가 채운다(목록 시안 7-1 A) -->
+                <div class="nhub-panel" id="nhub-fishcond" role="tabpanel">
+                    <div id="fishcond-list" class="promo-list"></div>
+                </div>
+
+                <div class="nhub-panel promo-container" id="nhub-notice" role="tabpanel">
+                    <!-- 카테고리 알약 필터는 없앴다(2026-11-21 사용자 「위에 전체, 공지사항 안전정보 처럼 알약 필터 부분은 삭제.」) — 글 앞 분류 꼬리표는 그대로 -->
 
                     <!-- 2. 검색 바 -->
                     <div class="promo-search-bar">
@@ -4694,6 +4710,26 @@
                     <!-- 3. 페이지네이션 -->
                     <div id="promo-pagination" class="promo-pagination">
                         <!-- JS로 주입 -->
+                    </div>
+                </div>
+
+                <!-- 어황정보 글 팝업(2026-11-21 사용자 「누르면 지금 게시글에 반영된 것처럼 게시글 팝업이 뜨고 해당 pdf 정보가 표출」) — 공지 게시글 팝업과 같은 모양(머리 고정·몸통 스크롤).
+                     몸통은 서버가 PDF 를 쪽마다 그림으로 바꿔 둔 보기 페이지(/api/fishcond/:id/view — 열 때 조회 수 1). 댓글·반응은 없다(사용자 「불필요. 공지사항에만」).
+                     [연계] notice/fishcond/fishcond.js openFishcondDetail·closeFishcondDetail -->
+                <div id="fishcond-detail-modal" class="modal hidden">
+                    <div class="modal-content promo-modal-content fishcond-modal-content">
+                        <div class="promo-detail-head">
+                            <div class="promo-detail-head-row">
+                                <h2 id="fishcond-detail-title" class="promo-detail-title">어황정보</h2>
+                                <button class="modal-close promo-detail-close" onclick="closeFishcondDetail()" aria-label="닫기">&times;</button>
+                            </div>
+                            <div class="promo-meta-info" id="fishcond-detail-meta"></div>
+                            <div class="fishcond-detail-actions">
+                                <button type="button" class="fishcond-btn primary" id="fishcond-detail-pdf"><i class="fa-solid fa-file-pdf" aria-hidden="true"></i> PDF 받기</button>
+                                <button type="button" class="fishcond-btn" id="fishcond-detail-source"><i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i> 원문 보기</button>
+                            </div>
+                        </div>
+                        <div class="modal-body fishcond-detail-body" id="fishcond-detail-body"></div>
                     </div>
                 </div>
 
@@ -5570,9 +5606,10 @@
                 <span class="tab-btn-label">해양안전생활</span>
             </button>
             <!-- 공지사항: 확성기 아이콘 -->
+            <!-- 뉴스·공지·어황(2026-11-21 — 종전 「공지사항」): 확성기 아이콘 그대로 -->
             <button class="tab-btn" data-target="promo-section">
                 <i class="fa-solid fa-bullhorn tab-btn-icon" aria-hidden="true"></i>
-                <span class="tab-btn-label">공지사항</span>
+                <span class="tab-btn-label">뉴스·공지·어황</span>
             </button>
         </nav>
 
@@ -5724,6 +5761,11 @@
     <script src="js/notice/comments/promo_comment3.js?v=NoCmt_20261119"></script>
     <script src="js/notice/comments/promo_comment4.js"></script>
     <script src="js/notice/comments/promo_comment5.js?v=NoCmt_20261119"></script>
+    <!-- 뉴스·공지·어황 탭(2026-11-21) — promo.js 다음: notice_hub 가 promo 의 새 글 판정(updateNewBadges)을 받아 처음 탭·N 을 정한다.
+         news.js·fishcond.js 는 notice_hub 가 탭을 열 때 부른다(window.NewsTab·window.FishcondTab). -->
+    <script src="js/notice/news/news.js?v=NHub_20261121"></script>
+    <script src="js/notice/fishcond/fishcond.js?v=NHub_20261121"></script>
+    <script src="js/notice/hub/notice_hub.js?v=NHub_20261121"></script>
     <!-- 공용 페이지네이션 helper (window.renderStandardPagination 노출)
          관리자 리스트 화면(admin.js / admin_collect.js / admin_survey.js / admin_report.js / alert_push.js)에서
          사용하므로 반드시 이 스크립트들보다 먼저 로드되어야 함 -->
