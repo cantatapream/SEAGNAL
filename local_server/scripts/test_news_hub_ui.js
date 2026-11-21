@@ -151,9 +151,11 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
         await check('[공지사항] 검색창+목록 · 줄 끝에 반응·조회(눈)·날짜 순으로 맨 오른쪽', async () => {
             await page.click('#nhub-tabs .nhub-tab[data-nhub="notice"]');
             await page.waitForFunction(() => document.querySelectorAll('#promo-list .promo-item').length === 1);
-            const m = await page.$eval('#promo-list .promo-item .promo-item-meta', (x) => ({ order: [...x.children].map((c) => c.className), jc: getComputedStyle(x).justifyContent, gap: x.parentElement.getBoundingClientRect().right - x.lastElementChild.getBoundingClientRect().right }));
+            // 정렬은 화면 위치로 본다 — 계산된 justify-content 글자는 브라우저 판마다 다르다(GitHub 검사 브라우저는 flex-end 를 'flow-end' 로 돌려줘 실패했다, PR #1560)
+            const m = await page.$eval('#promo-list .promo-item .promo-item-meta', (x) => { const box = x.parentElement.getBoundingClientRect(), first = x.firstElementChild.getBoundingClientRect(), last = x.lastElementChild.getBoundingClientRect();
+                return { order: [...x.children].map((c) => c.className), gap: box.right - last.right, firstFromLeft: (first.left - box.left) / box.width }; });
             assert.deepStrictEqual(m.order, ['promo-item-reactions', 'promo-item-views', 'promo-item-date']);
-            assert.equal(m.jc, 'flex-end'); assert.ok(m.gap < 20, JSON.stringify(m));
+            assert.ok(m.gap < 20 && m.firstFromLeft > 0.3, '오른쪽 끝에 붙어 있어야 한다 ' + JSON.stringify(m));
             assert.ok(await page.$('#promo-search-input'));
             await page.screenshot({ path: path.join(SHOT, '4_notice.png') });
         });
