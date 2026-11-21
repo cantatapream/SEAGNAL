@@ -772,10 +772,11 @@ function isPdfTemperatureForToday(publishTime) {
     }
     if (pdfMonth === null) return false;
 
-    // 현재 KST 날짜 — 서버 timezone 무관하게 동일 결과
-    const now = new Date();
-    const kstMs = now.getTime() + (now.getTimezoneOffset() * 60000) + (9 * 3600000);
-    const kst = new Date(kstMs);
+    // 현재 KST 날짜 — 기기 시간대 무관하게 동일 결과
+    //   getTime() 은 이미 UTC 기준이라 +9시간만 하고 getUTC* 로 읽는다.
+    //   (2026-11-21 고침: 종전엔 getTimezoneOffset 을 한 번 더 더해, 한국 시간 휴대폰에서는 UTC 날짜가 나왔다 —
+    //    매일 00~09시 KST 에 그날 05시 발표분 기온 상자가 사라졌다. test_regional_sea_ui 가 자정 뒤에 잡았다.)
+    const kst = new Date(Date.now() + (9 * 3600000));
     const todayMonth = kst.getUTCMonth() + 1;
     const todayDay = kst.getUTCDate();
 
