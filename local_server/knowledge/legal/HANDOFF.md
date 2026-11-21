@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-21 11:18 KST] ✅완료 — 뉴스·공지·어황 — 전체 점검·main 합치기·PR 생성
+전체 verify_all(playwright-core 연결) 실패는 test_silent_catch 하나(이번 작업이 io catch 서버 8·화면 10곳 늘림) → 각 자리 운영 기록 추가로 server 36·client 121 복귀. main 16커밋 합침(충돌 HANDOFF 로그 1곳 — 양쪽 12개 보존·시각순), main 새 위키로 색인 재생성 포함. 합친 상태: check_order·silent_catch 22/22·tab_structure·news_hub_ui 20·news_admin 11·promo_detail_ui·regional_sea_ui·station_briefing_ui·simulate 통과. PR https://github.com/cantatapream/SEAGNAL/pull/1560 생성(main 대비 19커밋 앞, 0 뒤). 다음: 사용자가 PR 확인·머지 → 배포 → 운영 확인(nifs 접속·네이버/AI 판정·사진·앱 안 브라우저).
+
+
 ### [2026-11-21 10:44 KST] ✅완료 — 뉴스·공지·어황 적대검증 2건 반영 완료
 별도 에이전트 2개(서버·화면) 독립 검토 → 지적을 검토자 재현 스크립트·직접 실행으로 확인한 뒤 고침. 서버(커밋 0ddb4d88): 다시 변환 중 숨기기·삭제 되돌아감(exclusive 한 줄 세우기), 요약 숫자 부분 문자열 비교(덩이 비교), 검색어 일부 실패 시 기사 영영 놓침(kwstate.json), 사진 전달 부하·내부 주소·리다이렉트·크기, 보관 30일, 싣기 원문 주소로. 화면: 기기 시간대가 한국이 아니면 처음 칸·N 틀림(promoKstMs), 다시 열 때 낡은 판정, 늦은 판정이 사용자 고른 칸 덮음·빈 화면, 좁은 폰 「오늘」 두 줄, 자정 넘어 어제에 갇힘, 게시글로 이동 시 공지 칸(NoticeHub.pick), 관리자 늦은 그리기, aria·방향키, N 30분마다. 사용자 확정: 숨긴 카드에 같은 사건 흡수 「이대로 두기」. 검사: test_news_hub_ui 20/20, test_news_admin 11/11, test_news_collector 48/48, test_fishcond_collector 45/45, promo_detail_ui 12/12, promo_detail_keyboard 16/16, tab_structure 42/42, life_safety_tab_keep 25/25, notice_markdown 9/9, simulate 회귀 없음. 남은 일: 배포 후 운영 확인(nifs·네이버·AI·사진·앱 안 브라우저) — 배포는 사용자 결정.
 
