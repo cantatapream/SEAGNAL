@@ -68,24 +68,25 @@ router.get('/api/news/img', async (req, res) => {
 
 // ── 관리자(2026-11-21 시안 8-3) ──────────────────────────────────────────
 const auth = (req, res, next) => require('../services/admin_auth').requireAdminToken(req, res, next);
-const fail = (res, e) => { console.error('[오늘의 뉴스 관리자]', e && e.message); res.status(500).json({ ok: false, error: String((e && e.message) || e) }); };
+const reportFail = (res, e) =>   // 운영 기록(console.error) + 500 — 오류를 조용히 삼키지 않는다(test_silent_catch)
+    { console.error('[오늘의 뉴스 관리자]', e && e.message); res.status(500).json({ ok: false, error: String((e && e.message) || e) }); };
 router.get('/api/admin/news', auth, (req, res) => {
     try {
         const d = req.query.date ? String(req.query.date) : nc().kstDate(Date.now());
         const day = nc().adminDay(d);
         if (!day) return res.status(400).json({ ok: false, error: 'date 는 YYYY-MM-DD' });
         res.set('Cache-Control', 'no-store').json(Object.assign({ ok: true, state: nc().state(), running: nc().running(), keywords: nc().keywords(), dates: nc().dates() }, day));
-    } catch (e) { fail(res, e); }
+    } catch (e) { reportFail(res, e); }
 });
-router.post('/api/admin/news/run', auth, (req, res) => { try { res.json(Object.assign({ ok: true }, nc().runNow())); } catch (e) { fail(res, e); } });
+router.post('/api/admin/news/run', auth, (req, res) => { try { res.json(Object.assign({ ok: true }, nc().runNow())); } catch (e) { reportFail(res, e); } });
 router.post('/api/admin/news/keywords', auth, express.json(), (req, res) => {
-    try { const r = nc().setKeywords(req.body && req.body.keywords); res.status(r.ok ? 200 : 400).json(r); } catch (e) { fail(res, e); }
+    try { const r = nc().setKeywords(req.body && req.body.keywords); res.status(r.ok ? 200 : 400).json(r); } catch (e) { reportFail(res, e); }
 });
 router.post('/api/admin/news/:date/publish', auth, express.json(), async (req, res) => {
-    try { const b = req.body || {}; const r = await nc().publish(String(req.params.date), Number(b.index), b.cat, typeof b.link === 'string' ? b.link : ''); res.status(r.ok ? 200 : 404).json(r); } catch (e) { fail(res, e); }
+    try { const b = req.body || {}; const r = await nc().publish(String(req.params.date), Number(b.index), b.cat, typeof b.link === 'string' ? b.link : ''); res.status(r.ok ? 200 : 404).json(r); } catch (e) { reportFail(res, e); }
 });
 router.post('/api/admin/news/:date/:id/hide', auth, express.json(), async (req, res) => {
-    try { const ok = await nc().setHidden(String(req.params.date), String(req.params.id), !!(req.body && req.body.hidden)); res.status(ok ? 200 : 404).json({ ok }); } catch (e) { fail(res, e); }
+    try { const ok = await nc().setHidden(String(req.params.date), String(req.params.id), !!(req.body && req.body.hidden)); res.status(ok ? 200 : 404).json({ ok }); } catch (e) { reportFail(res, e); }
 });
 
 module.exports = router;

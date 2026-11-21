@@ -94,7 +94,7 @@ async function realMeta(url) {
         try { image = image ? new URL(image, url).href : ''; } catch (_) { image = ''; }
         if (/logo|favicon|default|noimage|no_image|blank/i.test(image)) image = '';
         return { image, site: meta('og:site_name').slice(0, 30) };
-    } catch (_) { return { image: '', site: '' }; }
+    } catch (e) { console.warn('[오늘의 뉴스] 기사 페이지 읽기 실패(사진 없이 기본 그림):', String((e && e.message) || e).slice(0, 100)); return { image: '', site: '' }; }
 }
 
 /**

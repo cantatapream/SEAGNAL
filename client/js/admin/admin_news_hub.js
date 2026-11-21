@@ -60,7 +60,10 @@
             return j;
         } finally { acting = false; }
     }
-    function failBox(host, msg) { host.innerHTML = ''; host.appendChild(el('div', 'padding:16px;color:#fca5a5;', msg)); }
+    /** 불러오기 실패를 화면 상자와 운영 기록(console.warn)에 남긴다. */
+    function reportLoadFail(host, msg) { console.warn('[관리자 뉴스·어황]', msg); host.innerHTML = ''; host.appendChild(el('div', 'padding:16px;color:#fca5a5;', msg)); }
+    /** 버튼 동작 실패를 알림창과 운영 기록(console.warn)에 남긴다. 예: notifyFail('싣기 실패: ', e) */
+    function notifyFail(prefix, e) { console.warn('[관리자 뉴스·어황]', prefix, e && e.message); alert(prefix + (e && e.message)); }
 
     // ── 어황정보 ─────────────────────────────────────────────────────────
     /**
@@ -72,14 +75,14 @@
         host.innerHTML = '<div style="padding:16px;color:#94a3b8;">불러오는 중…</div>';
         var j;
         try { var r = await fetch(api('/api/admin/fishcond')); j = await r.json(); if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status)); }
-        catch (e) { if (my === drawSeq) failBox(host, '어황정보를 불러오지 못했습니다: ' + (e && e.message)); return; }
+        catch (e) { if (my === drawSeq) reportLoadFail(host, '어황정보를 불러오지 못했습니다: ' + (e && e.message)); return; }
         if (!host.isConnected || my !== drawSeq) return;
         host.innerHTML = '';
         var st = j.state || {}, posts = j.posts || [];
         var mb = posts.reduce(function (s, p) { return s + (p.bytes || 0); }, 0) / 1048576;
         var runBtn = btn(j.running ? '확인 중…' : '지금 확인', async function () {
             runBtn.disabled = true; runBtn.textContent = '확인 중…';
-            try { await post('/api/admin/fishcond/run'); } catch (e) { alert('지금 확인 실패: ' + e.message); }
+            try { await post('/api/admin/fishcond/run'); } catch (e) { notifyFail('지금 확인 실패: ', e); }
             setTimeout(function () { if (my === drawSeq) renderAdminFishcond(host); }, 8000);
         }, 'blue');
         runBtn.disabled = !!j.running;
@@ -100,14 +103,14 @@
             r.appendChild(small('조회 ' + (p.views || 0)));
             r.appendChild(btn('원문', function () { openLink(p.sourceUrl); }));
             r.appendChild(btn(p.hidden ? '다시 보이기' : '숨기기', async function () {
-                try { await post('/api/admin/fishcond/' + p.id + '/hide', { hidden: !p.hidden }); renderAdminFishcond(host); } catch (e) { alert('실패: ' + e.message); }
+                try { await post('/api/admin/fishcond/' + p.id + '/hide', { hidden: !p.hidden }); renderAdminFishcond(host); } catch (e) { notifyFail('실패: ', e); }
             }));
             if (p.status !== 'ok') r.appendChild(btn('다시 변환', async function () {
-                try { var x = await post('/api/admin/fishcond/' + p.id + '/reconvert'); alert('다시 변환 결과: ' + (STATUS[x.status] || x.status)); renderAdminFishcond(host); } catch (e) { alert('실패: ' + e.message); }
+                try { var x = await post('/api/admin/fishcond/' + p.id + '/reconvert'); alert('다시 변환 결과: ' + (STATUS[x.status] || x.status)); renderAdminFishcond(host); } catch (e) { notifyFail('실패: ', e); }
             }));
             r.appendChild(btn('삭제', async function () {
                 if (!w.confirm('「' + p.title + '」을(를) 지울까요?\n(PDF·그림까지 지우고, 다시 받지 않습니다)')) return;
-                try { await post('/api/admin/fishcond/' + p.id + '/delete'); renderAdminFishcond(host); } catch (e) { alert('실패: ' + e.message); }
+                try { await post('/api/admin/fishcond/' + p.id + '/delete'); renderAdminFishcond(host); } catch (e) { notifyFail('실패: ', e); }
             }, 'red'));
             host.appendChild(r);
         });
@@ -125,7 +128,7 @@
         host.innerHTML = '<div style="padding:16px;color:#94a3b8;">불러오는 중…</div>';
         var j;
         try { var r = await fetch(api('/api/admin/news' + (newsDate ? '?date=' + newsDate : ''))); j = await r.json(); if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status)); }
-        catch (e) { if (my === drawSeq) failBox(host, '오늘의 뉴스를 불러오지 못했습니다: ' + (e && e.message)); return; }
+        catch (e) { if (my === drawSeq) reportLoadFail(host, '오늘의 뉴스를 불러오지 못했습니다: ' + (e && e.message)); return; }
         if (!host.isConnected || my !== drawSeq) return;
         newsDate = j.date;
         host.innerHTML = '';
@@ -142,7 +145,7 @@
         // 상태
         var runBtn = btn(j.running ? '갱신 중…' : '지금 갱신', async function () {
             runBtn.disabled = true; runBtn.textContent = '갱신 중…';
-            try { await post('/api/admin/news/run'); } catch (e) { alert('지금 갱신 실패: ' + e.message); }
+            try { await post('/api/admin/news/run'); } catch (e) { notifyFail('지금 갱신 실패: ', e); }
             setTimeout(function () { if (my === drawSeq) renderAdminNews(host); }, 15000);
         }, 'blue');
         runBtn.disabled = !!j.running;
@@ -159,7 +162,7 @@
         // 검색어
         host.appendChild(heading('수집 검색어 (' + (j.keywords || []).length + '개)'));
         var chips = el('div', 'display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;');
-        var saveKw = async function (list) { if (newsBusy) return; newsBusy = true; try { await post('/api/admin/news/keywords', { keywords: list }); } catch (e) { alert('검색어 저장 실패: ' + e.message); } newsBusy = false; renderAdminNews(host); };
+        var saveKw = async function (list) { if (newsBusy) return; newsBusy = true; try { await post('/api/admin/news/keywords', { keywords: list }); } catch (e) { notifyFail('검색어 저장 실패: ', e); } newsBusy = false; renderAdminNews(host); };
         (j.keywords || []).forEach(function (k) {
             var c = el('span', 'display:inline-flex;align-items:center;gap:4px;background:#1f2a40;border:1px solid #33405c;border-radius:12px;padding:2px 4px 2px 9px;font-size:0.78rem;color:#e2e8f0;', k);
             var x = el('button', 'background:none;border:0;color:#94a3b8;cursor:pointer;font-size:0.85rem;padding:0 3px;', '×'); x.type = 'button'; x.setAttribute('aria-label', k + ' 삭제');
@@ -184,7 +187,7 @@
             r.appendChild(small((c.score || '-') + '점 · 펼침 ' + (c.views || 0)));
             r.appendChild(btn('원문', function () { openLink(c.link); }));
             r.appendChild(btn(c.hidden ? '다시 보이기' : '숨기기', async function () {
-                try { await post('/api/admin/news/' + j.date + '/' + c.id + '/hide', { hidden: !c.hidden }); renderAdminNews(host); } catch (e) { alert('실패: ' + e.message); }
+                try { await post('/api/admin/news/' + j.date + '/' + c.id + '/hide', { hidden: !c.hidden }); renderAdminNews(host); } catch (e) { notifyFail('실패: ', e); }
             }));
             host.appendChild(r);
         });
@@ -201,7 +204,7 @@
             [['', '분류 없음']].concat(Object.keys(CATS).map(function (k) { return [k, CATS[k]]; })).forEach(function (o) { var op = el('option', '', o[1]); op.value = o[0]; cs.appendChild(op); });
             r.appendChild(cs);
             r.appendChild(btn('싣기', async function () {
-                try { await post('/api/admin/news/' + j.date + '/publish', { index: x.index, link: x.link, cat: cs.value }); renderAdminNews(host); } catch (e) { alert('싣기 실패: ' + e.message); }
+                try { await post('/api/admin/news/' + j.date + '/publish', { index: x.index, link: x.link, cat: cs.value }); renderAdminNews(host); } catch (e) { notifyFail('싣기 실패: ', e); }
             }, 'blue'));
             host.appendChild(r);
         });

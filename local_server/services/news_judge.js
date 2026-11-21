@@ -134,7 +134,7 @@ async function judge(arts, cards, o) {
         const part = arts.slice(b, b + BATCH);
         let r;
         try { r = await call('news', prompt(part, cards || []), { caller: 'NewsJudge', accept: (p) => shapeOk(p, part.length) }); }
-        catch (e) { r = { success: false, error: String((e && e.message) || e) }; }
+        catch (e) { console.warn('[오늘의 뉴스] 판정 호출 중 예외:', e && e.message); r = { success: false, error: String((e && e.message) || e) }; }
         const p = r && r.success ? looseJson(r.text) : undefined;
         if (!r || !r.success || !shapeOk(p, part.length)) {
             for (let k = 0; k < part.length; k++) failed.push(b + k);

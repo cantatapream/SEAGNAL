@@ -63,19 +63,20 @@ router.get('/api/fishcond/:id/pdf', (req, res) => {
 
 // ── 관리자(2026-11-21 시안 8-2) ──────────────────────────────────────────
 const auth = (req, res, next) => require('../services/admin_auth').requireAdminToken(req, res, next);
-const fail = (res, e) => { console.error('[어황정보 관리자]', e && e.message); res.status(500).json({ ok: false, error: String((e && e.message) || e) }); };
+const reportFail = (res, e) =>   // 운영 기록(console.error) + 500 — 오류를 조용히 삼키지 않는다(test_silent_catch)
+    { console.error('[어황정보 관리자]', e && e.message); res.status(500).json({ ok: false, error: String((e && e.message) || e) }); };
 router.get('/api/admin/fishcond', auth, (req, res) => {
-    try { res.set('Cache-Control', 'no-store').json({ ok: true, posts: fc().adminList(), state: fc().state(), running: fc().running() }); } catch (e) { fail(res, e); }
+    try { res.set('Cache-Control', 'no-store').json({ ok: true, posts: fc().adminList(), state: fc().state(), running: fc().running() }); } catch (e) { reportFail(res, e); }
 });
-router.post('/api/admin/fishcond/run', auth, (req, res) => { try { res.json(Object.assign({ ok: true }, fc().runNow())); } catch (e) { fail(res, e); } });
+router.post('/api/admin/fishcond/run', auth, (req, res) => { try { res.json(Object.assign({ ok: true }, fc().runNow())); } catch (e) { reportFail(res, e); } });
 router.post('/api/admin/fishcond/:id/hide', auth, express.json(), async (req, res) => {
-    try { const ok = await fc().setHidden(req.params.id, !!(req.body && req.body.hidden)); res.status(ok ? 200 : 404).json({ ok }); } catch (e) { fail(res, e); }
+    try { const ok = await fc().setHidden(req.params.id, !!(req.body && req.body.hidden)); res.status(ok ? 200 : 404).json({ ok }); } catch (e) { reportFail(res, e); }
 });
 router.post('/api/admin/fishcond/:id/delete', auth, async (req, res) => {
-    try { const ok = await fc().remove(req.params.id); res.status(ok ? 200 : 404).json({ ok }); } catch (e) { fail(res, e); }
+    try { const ok = await fc().remove(req.params.id); res.status(ok ? 200 : 404).json({ ok }); } catch (e) { reportFail(res, e); }
 });
 router.post('/api/admin/fishcond/:id/reconvert', auth, async (req, res) => {
-    try { const status = await fc().reconvert(req.params.id); res.status(status ? 200 : 404).json({ ok: !!status, status }); } catch (e) { fail(res, e); }
+    try { const status = await fc().reconvert(req.params.id); res.status(status ? 200 : 404).json({ ok: !!status, status }); } catch (e) { reportFail(res, e); }
 });
 
 module.exports = router;

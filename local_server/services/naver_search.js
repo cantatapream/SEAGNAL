@@ -127,6 +127,7 @@ async function searchNews(query, opt = {}) {
     const data = await res.json();
     return { ok: true, items: data.items || [], total: data.total || 0 };
   } catch (e) {
+    console.warn('[네이버 뉴스 검색] 실패:', query, String((e && e.message) || e).slice(0, 120));   // 부르는 쪽도 상태에 남기지만 여기서도 운영 기록
     return { ok: false, items: [], total: 0, error: String((e && e.message) || e).slice(0, 160) };
   }
 }
