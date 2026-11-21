@@ -2101,17 +2101,46 @@ async function renderUnifiedPromoContent(container) {
             <i class="fa-solid fa-bullhorn" style="color:#f87171;"></i> 게시판 관리
         </div>
 
-        <div class="admin-sub-tabs">
-            <button class="error-fix-sub-tab active" data-subtab="board-mgmt" onclick="switchBoardSubTab('board-mgmt')">
-                <i class="fa-solid fa-layer-group"></i> 게시판 관리
+        <!-- 뉴스·공지·어황(2026-11-21 시안 8-1 A): 위에 3칸 — 앱 탭과 같은 이름. [게시판 관리 | 게시글 관리] 두 단추는 「공지사항」 칸에서만 보인다
+             (사용자 「게시판 괸리 게시글관리 선택버튼은 공지사항눌럿을때만 표출」). 어황정보·오늘의 뉴스 칸은 js/admin/admin_news_hub.js 가 그린다. -->
+        <div class="admin-sub-tabs nhub-admin-top" style="margin-bottom:10px;">
+            <button class="error-fix-sub-tab active" data-hubtab="notice" onclick="switchNhubAdminTab('notice')">
+                <i class="fa-solid fa-bullhorn"></i> 공지사항
             </button>
-            <button class="error-fix-sub-tab" data-subtab="post-mgmt" onclick="switchBoardSubTab('post-mgmt')">
-                <i class="fa-solid fa-file-lines"></i> 게시글 관리
+            <button class="error-fix-sub-tab" data-hubtab="fishcond" onclick="switchNhubAdminTab('fishcond')">
+                <i class="fa-solid fa-fish"></i> 어황정보
+            </button>
+            <button class="error-fix-sub-tab" data-hubtab="news" onclick="switchNhubAdminTab('news')">
+                <i class="fa-regular fa-newspaper"></i> 오늘의 뉴스
             </button>
         </div>
 
-        <div id="board-subtab-content"></div>
+        <div id="nhub-admin-notice">
+            <div class="admin-sub-tabs">
+                <button class="error-fix-sub-tab active" data-subtab="board-mgmt" onclick="switchBoardSubTab('board-mgmt')">
+                    <i class="fa-solid fa-layer-group"></i> 게시판 관리
+                </button>
+                <button class="error-fix-sub-tab" data-subtab="post-mgmt" onclick="switchBoardSubTab('post-mgmt')">
+                    <i class="fa-solid fa-file-lines"></i> 게시글 관리
+                </button>
+            </div>
+
+            <div id="board-subtab-content"></div>
+        </div>
+        <div id="nhub-admin-other" style="display:none;"></div>
     `;
+
+    // 위 3칸 전환(2026-11-21) — 공지사항이면 기존 두 단추·내용을 보이고, 어황정보·오늘의 뉴스면 admin_news_hub.js 가 그린다.
+    window.switchNhubAdminTab = function (tab) {
+        document.querySelectorAll('.error-fix-sub-tab[data-hubtab]').forEach(btn => btn.classList.toggle('active', btn.dataset.hubtab === tab));
+        const notice = document.getElementById('nhub-admin-notice'), other = document.getElementById('nhub-admin-other');
+        if (!notice || !other) return;
+        notice.style.display = tab === 'notice' ? '' : 'none';
+        other.style.display = tab === 'notice' ? 'none' : '';
+        if (tab === 'fishcond' && typeof window.renderAdminFishcond === 'function') window.renderAdminFishcond(other);
+        else if (tab === 'news' && typeof window.renderAdminNews === 'function') window.renderAdminNews(other);
+        else if (tab !== 'notice') other.innerHTML = '<div style="padding:20px;color:#fca5a5;">관리 모듈(js/admin/admin_news_hub.js)이 로드되지 않았습니다.</div>';
+    };
 
     // 서브탭 전환 함수
     window.switchBoardSubTab = function (tabId) {

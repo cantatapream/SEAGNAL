@@ -22,7 +22,9 @@
  * [연계]
  *  - 사용하는 파일 : services/naver_search(searchNews) · services/news_judge(judge) · services/atomic_write
  *  - 저장          : data/news/<YYYY-MM-DD>.json(그날 카드·뺀 기사) · state.json · views.json(펼친 횟수) · seen.json(판정한 기사 열쇠 3일) · pending.json · data/news_config.json(검색어)
- *  - 나를 쓰는 곳  : server.js(운영에서만 start) · routes/news.js · 검사 scripts/test_news_collector.js
+ *  - 나를 쓰는 곳  : server.js(운영에서만 start) · routes/news.js(앱 · 관리자) · 검사 scripts/test_news_collector.js
+ *  관리자(2026-11-21 시안 8-3 · 사용자 「뺀기사는 원문 링크 볼수있는 버튼 [원문] 반영」): 실린 카드 숨기기·다시 보이기 · AI 가 뺀 기사 싣기 · 검색어 · 지금 갱신.
+ *   매시 수집이 도는 중에 바꾸면 그 수집이 끝난 뒤에 적용한다(afterRun — 도는 쪽이 날짜 파일을 다시 쓰며 관리자 변경을 덮지 않게).
  * [로드 순서] 없음(서버 모듈)
  * ============================================================================
  */
@@ -207,7 +209,7 @@ function createNews({ dir = path.join(DATA, 'news'), configFile = path.join(DATA
                     const d = kstDate(a.pubMs), host = hostOf(a.originallink);
                     if (r.score < MIN_SCORE) {
                         const day = getDay(d);
-                        if (day.rejected.length < REJECT_MAX) day.rejected.push({ title: a.title, link: a.originallink || a.link, source: host, pubMs: a.pubMs, score: r.score, reason: r.reason });
+                        if (day.rejected.length < REJECT_MAX) day.rejected.push({ title: a.title, desc: a.desc, link: a.originallink || a.link, source: host, pubMs: a.pubMs, score: r.score, reason: r.reason });
                         st.rejected++;
                         continue;
                     }
@@ -311,6 +313,57 @@ function createNews({ dir = path.join(DATA, 'news'), configFile = path.join(DATA
         try { write(f('views.json'), vw); } catch (e) { console.warn('[오늘의 뉴스] 펼친 횟수를 못 씀:', e && e.message); }
         return vw.count[k];
     }
+    /** 매시 수집이 도는 중이면 끝난 뒤에 한다. */
+    const afterRun = (fn) => (running ? running.then(fn, fn) : Promise.resolve().then(fn));
+    /**
+     * 관리자 — 그날의 카드(숨긴 것 포함)와 AI 가 뺀 기사.
+     * 예: adminDay('2026-11-21') → { date, cards:[{…day() 카드, hidden, score, provider, summaryFixed, manual}], rejected:[{ index, title, link, source, time, score, reason }] }
+     */
+    function adminDay(d) {
+        if (!DAY_RE.test(String(d))) return null;
+        const CATS = require('./news_judge').CATS, vw = readViews().count, raw = readDay(d);
+        const cards = raw.cards.slice().sort((a, b) => b.rep.pubMs - a.rep.pubMs).map((c) => ({
+            id: c.id, title: c.title, summary: c.summary, cat: c.cat, catName: CATS[c.cat] || '', region: c.region, time: kstShort(c.rep.pubMs), source: c.site || c.rep.host,
+            more: Math.max(0, (c.count || 1) - 1), views: vw[d + '/' + c.id] || 0, link: c.rep.originallink || c.rep.link, hidden: !!c.hidden, score: c.score, provider: c.provider || '', summaryFixed: !!c.summaryFixed, manual: !!c.manual,
+        }));
+        const rejected = raw.rejected.map((r, i) => ({ index: i, title: r.title, link: r.link, source: r.source, time: kstShort(r.pubMs), score: r.score, reason: r.reason || '' })).reverse();
+        return { date: d, cards, rejected };
+    }
+    /** 카드를 숨기거나 다시 보인다. @returns {Promise<boolean>} [연계] ← routes/news.js 관리자 */
+    function setHidden(d, id, hidden) {
+        return afterRun(() => {
+            if (!DAY_RE.test(String(d))) return false;
+            const day = readDay(d), c = day.cards.find((x) => x.id === String(id)); if (!c) return false;
+            c.hidden = !!hidden; write(dayFile(d), day); return true;
+        });
+    }
+    /**
+     * AI 가 뺀 기사를 싣는다(관리자 「싣기」). 요약은 원문 요약(앞 2문장 — 지어낼 AI 없이), 분류는 관리자가 고른 것(없으면 꼬리표 없음).
+     * @param {string} d @param {number} index rejected 의 자리 @param {string} [cat] money|duty|rule|safety|sea|conflict
+     * @returns {Promise<{ok:boolean, id?:string, error?:string}>}
+     */
+    function publish(d, index, cat) {
+        return afterRun(async () => {
+            if (!DAY_RE.test(String(d))) return { ok: false, error: '날짜 꼴' };
+            const day = readDay(d), r = day.rejected[index];
+            if (!Number.isInteger(index) || !r) return { ok: false, error: '없는 기사' };
+            const J = require('./news_judge');
+            const id = idOf(urlKey(r.link) || r.title);
+            if (day.cards.some((c) => c.id === id)) { day.rejected.splice(index, 1); write(dayFile(d), day); return { ok: true, id }; }
+            const card = { id, date: d, title: r.title, summary: J.fixSummary('', '', r.desc || '', r.title).text, summaryFixed: true, cat: Object.prototype.hasOwnProperty.call(J.CATS, cat) ? cat : 'none', region: '', score: MIN_SCORE,
+                rep: { title: r.title, desc: r.desc || '', link: r.link, originallink: r.link, host: r.source || hostOf(r.link), pubMs: r.pubMs }, hosts: r.source ? [r.source] : [], count: 1,
+                site: '', image: '', hidden: false, addedAt: new Date(now()).toISOString(), provider: 'admin', manual: true, followOf: '' };
+            const m = await meta(r.link); card.image = m.image || ''; card.site = m.site || '';
+            const fresh = readDay(d);   // 사진을 읽는 사이 바뀌었을 수 있다 — 다시 읽고 적용
+            const k = fresh.rejected.findIndex((x) => x.link === r.link && x.pubMs === r.pubMs);
+            if (k >= 0) fresh.rejected.splice(k, 1);
+            if (!fresh.cards.some((c) => c.id === id)) fresh.cards.push(card);
+            write(dayFile(d), fresh);
+            return { ok: true, id };
+        });
+    }
+    /** 지금 갱신(관리자) — 기다리지 않고 시작만. */
+    function runNow() { const was = !!running; run().catch(() => {}); return { started: !was }; }
     /** 이 사진 주소가 우리 카드에 실린 것인가(http 사진 전달이 아무 주소나 대신 받아 주지 않게). */
     function imageKnown(url) { return !!url && dates().some((d) => readDay(d).cards.some((c) => c.image === url)); }
     function state() { return readJson(f('state.json'), null); }
@@ -322,7 +375,7 @@ function createNews({ dir = path.join(DATA, 'news'), configFile = path.join(DATA
         timer.unref();
         return true;
     }
-    return { run, day, dates, hit, state, keywords, setKeywords, imageKnown, start };
+    return { run, day, dates, hit, state, keywords, setKeywords, imageKnown, start, adminDay, setHidden, publish, runNow, running: () => !!running };
 }
 
 let real = null;
@@ -331,5 +384,6 @@ const getReal = () => (real = real || createNews());
 module.exports = {
     run: () => getReal().run(), day: (d) => getReal().day(d), dates: () => getReal().dates(), hit: (d, id, a) => getReal().hit(d, id, a),
     state: () => getReal().state(), keywords: () => getReal().keywords(), setKeywords: (l) => getReal().setKeywords(l), imageKnown: (u) => getReal().imageKnown(u), start: () => getReal().start(),
+    adminDay: (d) => getReal().adminDay(d), setHidden: (d, id, h) => getReal().setHidden(d, id, h), publish: (d, i, c) => getReal().publish(d, i, c), runNow: () => getReal().runNow(), running: () => getReal().running(),
     createNews, clean, urlKey, titleKey, kstDate, kstShort, DEFAULT_KEYWORDS, DROP_RE, KEEP_DAYS,
 };

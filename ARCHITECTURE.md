@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 135개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 136개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -32,6 +32,7 @@ client/js/
 │   ├── admin_collect.js
 │   ├── admin_data_status.js
 │   ├── admin_location_status.js
+│   ├── admin_news_hub.js
 │   ├── admin_report.js
 │   ├── admin_station_briefing.js
 │   ├── admin_survey.js
@@ -224,6 +225,7 @@ client/js/
 | `admin_collect.js` | 특보 수집 테스트, 결과 팝업, 방문자 통계 차트 |
 | `admin_data_status.js` | 관리자 → 점검 → 「데이터 수집현황」 화면(수집 목록·현재 원천 상태·오류·복구 이력) |
 | `admin_location_status.js` | 관리자 센터 "위치 기반" 탭 — ①설정 화면 「위치 기반 기상 정보 제공」을 누구에게 보일지 고르는 버튼 3개 |
+| `admin_news_hub.js` | 통합관리자 → 게시판 관리 → 「어황정보」·「오늘의 뉴스」 칸(2026-11-21 시안 8-2·8-3). |
 | `admin_report.js` | 관리자 제보 관리 + 차단 관리 UI |
 | `admin_station_briefing.js` | 통합관리자 → AI 탭 → 하위 탭 「AI 브리핑」(설계서 §11.6 결정 16·17 · 화면 정리 §11.10.50) — 연 |
 | `admin_survey.js` | 통합 관리자 센터 - 설문조사 탭 UI (생성/현황/결과분석/이력관리) |

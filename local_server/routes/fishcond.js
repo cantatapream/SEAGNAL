@@ -10,7 +10,13 @@
  *                    GET /api/fishcond/:id/view        — 쪽 그림을 세로로 이어 붙인 보기 페이지(기상특보 원문 /api/bulletin-doc/…/view 와 같은 모양) · 열 때마다 조회 수 1(?admin=true 는 하루 1번)
  *                    GET /api/fishcond/:id/page/:n     — n 쪽 그림(PNG)
  *                    GET /api/fishcond/:id/pdf         — 원문 PDF(첨부로 — 사용자 「pdf 다운로드 기능도 반영」)
- *  - 나를 쓰는 곳  : server.js(app.use) · 앱 어황정보 화면(다음 단계: client/js/notice/fishcond) · 검사 scripts/test_fishcond_collector.js(글자 확인)
+ *                    관리자(X-Admin-Token — services/admin_auth.requireAdminToken):
+ *                    GET  /api/admin/fishcond              — 글 전부(숨긴 것 포함) + 마지막 확인 결과 + 도는 중인가
+ *                    POST /api/admin/fishcond/:id/hide     — { hidden:true|false } 앱 목록에서 빼기·되돌리기
+ *                    POST /api/admin/fishcond/:id/delete   — 파일째 지우기(다시 받지 않음)
+ *                    POST /api/admin/fishcond/:id/reconvert— 쪽 그림 다시 만들기
+ *                    POST /api/admin/fishcond/run          — 지금 확인(기다리지 않음)
+ *  - 나를 쓰는 곳  : server.js(app.use) · client/js/notice/fishcond/fishcond.js(앱) · client/js/admin/admin_news_hub.js(관리자) · 검사 scripts/test_fishcond_collector.js·test_news_admin.js
  * [로드 순서] 없음(서버 라우트)
  * ============================================================================
  */
@@ -53,6 +59,23 @@ router.get('/api/fishcond/:id/pdf', (req, res) => {
     res.set('Cache-Control', 'public, max-age=604800, immutable')
         .set('Content-Disposition', 'attachment; filename="' + id + '.pdf"; filename*=UTF-8\'\'' + encodeURIComponent(name))
         .type('application/pdf').sendFile(f);
+});
+
+// ── 관리자(2026-11-21 시안 8-2) ──────────────────────────────────────────
+const auth = (req, res, next) => require('../services/admin_auth').requireAdminToken(req, res, next);
+const fail = (res, e) => { console.error('[어황정보 관리자]', e && e.message); res.status(500).json({ ok: false, error: String((e && e.message) || e) }); };
+router.get('/api/admin/fishcond', auth, (req, res) => {
+    try { res.set('Cache-Control', 'no-store').json({ ok: true, posts: fc().adminList(), state: fc().state(), running: fc().running() }); } catch (e) { fail(res, e); }
+});
+router.post('/api/admin/fishcond/run', auth, (req, res) => { try { res.json(Object.assign({ ok: true }, fc().runNow())); } catch (e) { fail(res, e); } });
+router.post('/api/admin/fishcond/:id/hide', auth, express.json(), async (req, res) => {
+    try { const ok = await fc().setHidden(req.params.id, !!(req.body && req.body.hidden)); res.status(ok ? 200 : 404).json({ ok }); } catch (e) { fail(res, e); }
+});
+router.post('/api/admin/fishcond/:id/delete', auth, async (req, res) => {
+    try { const ok = await fc().remove(req.params.id); res.status(ok ? 200 : 404).json({ ok }); } catch (e) { fail(res, e); }
+});
+router.post('/api/admin/fishcond/:id/reconvert', auth, async (req, res) => {
+    try { const status = await fc().reconvert(req.params.id); res.status(status ? 200 : 404).json({ ok: !!status, status }); } catch (e) { fail(res, e); }
 });
 
 module.exports = router;

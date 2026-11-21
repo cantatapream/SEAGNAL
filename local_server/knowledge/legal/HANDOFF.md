@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-21 10:22 KST] ✅완료 — 뉴스·공지·어황 관리자 화면 완료 (4단계)
+관리자 → 게시판 관리: 위 3칸 [공지사항|어황정보|오늘의 뉴스](admin_collect.js switchNhubAdminTab), [게시판 관리|게시글 관리]는 공지사항 칸에만. 새 client/js/admin/admin_news_hub.js — 어황: 마지막 확인·결과·보관 건수·[지금 확인]·[원문]·[숨기기/다시 보이기]·[다시 변환]·[삭제]; 뉴스: 날짜·마지막 갱신·결과·받음→판정→실음·판정한 AI·받지 못한 검색어·[지금 갱신]·검색어 칩 추가/삭제·실린 기사 [원문]/[숨기기]·뺀 기사 [원문]/[싣기](분류 고름). 서버: routes/news.js·fishcond.js 에 /api/admin/*(services/admin_auth.requireAdminToken), news_collector adminDay·setHidden·publish·runNow(뺀 기사에 desc 저장), fishcond_collector adminList·setHidden·remove(removed.json — 다시 받지 않음)·reconvert·runNow, 둘 다 afterRun(수집 도는 중 변경은 끝난 뒤 적용). 앱 목록은 숨긴 것 제외. 검사 test_news_admin 10/10(인증 401·숨기기·싣기·삭제 후 재수집 안 함·도는 중 숨기기 덮이지 않음·관리자 화면 Chromium), news 45/45, fishcond 42/42. 남은 일: 별도 에이전트 적대검증(진행), 배포 후 운영 확인(nifs·네이버·AI·사진·앱 안 브라우저).
+
+
 ### [2026-11-21 09:59 KST] ✅완료 — 뉴스·공지·어황 앱 화면 완료 (3단계)
 index2.html: 하단 탭·제목 「뉴스·공지·어황」, 안쪽 탭 3칸(밑줄+아이콘 4-B), 공지 알약 필터 삭제, 어황 팝업 마크업. 새 파일: client/js/notice/hub/notice_hub.js(처음 칸 = 24시간 안 공지 있으면 공지·없으면 뉴스 — body[data-active-tab] 변화를 봄, 칸별·하단 N), news/news.js(날짜줄 ◀날짜▶ 가운데·[오늘] ▶ 오른쪽·달력 맨 오른쪽, 보관 날짜만 달력, 카드 꼬리표 사진 위·오른쪽 아래 펼친 횟수+시각, 아코디언→다시 누르면 @capacitor/browser·웹은 새 탭, 최종 업데이트 3시간 넘으면 주황, 빈 날 [어제 뉴스 보기], http 사진 /api/news/img), fishcond/fishcond.js(목록 바다 꼬리표·쪽수 없음·조회/날짜/부서 오른쪽, 팝업 iframe /api/fishcond/:id/view·PDF 받기 downloadKmaFile·원문 보기·PopupStack). promo.js: 줄 메타 반응·조회·날짜 오른쪽 정렬, updateNewBadges → NoticeHub.setNoticeNew. style.css 끝에 nhub 스타일. 검사: test_news_hub_ui 14/14(신규, verify_all 등록), test_tab_structure 42/42(기대 라벨 갱신), promo_detail_ui 12/12, promo_detail_keyboard 16/16, youtube_shorts 33/33, notice_markdown 9/9, text_fit 28/28, life_safety_tab_keep 25/25, simulate 회귀 없음. ARCHITECTURE.md 재생성(기존 도면이 이미 낡아 있어 무관한 ├/└ 줄도 바뀜 — HEAD 깨끗한 사본에서도 72줄 차이 확인). 다음: 관리자 화면(8-1 A: 공지사항·어황정보·오늘의 뉴스 3칸, 숨기기/살리기/싣기/[원문], 검색어, 마지막 갱신 상태) — 서버 관리자 API 도 함께.
 
