@@ -129,9 +129,12 @@ const mk = (f, dir) => F.createFishcond({ dir, fetchText: f.fetchText, fetchPdf:
         const g = fake(), d4 = tmp(), c4 = mk(g, d4);
         g.html = page([row(IDS.a, '서해', '부서', '2026-11-20', 'DX5-1-1', 'a.pdf')]); g.pdf = { 'DX5-1-1': 1 };
         await c4.run();
-        g.clock = Date.parse('2026-12-20T00:30:00Z'); g.html = page([]);   // 2026-12-20 KST = 30일째
+        g.clock = Date.parse('2026-12-19T00:30:00Z'); g.html = page([]);   // 11-20 글 → 12-19 = 29일 지남(오늘 포함 30일째)
         const s = await c4.run();
-        ok('딱 30일째는 남긴다', c4.list().length === 1 && s.removed === 0, { s, l: c4.list() });
+        ok('오늘 포함 30일째(29일 지남)는 남긴다', c4.list().length === 1 && s.removed === 0, { s, l: c4.list() });
+        g.clock = Date.parse('2026-12-20T00:30:00Z');   // 30일 지남 → 31일째
+        const s2 = await c4.run();
+        ok('31일째(30일 지남)는 지운다 — 보관은 오늘 포함 30일(검토 지적: 종전 31일)', c4.list().length === 0 && s2.removed === 1, { s2, l: c4.list() });
     }
 
     console.log('⑦-2 조회 수 — 열 때마다 1, 관리자는 하루 1번, 지운 글은 빠짐');
@@ -149,11 +152,30 @@ const mk = (f, dir) => F.createFishcond({ dir, fetchText: f.fetchText, fetchPdf:
         ok('없는 글·꼴이 아닌 ID 는 null', c5.hit(IDS.b) === null && c5.hit('../x') === null);
         const n0 = c5.get(IDS.a).views; await c5.run();
         ok('1시간 확인(run)이 조회 수를 덮지 않는다', c5.get(IDS.a).views === n0);
-        g.clock = Date.parse('2026-12-20T00:30:00Z');   // 11-19 글만 30일 넘김(31일)
+        g.clock = Date.parse('2026-12-19T00:30:00Z');   // 11-19 글만 30일 지남(지움) · 11-20 글은 29일(남김)
         g.html = page([]); await c5.run();
         const vw = JSON.parse(fs.readFileSync(path.join(d5, 'views.json'), 'utf8'));
         ok('지운 글의 조회 수는 views.json 에서도 빠진다', vw.count[IDS.d] === undefined && vw.count[IDS.a] === 3, vw);
         ok('views.json 은 찌꺼기로 지우지 않는다', fs.existsSync(path.join(d5, 'views.json')));
+    }
+
+    console.log('⑦-3 바꾸기가 겹쳐도 되돌아가지 않는다(별도 에이전트 검토 2026-11-21 — 다시 변환 도중 숨기기·삭제가 되돌아감을 재현)');
+    {
+        const g = fake(), d6 = tmp();
+        let slow = false;
+        const c6 = F.createFishcond({ dir: d6, fetchText: g.fetchText, fetchPdf: g.fetchPdf, now: g.now,
+            convert: async (pdf, prefix) => { if (slow) await new Promise((r) => setTimeout(r, 200)); await g.convert(pdf, prefix); } });
+        g.html = page([row(IDS.a, '서해', '부서', '2026-11-20', 'DX5-1-1', 'a.pdf'), row(IDS.d, '전국', '부서', '2026-11-19', 'DX5-2-1', 'd.pdf')]); g.pdf = { 'DX5-1-1': 1, 'DX5-2-1': 1 };
+        await c6.run();
+        slow = true;
+        const rc = c6.reconvert(IDS.a); const hd = c6.setHidden(IDS.d, true);
+        await Promise.all([rc, hd]);
+        ok('다시 변환 도중 숨기기 → 변환이 끝난 뒤에도 숨김 유지', c6.adminList().find((p) => p.id === IDS.d).hidden === true, c6.adminList());
+        await c6.setHidden(IDS.d, false);
+        const rc2 = c6.reconvert(IDS.a); const rm = c6.remove(IDS.d);
+        await Promise.all([rc2, rm]); slow = false;
+        await c6.run();
+        ok('다시 변환 도중 삭제 → 되살아나지 않고 다음 확인에서도 다시 받지 않음', !c6.adminList().some((p) => p.id === IDS.d) && !fs.existsSync(path.join(d6, IDS.d + '.pdf')), c6.adminList().map((p) => p.id));
     }
 
     console.log('⑧ 연결(글자 확인)');

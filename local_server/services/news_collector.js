@@ -21,7 +21,7 @@
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : services/naver_search(searchNews) · services/news_judge(judge) · services/atomic_write
- *  - 저장          : data/news/<YYYY-MM-DD>.json(그날 카드·뺀 기사) · state.json · views.json(펼친 횟수) · seen.json(판정한 기사 열쇠 3일) · pending.json · data/news_config.json(검색어)
+ *  - 저장          : data/news/<YYYY-MM-DD>.json(그날 카드·뺀 기사) · state.json · views.json(펼친 횟수) · seen.json(판정한 기사 열쇠 3일) · pending.json · kwstate.json(검색어마다 마지막으로 받은 때) · data/news_config.json(검색어)
  *  - 나를 쓰는 곳  : server.js(운영에서만 start) · routes/news.js(앱 · 관리자) · 검사 scripts/test_news_collector.js
  *  관리자(2026-11-21 시안 8-3 · 사용자 「뺀기사는 원문 링크 볼수있는 버튼 [원문] 반영」): 실린 카드 숨기기·다시 보이기 · AI 가 뺀 기사 싣기 · 검색어 · 지금 갱신.
  *   매시 수집이 도는 중에 바꾸면 그 수집이 끝난 뒤에 적용한다(afterRun — 도는 쪽이 날짜 파일을 다시 쓰며 관리자 변경을 덮지 않게).
@@ -107,6 +107,11 @@ function createNews({ dir = path.join(DATA, 'news'), configFile = path.join(DATA
     const doJudge = judge || ((arts, cards) => require('./news_judge').judge(arts, cards));
     const f = (n) => path.join(dir, n);
     let running = null, timer = null;
+    // 한 줄 세우기 — 매시 확인(run)·관리자 바꾸기(숨기기·삭제·다시 변환·싣기)를 한 번에 하나씩만 한다.
+    //   없으면: 「다시 변환」처럼 오래 걸리는 일 도중에 들어온 숨기기·삭제가 바로 적용됐다가, 그 일이 처음에 읽어 둔 날짜 파일을 다시 쓰며 되돌려졌다
+    //   (별도 에이전트 검토 2026-11-21 — 지운 글이 되살아나 앱 목록에 다시 보임을 실행으로 재현).
+    let chain = Promise.resolve();
+    const exclusive = (fn) => { const p = chain.then(fn, fn); chain = p.then(() => {}, () => {}); return p; };
     const readJson = (p, d) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch (_) { return d; } };
     const write = (p, v) => { fs.mkdirSync(path.dirname(p), { recursive: true }); writeFileAtomic(p, JSON.stringify(v)); };
     const dayFile = (d) => f(d + '.json');
@@ -152,19 +157,25 @@ function createNews({ dir = path.join(DATA, 'news'), configFile = path.join(DATA
      */
     function run() {
         if (running) return running;
-        running = (async () => {
+        running = exclusive(async () => {
             const t0 = now();
             const st = { lastRun: new Date(t0).toISOString(), ok: false, error: null, keywords: 0, fetched: 0, unique: 0, dropped: 0, candidates: 0, judged: 0, failed: 0, kept: 0, added: 0, merged: 0, rejected: 0, providers: {}, keywordErrors: [], judgeErrors: [] };
             let logged = false;
             try {
                 fs.mkdirSync(dir, { recursive: true });
-                const prev = readJson(f('state.json'), null);
-                const lastOk = prev && prev.ok && Date.parse(prev.lastRun);
-                const sinceMs = Number.isFinite(lastOk) && t0 - lastOk < FIRST_WINDOW_MS ? lastOk - OVERLAP_MS : t0 - FIRST_WINDOW_MS;
                 const kws = keywords(); st.keywords = kws.length;
-                // ①
+                // ① 검색어마다 「그 검색어를 마지막으로 받은 때」부터 — 한 검색어만 실패해도 다음 회차에 그 검색어는 놓친 시간부터 다시 받는다
+                //   (종전: 전체 창 하나라 일부 실패가 ok:true 로 지나가고 그 시간 기사를 영영 놓쳤다 — 별도 에이전트 검토 2026-11-21, 실행으로 재현)
+                const kwLast = readJson(f('kwstate.json'), {}) || {};
                 const raw = [];
-                for (const q of kws) raw.push(...await fetchKeyword(q, sinceMs, st));
+                for (const q of kws) {
+                    const last = kwLast[q];
+                    const sinceMs = Number.isFinite(last) && t0 - last < FIRST_WINDOW_MS ? last - OVERLAP_MS : t0 - FIRST_WINDOW_MS;
+                    const errs = st.keywordErrors.length;
+                    raw.push(...await fetchKeyword(q, sinceMs, st));
+                    if (st.keywordErrors.length === errs) kwLast[q] = t0;   // 이번에 받았다
+                }
+                for (const k of Object.keys(kwLast)) if (!kws.includes(k)) delete kwLast[k];   // 저장은 판정 결과·pending 을 쓴 뒤에(도중에 죽으면 다음 회차가 같은 창을 다시 받게)
                 st.fetched = raw.length;
                 // ② 겹침·이미 판정·확실한 것 거르기
                 const seen = readJson(f('seen.json'), {}) || {};
@@ -256,9 +267,10 @@ function createNews({ dir = path.join(DATA, 'news'), configFile = path.join(DATA
                 for (const d of Object.keys(days)) if (DAY_RE.test(d) && (days[d].cards.length || days[d].rejected.length)) { days[d].date = d; days[d].updatedAt = new Date(t0).toISOString(); write(dayFile(d), days[d]); }
                 write(f('seen.json'), seen);
                 write(f('pending.json'), newPending);
+                write(f('kwstate.json'), kwLast);
                 // ⑤ 30일 정리
                 const files = fs.readdirSync(dir).filter((n) => /^\d{4}-\d{2}-\d{2}\.json$/.test(n));
-                const cut = kstDate(t0 - KEEP_DAYS * 86400000);
+                const cut = kstDate(t0 - (KEEP_DAYS - 1) * 86400000);   // 오늘 포함 30개 날짜(종전 31개 — 검토 지적)
                 const gone = files.filter((n) => n.slice(0, 10) < cut);
                 if (gone.length) {
                     const ids = new Set(gone.flatMap((n) => readDay(n.slice(0, 10)).cards.map((c) => n.slice(0, 10) + '/' + c.id)));
@@ -280,7 +292,7 @@ function createNews({ dir = path.join(DATA, 'news'), configFile = path.join(DATA
             try { write(f('state.json'), st); } catch (e) { console.error('[오늘의 뉴스] 상태 파일을 못 씀:', e && e.message); }
             if (!st.ok && !logged) console.warn('[오늘의 뉴스] 수집 실패:', st.error);
             return st;
-        })().finally(() => { running = null; });
+        }).finally(() => { running = null; });
         return running;
     }
 
@@ -314,7 +326,7 @@ function createNews({ dir = path.join(DATA, 'news'), configFile = path.join(DATA
         return vw.count[k];
     }
     /** 매시 수집이 도는 중이면 끝난 뒤에 한다. */
-    const afterRun = (fn) => (running ? running.then(fn, fn) : Promise.resolve().then(fn));
+    const afterRun = exclusive;   // 관리자 바꾸기도 같은 줄에 선다(앞의 확인·다른 바꾸기가 끝난 뒤에)
     /**
      * 관리자 — 그날의 카드(숨긴 것 포함)와 AI 가 뺀 기사.
      * 예: adminDay('2026-11-21') → { date, cards:[{…day() 카드, hidden, score, provider, summaryFixed, manual}], rejected:[{ index, title, link, source, time, score, reason }] }
@@ -340,13 +352,16 @@ function createNews({ dir = path.join(DATA, 'news'), configFile = path.join(DATA
     /**
      * AI 가 뺀 기사를 싣는다(관리자 「싣기」). 요약은 원문 요약(앞 2문장 — 지어낼 AI 없이), 분류는 관리자가 고른 것(없으면 꼬리표 없음).
      * @param {string} d @param {number} index rejected 의 자리 @param {string} [cat] money|duty|rule|safety|sea|conflict
+     * @param {string} [link] 그 기사 원문 주소 — 있으면 자리 대신 이것으로 찾는다(앞서 하나를 실어 자리가 밀린 낡은 화면에서 엉뚱한 기사가 실리지 않게 — 검토 지적)
      * @returns {Promise<{ok:boolean, id?:string, error?:string}>}
      */
-    function publish(d, index, cat) {
+    function publish(d, index, cat, link) {
         return afterRun(async () => {
             if (!DAY_RE.test(String(d))) return { ok: false, error: '날짜 꼴' };
-            const day = readDay(d), r = day.rejected[index];
-            if (!Number.isInteger(index) || !r) return { ok: false, error: '없는 기사' };
+            const day = readDay(d);
+            if (link) index = day.rejected.findIndex((x) => x.link === link);
+            const r = day.rejected[index];
+            if (!Number.isInteger(index) || !r) return { ok: false, error: '없는 기사(이미 실었거나 목록이 바뀜)' };
             const J = require('./news_judge');
             const id = idOf(urlKey(r.link) || r.title);
             if (day.cards.some((c) => c.id === id)) { day.rejected.splice(index, 1); write(dayFile(d), day); return { ok: true, id }; }
@@ -365,7 +380,13 @@ function createNews({ dir = path.join(DATA, 'news'), configFile = path.join(DATA
     /** 지금 갱신(관리자) — 기다리지 않고 시작만. */
     function runNow() { const was = !!running; run().catch(() => {}); return { started: !was }; }
     /** 이 사진 주소가 우리 카드에 실린 것인가(http 사진 전달이 아무 주소나 대신 받아 주지 않게). */
-    function imageKnown(url) { return !!url && dates().some((d) => readDay(d).cards.some((c) => c.image === url)); }
+    //   사진 주소 목록은 60초 담아 둔다 — 종전에는 요청마다 날짜 파일(최대 30개)을 전부 읽어 아무나 부르면 서버가 막혔다(검토 지적, 요청당 약 47ms 측정)
+    let imgCache = null;
+    function imageKnown(url) {
+        if (!url) return false;
+        if (!imgCache || now() - imgCache.at > 60000) imgCache = { at: now(), set: new Set(dates().flatMap((d) => readDay(d).cards.map((c) => c.image).filter(Boolean))) };
+        return imgCache.set.has(url);
+    }
     function state() { return readJson(f('state.json'), null); }
     /** 운영에서만(FLY_ALLOC_ID) — 시작 2분 뒤 한 번, 그 뒤 매시 2분(KST). @returns {boolean} [연계] ← server.js */
     function start() {

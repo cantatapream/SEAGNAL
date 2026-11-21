@@ -107,9 +107,10 @@ const numbersOf = (s) => String(s || '').match(/\d+(?:[.,]\d+)?/g) || [];
  */
 function fixSummary(s, source, fallback, title) {
     const text = String(s || '').replace(/\s+/g, ' ').trim();
-    const src = String(source || '').replace(/,/g, '');
+    // 숫자는 덩이째 견준다 — 글자 포함으로 보면 '3명'이 '2023년' 안의 3 으로, '10억'이 '100억' 안의 10 으로 통과했다(별도 에이전트 검토 2026-11-21, 실행으로 재현)
+    const srcNums = new Set(numbersOf(String(source || '').replace(/(\d),(?=\d{3})/g, '$1')));
     // 주소가 든 요약도 버린다 — 실제 시험(2026-11-21)에서 기사 요약이 유튜브 주소뿐이라 카드 요약 칸에 주소가 나갔다
-    const bad = !text || text.length > SUMMARY_MAX || /https?:\/\/|www\./i.test(text) || numbersOf(text).some((n) => !src.includes(n.replace(/,/g, '')));
+    const bad = !text || text.length > SUMMARY_MAX || /https?:\/\/|www\./i.test(text) || numbersOf(text.replace(/(\d),(?=\d{3})/g, '$1')).some((n) => !srcNums.has(n));
     if (!bad) return { text, fixed: false };
     let fb = String(fallback || '').replace(URL_RE, ' ').replace(/\s+/g, ' ').trim().split(/(?<=[.다])\s+/).slice(0, 2).join(' ');
     if (fb.length < 15) fb = String(title || '').trim();   // 원문 요약이 비었거나 주소뿐이면 제목

@@ -46,11 +46,16 @@
         if (extra) box.appendChild(extra);
         return box;
     }
+    var acting = false;   // 바꾸기 요청 하나가 끝날 때까지 다른 누름을 막는다(낡은 목록에서 두 번째 누름이 엉뚱한 글에 가지 않게 — 검토 지적)
     async function post(path, body) {
-        var r = await fetch(api(path), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
-        var j = await r.json().catch(function () { return {}; });
-        if (!r.ok || j.ok === false) throw new Error(j.error || ('HTTP ' + r.status));
-        return j;
+        if (acting) throw new Error('앞 요청을 처리하는 중입니다. 잠시 뒤 다시 눌러 주세요.');
+        acting = true;
+        try {
+            var r = await fetch(api(path), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+            var j = await r.json().catch(function () { return {}; });
+            if (!r.ok || j.ok === false) throw new Error(j.error || ('HTTP ' + r.status));
+            return j;
+        } finally { acting = false; }
     }
     function failBox(host, msg) { host.innerHTML = ''; host.appendChild(el('div', 'padding:16px;color:#fca5a5;', msg)); }
 
@@ -191,7 +196,7 @@
             [['', '분류 없음']].concat(Object.keys(CATS).map(function (k) { return [k, CATS[k]]; })).forEach(function (o) { var op = el('option', '', o[1]); op.value = o[0]; cs.appendChild(op); });
             r.appendChild(cs);
             r.appendChild(btn('싣기', async function () {
-                try { await post('/api/admin/news/' + j.date + '/publish', { index: x.index, cat: cs.value }); renderAdminNews(host); } catch (e) { alert('싣기 실패: ' + e.message); }
+                try { await post('/api/admin/news/' + j.date + '/publish', { index: x.index, link: x.link, cat: cs.value }); renderAdminNews(host); } catch (e) { alert('싣기 실패: ' + e.message); }
             }, 'blue'));
             host.appendChild(r);
         });

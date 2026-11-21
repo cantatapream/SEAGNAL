@@ -98,6 +98,16 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             assert.ok(c && c.cat === 'conflict' && c.catName === '바다 이용 갈등·제도' && c.summary === '자율관리어업 워크숍을 열었다. 다음 문장.' && /img\.test/.test(c.image) && c.source === '테스트일보', JSON.stringify(c));
             assert.equal(news.adminDay(D).rejected.length, 0); assert.ok(news.adminDay(D).cards.find((x) => /FIRA/.test(x.title)).manual);
             assert.equal((await call('POST', '/api/admin/news/' + D + '/publish', { index: 5 })).status, 404);
+            // 원문 주소로 찾는다 — 자리 번호가 밀린 낡은 화면에서도 그 기사가 실린다(검토 지적)
+            ng.results.k.unshift(nItem('뺀 기사 갑', '갑 내용.', 'https://x.com/a', T0 - 0.1 * H), nItem('뺀 기사 을', '을 내용.', 'https://x.com/b', T0 - 0.05 * H));
+            ng.clock = T0 + 0.1 * H; ng.verdict = () => ({ score: 1, reason: '홍보' }); await news.run();
+            const rj = news.adminDay(D).rejected;                       // 화면이 받은 목록(자리 번호 포함)
+            const eul = rj.find((x) => /을/.test(x.title)), gap = rj.find((x) => /갑/.test(x.title));
+            await call('POST', '/api/admin/news/' + D + '/publish', { index: gap.index, link: gap.link });   // 갑을 먼저 실음 → 을의 자리가 밀림
+            const r2 = await call('POST', '/api/admin/news/' + D + '/publish', { index: eul.index, link: eul.link, cat: 'sea' });   // 낡은 번호 + 주소
+            assert.equal(r2.status, 200, JSON.stringify(r2.json));
+            assert.ok(news.day(D).cards.some((c) => /뺀 기사 을/.test(c.title) && c.cat === 'sea'), JSON.stringify(news.day(D).cards.map((c) => c.title)));
+            ng.clock = T0;
         });
         await check('[뉴스] 검색어 저장(빈 목록 거절) · 지금 갱신은 기다리지 않고 시작만', async () => {
             const r = await call('POST', '/api/admin/news/keywords', { keywords: ['k', '해루질 단속'] });
@@ -115,6 +125,16 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             assert.equal((await hideP).status, 200);
             const after = news.adminDay(D);
             assert.ok(after.cards.find((x) => x.id === id).hidden === true && after.cards.some((x) => /해광호/.test(x.title)), JSON.stringify(after.cards.map((x) => [x.title, x.hidden])));
+        });
+        await check('[사진 전달] 우리 카드 사진이라도 내부 주소(127.0.0.1·사설망)는 받지 않는다 · 모르는 주소도 404', async () => {
+            const d = news.adminDay(D); const id = d.cards[0].id;
+            const file = path.join(newsDir, D + '.json'), raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+            raw.cards.find((c) => c.id === id).image = 'http://127.0.0.1:' + server.address().port + '/api/admin/news'; fs.writeFileSync(file, JSON.stringify(raw));
+            ng.clock = T0 + 10 * 60000;   // 사진 목록 담아 둔 것(60초)이 지나게
+            const r = await fetch(base + '/api/news/img?u=' + encodeURIComponent('http://127.0.0.1:' + server.address().port + '/api/admin/news'));
+            assert.equal(r.status, 404);
+            assert.equal((await fetch(base + '/api/news/img?u=' + encodeURIComponent('http://evil.example/x.jpg'))).status, 404);
+            ng.clock = T0;
         });
         await check('[어황] 관리자 목록·숨기기(앱 목록에서 빠짐)·다시 변환·삭제(파일째, 다음 확인에 다시 받지 않음)', async () => {
             let r = (await call('GET', '/api/admin/fishcond')).json;
@@ -172,8 +192,9 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             assert.equal(await page.evaluate(() => window.__opened.slice(-1)[0]), 'https://d.com/4');
             await (await rowEl.asElement().$('select')).selectOption('money');
             await (await rowEl.asElement().$('button:has-text("싣기")')).click();
-            await page.waitForFunction(() => /실린 기사 \(4장\)/.test(document.getElementById('host').textContent));
+            for (let i = 0; i < 50 && !news.day(D).cards.some((c) => /홍보성/.test(c.title)); i++) await page.waitForTimeout(100);
             assert.ok(news.day(D).cards.some((c) => /홍보성/.test(c.title) && c.cat === 'money'));
+            await page.waitForFunction(() => /홍보성 행사 기사 \(관리자가 실음\)/.test(document.getElementById('host').textContent));
             await page.screenshot({ path: path.join(os.tmpdir(), 'nadmin_news.png'), fullPage: true });
         });
         await check('화면 오류 없음', async () => { assert.deepStrictEqual(errors, []); });

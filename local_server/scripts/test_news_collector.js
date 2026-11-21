@@ -150,6 +150,23 @@ const mk = (f, dir) => N.createNews({ dir, configFile: path.join(dir, 'cfg.json'
         ok('100건이 모두 창 안이면 2쪽을 받는다', g.searched.join() === '어선 사고@1,어선 사고@101' && s.fetched === 150, { searched: g.searched, s });
     }
 
+    console.log('⑥-2 검색어 하나만 실패해도 다음 회차에 그 검색어의 놓친 시간을 다시 받는다(검토 지적 — 종전엔 영영 놓침)');
+    {
+        const g = fake(), d5 = tmp(), c5 = mk(g, d5);
+        await c5.setKeywords(['A', 'B']);
+        g.results.A = [item('기사A', 'a', 'https://a.com/1', T0 - 30 * 60000)];
+        g.results.B = [item('어선 전복 기사B', 'b', 'https://b.com/1', T0 - 40 * 60000)];
+        g.verdict = () => ({ score: 4, cat: 'safety' });
+        await c5.run();                                           // 기준 회차(둘 다 받음)
+        g.clock = T0 + H; g.failKw = new Set(['B']);
+        g.results.B.unshift(item('어선 전복 기사B2', 'b2', 'https://b.com/2', T0 + 0.5 * H));
+        const s1 = await c5.run();
+        ok('B 만 실패 → 정상(실패 목록에 B)', s1.ok === true && s1.keywordErrors.length === 1);
+        g.clock = T0 + 2 * H; g.failKw = new Set();
+        await c5.run();
+        ok('다음 회차에 B 는 마지막으로 받은 때부터 다시 받아 B2 를 싣는다', c5.day('2026-11-21').cards.some((x) => /기사B2/.test(x.title)), c5.day('2026-11-21').cards.map((x) => x.title));
+    }
+
     console.log('⑦ 검색어가 모두 실패하면 실패로 남는다(기사 0건과 구별)');
     {
         const g = fake(), d3 = tmp(), c3 = mk(g, d3);
@@ -193,6 +210,8 @@ const mk = (f, dir) => N.createNews({ dir, configFile: path.join(dir, 'cfg.json'
         const fx = J.fixSummary('단속으로 30% 줄었다.', '단속을 시작했다. 대상은 대게다. 셋째 문장.', '단속을 시작했다. 대상은 대게다. 셋째 문장.');
         ok('원문에 없는 숫자 → 원문 요약 앞 2문장으로', fx.fixed === true && fx.text === '단속을 시작했다. 대상은 대게다.', fx);
         const fu = J.fixSummary('https://youtu.be/4xPMXU5Vf98', 'https://youtu.be/4xPMXU5Vf98', 'https://youtu.be/4xPMXU5Vf98?si=C1wh', '외국인 선원 55% 시대… 정부 개편에 어업현장 반발');
+        ok('숫자는 덩이째 견준다 — 원문 2023년의 3·100억의 10 으로 지어낸 3명·10억을 통과시키지 않는다(검토 지적)', J.fixSummary('어선 전복으로 3명이 숨졌다.', '2023년 이후 1명 실종', '원문 요약이다. 둘째.', 't').fixed === true
+            && J.fixSummary('보조금 10억원', '보조금 100억원 지원', '원문 요약이다. 둘째.', 't').fixed === true && J.fixSummary('1,000명 지원', '1000명을 지원', 'x', 't').fixed === false && J.fixSummary('12월 1일부터 3개월', '12월 1일부터 3개월간', 'x', 't').fixed === false);
         ok('요약·원문 요약이 주소뿐이면 제목을 쓴다(실제 시험에서 유튜브 주소가 나갔다)', fu.fixed === true && fu.text === '외국인 선원 55% 시대… 정부 개편에 어업현장 반발', fu);
         ok('지시문: 시·군 이름이면 그 시·도(태안→충남)', /태안→충남/.test(J.prompt([{ title: 'T', desc: 'D', source: 's', time: 't' }], [])));
         ok('지시문: 관광 개발은 수상레저가 함께 나와도 1점(실제 시험에서 홍도 관광 기사가 3점으로 실림)', /관광 개발·관광객 유치 계획은 수상레저·여객선이 함께 언급돼도 1점/.test(J.prompt([{ title: 'T', desc: 'D', source: 's', time: 't' }], [])));

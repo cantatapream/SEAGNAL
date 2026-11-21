@@ -120,6 +120,11 @@ function createFishcond({ dir = DIR, fetchText = realFetchText, fetchPdf = realF
     const indexFile = path.join(dir, 'index.json'), stateFile = path.join(dir, 'state.json'), viewsFile = path.join(dir, 'views.json'), removedFile = path.join(dir, 'removed.json');
     const readRemoved = () => { const v = readJson(removedFile, []); return Array.isArray(v) ? v : []; };
     let running = null, timer = null;
+    // 한 줄 세우기 — 매시 확인(run)·관리자 바꾸기(숨기기·삭제·다시 변환·싣기)를 한 번에 하나씩만 한다.
+    //   없으면: 「다시 변환」처럼 오래 걸리는 일 도중에 들어온 숨기기·삭제가 바로 적용됐다가, 그 일이 처음에 읽어 둔 index.json을 다시 쓰며 되돌려졌다
+    //   (별도 에이전트 검토 2026-11-21 — 지운 글이 되살아나 앱 목록에 다시 보임을 실행으로 재현).
+    let chain = Promise.resolve();
+    const exclusive = (fn) => { const p = chain.then(fn, fn); chain = p.then(() => {}, () => {}); return p; };
     const ls = () => { try { return fs.readdirSync(dir); } catch (_) { return []; } };
     const readJson = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (_) { return d; } };
     const readIndex = () => { const v = readJson(indexFile, []); return Array.isArray(v) ? v : []; };
@@ -169,7 +174,7 @@ function createFishcond({ dir = DIR, fetchText = realFetchText, fetchPdf = realF
      */
     function run() {
         if (running) return running;
-        running = (async () => {
+        running = exclusive(async () => {
             const t0 = now(), today = kstDate(t0);
             const st = { lastRun: new Date(t0).toISOString(), ok: false, listed: 0, added: 0, ready: 0, failed: 0, removed: 0, total: 0, error: null };
             let logged = false;   // 잡은 자리에서 이미 로그를 남겼으면 끝에서 또 남기지 않는다
@@ -194,7 +199,7 @@ function createFishcond({ dir = DIR, fetchText = realFetchText, fetchPdf = realF
                     e.pages = pagesIn(ls(), e.id).length;
                 }
                 // 30일 정리 — 목록을 못 읽은 회차에도 날짜로만 판단하므로 안전하다(게시판 상태와 무관)
-                const keep = index.filter((e) => daysBetween(e.date, today) <= KEEP_DAYS);
+                const keep = index.filter((e) => daysBetween(e.date, today) < KEEP_DAYS);   // 오늘 포함 30일(종전 31일 — 검토 지적)
                 st.removed = index.length - keep.length;
                 const ids = new Set(keep.map((e) => e.id));
                 for (const f of ls()) {
@@ -220,7 +225,7 @@ function createFishcond({ dir = DIR, fetchText = realFetchText, fetchPdf = realF
             try { fs.mkdirSync(dir, { recursive: true }); writeFileAtomic(stateFile, JSON.stringify(st)); } catch (_) { /* 상태 파일을 못 써도 다음 시간에 다시 */ }
             if (!st.ok && !logged) console.warn('[fishcond] 확인 실패:', st.error);
             return st;
-        })().finally(() => { running = null; });
+        }).finally(() => { running = null; });
         return running;
     }
 
@@ -237,7 +242,7 @@ function createFishcond({ dir = DIR, fetchText = realFetchText, fetchPdf = realF
         return readIndex().map((e) => Object.assign(shape(e, vw), { hidden: !!e.hidden, bytes: e.bytes || 0, addedAt: e.addedAt }));
     }
     /** 1시간 확인이 도는 중이면 끝난 뒤에 한다(도는 쪽이 index.json 을 덮어쓰지 않게). */
-    const afterRun = (fn) => (running ? running.then(fn, fn) : Promise.resolve().then(fn));
+    const afterRun = exclusive;   // 관리자 바꾸기도 같은 줄에 선다(앞의 확인·다른 바꾸기가 끝난 뒤에)
     /** 글을 숨기거나 다시 보인다. @returns {Promise<boolean>} 그런 글이 있었나 [연계] ← routes/fishcond.js 관리자 */
     function setHidden(id, hidden) {
         return afterRun(() => { const index = readIndex(), e = index.find((x) => x.id === String(id)); if (!e) return false; e.hidden = !!hidden; writeFileAtomic(indexFile, JSON.stringify(index, null, 1)); return true; });
