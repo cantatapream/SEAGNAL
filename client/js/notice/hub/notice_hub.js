@@ -21,7 +21,9 @@
     var ONE_DAY = 24 * 3600000;
     var cur = null;                 // 지금 보이는 칸
     var noticeNew = null;           // 공지 24시간 안 새 글이 있나(null = 아직 모름)
-    var pendingChoose = false;      // 하단 탭을 눌렀는데 공지 판정을 기다리는 중
+    var pendingChoose = false;      // 하단 탭을 열고 새 공지 판정을 기다리는 중(오면 그 값으로 칸을 다시 고른다)
+    var userPicked = false;         // 이번에 연 뒤 사용자가 칸을 직접 골랐다 — 늦게 온 판정이 덮지 않는다
+    var picked = null;              // pick() 이 탭 바뀜 알림보다 먼저 온 경우 { name, at } — 그 알림이 와도 이 칸을 지킨다
     var chooseTimer = null;
     var badge = { news: false, notice: false, fishcond: false };
 
@@ -59,22 +61,31 @@
     }
 
     /** 처음 보일 칸 — 24시간 안 공지가 있으면 공지사항, 없으면 오늘의 뉴스. */
-    function choose() { pendingChoose = false; clearTimeout(chooseTimer); show(noticeNew ? 'notice' : 'news'); }
+    function ruleTab() { return noticeNew ? 'notice' : 'news'; }
 
-    /** 하단 탭을 눌렀다 — 누를 때마다 위 규칙으로 고른다. 공지 판정을 아직 모르면 promo.js 가 목록을 받을 때까지(최대 3초) 기다린다. */
+    /**
+     * 하단 탭이 이 탭으로 바뀌었다 — 열 때마다 위 규칙으로 고른다.
+     *   지금 아는 판정(없으면 뉴스)으로 바로 보이고(빈 화면 없음), promo.js 가 공지 목록을 새로 받아 판정이 오면(최대 5초) 그 값으로 한 번 더 고른다.
+     *   그사이 사용자가 칸을 직접 골랐으면 덮지 않는다.
+     *   (별도 에이전트 검토 2026-11-21: 종전에는 ① 지난번 판정으로 바로 골라 새 공지가 있어도 뉴스부터 떴고 ② 판정을 기다리는 동안 사용자가 고른 칸을 늦게 온 판정이 덮었고
+     *    ③ 공지 목록을 못 받으면 3초 동안 세 칸이 모두 빈 화면이었다 — 셋 다 실행으로 재현)
+     */
     function onMainOpen() {
-        if (noticeNew !== null) { choose(); return; }
+        if (picked && Date.now() - picked.at < 1500) { var n = picked.name; picked = null; userPicked = true; pendingChoose = false; show(n); return; }
+        picked = null;
+        userPicked = false;
         pendingChoose = true;
-        ['news', 'notice', 'fishcond'].forEach(function (n) { var p = document.getElementById('nhub-' + n); if (p) p.classList.remove('active'); });
+        show(ruleTab());
         clearTimeout(chooseTimer);
-        chooseTimer = setTimeout(function () { if (pendingChoose) choose(); }, 3000);   // 공지 목록을 못 받으면 뉴스부터(빈 화면으로 두지 않는다)
+        chooseTimer = setTimeout(function () { pendingChoose = false; }, 5000);
     }
 
-    /** 공지 글 목록에서 24시간 안 새 글이 있나. 예: hasRecent([{createdAt:'2026.11.21 08:00'}], now) → true */
+    /** 공지 글 목록에서 24시간 안 새 글이 있나 — 한국 시각으로 읽는다(promo.js promoKstMs). 예: hasRecent([{createdAt:'2026.11.21 08:00'}], now) → true */
     function hasRecent(posts, now) {
+        var parse = w.promoKstMs || function () { return NaN; };
         return (posts || []).some(function (p) {
             if (!p || !p.createdAt) return false;
-            var t = new Date(String(p.createdAt).replace(/\./g, '-')).getTime();
+            var t = parse(p.createdAt);
             return isFinite(t) && now - t >= 0 && now - t < ONE_DAY;
         });
     }
@@ -84,14 +95,28 @@
          * 공지 24시간 안 새 글 여부를 받는다(promo.js updateNewBadges 가 목록을 받을 때마다 부른다).
          * @param {boolean} v [연계] ← promo.js updateNewBadges / 시작 때 prefetch
          */
-        setNoticeNew: function (v) { noticeNew = !!v; badge.notice = !!v; if (pendingChoose) choose(); else refresh(); },
+        setNoticeNew: function (v) {
+            noticeNew = !!v; badge.notice = !!v;
+            if (pendingChoose && !userPicked) { pendingChoose = false; clearTimeout(chooseTimer); if (cur !== ruleTab()) { show(ruleTab()); return; } }
+            refresh();
+        },
+        /** 칸을 직접 고른 것으로 친다(늦게 온 판정이 덮지 않음). 예: 공지 팝업의 「게시글로 이동」이 글을 열 때 pick('notice'). [연계] ← promo.js openPromoDetail */
+        pick: function (name) { userPicked = true; pendingChoose = false; picked = { name: name, at: Date.now() }; if (cur !== name) show(name); },
         show: show, refresh: refresh, hasRecent: hasRecent,
         current: function () { return cur; },
     };
 
     function init() {
-        Array.prototype.forEach.call(document.querySelectorAll('#nhub-tabs .nhub-tab'), function (b) {
-            b.addEventListener('click', function () { show(b.getAttribute('data-nhub')); });
+        var tabs = Array.prototype.slice.call(document.querySelectorAll('#nhub-tabs .nhub-tab'));
+        tabs.forEach(function (b, i) {
+            b.setAttribute('aria-controls', 'nhub-' + b.getAttribute('data-nhub'));
+            b.addEventListener('click', function () { userPicked = true; pendingChoose = false; show(b.getAttribute('data-nhub')); });
+            b.addEventListener('keydown', function (e) {   // 방향키로 칸 옮기기(탭 줄 관례)
+                if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+                e.preventDefault();
+                var t = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+                t.focus(); t.click();
+            });
         });
         // 하단 탭이 이 탭으로 바뀔 때마다 — 누름·딥링크·switchMainTab 어느 길이든 core/index2_patch.js 가 body[data-active-tab] 을 바꾼다(그것을 본다)
         var last = document.body.getAttribute('data-active-tab');
@@ -102,14 +127,17 @@
             last = now;
         }).observe(document.body, { attributes: true, attributeFilter: ['data-active-tab'] });
         // 앱이 켜지고 잠시 뒤 — 세 칸의 N 을 미리 알아 둔다(하단 탭 N). 첫 화면을 그리는 일을 막지 않게 늦춘다.
-        setTimeout(function () {
+        var refreshBadges = function () {
             var base = (w.CONFIG && w.CONFIG.API_BASE) || '';
             fetch(base + '/api/promo').then(function (r) { return r.ok ? r.json() : null; }).then(function (posts) {
-                if (Array.isArray(posts) && noticeNew === null) w.NoticeHub.setNoticeNew(hasRecent(posts, Date.now()));
+                if (Array.isArray(posts)) w.NoticeHub.setNoticeNew(hasRecent(posts, Date.now()));
             }).catch(function (e) { console.warn('[뉴스·공지·어황] 공지 새 글 확인 실패:', e && e.message); });
             if (w.NewsTab) w.NewsTab.prefetch().then(function (v) { if (cur !== 'news') { badge.news = !!v; refresh(); } });
             if (w.FishcondTab) w.FishcondTab.prefetch().then(function (v) { if (cur !== 'fishcond') { badge.fishcond = !!v; refresh(); } });
-        }, 4000);
+        };
+        setTimeout(refreshBadges, 4000);
+        // 앱을 오래 켜 둬도 매시 들어오는 새 기사·새 글에 N 이 다시 켜지게 30분마다(검토 참고 — 종전엔 켤 때 한 번뿐)
+        setInterval(function () { if (!document.hidden) refreshBadges(); }, 30 * 60000);
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })(window);

@@ -269,6 +269,24 @@ function renderPromoTabs(boards) {
     tabsContainer.innerHTML = html;
 }
 
+/**
+ * 게시글 시각 글자를 한국 시각으로 읽는다(휴대폰 시간대와 무관하게).
+ * 예: promoKstMs('2026.11.21 08:00') → 2026-11-20T23:00Z 의 ms · '2026. 11. 21. 오후 3:05' 도 읽는다 · 못 읽으면 NaN
+ * 왜: 서버 createdAt 은 한국 시각 글자다. new Date() 로 읽으면 휴대폰 현지 시각으로 해석돼, 한국보다 서쪽 시간대(예: 베트남 시각 휴대폰)에서는
+ *     새 공지가 「미래 글」로 보여 N 이 안 붙고 「처음 칸」 규칙(24시간 안 공지면 공지사항부터)이 틀렸다(별도 에이전트 검토 2026-11-21, 실행으로 재현).
+ * @param {string} str @returns {number}
+ * [연계] ← updateNewBadges · renderPromoPosts(목록 N) · notice/hub/notice_hub.js hasRecent(window.promoKstMs)
+ */
+function promoKstMs(str) {
+    const m = String(str || '').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})\D+?(?:(오전|오후)\s*)?(\d{1,2}):(\d{2})/);
+    if (!m) return NaN;
+    let h = +m[5];
+    if (m[4] === '오후' && h !== 12) h += 12;
+    if (m[4] === '오전' && h === 12) h = 0;
+    return Date.UTC(+m[1], +m[2] - 1, +m[3], h - 9, +m[6]);
+}
+window.promoKstMs = promoKstMs;
+
 // 24시간 이내 새 게시글 체크 및 뱃지 표시
 function updateNewBadges(posts) {
     // 뉴스·공지·어황 탭(2026-11-21): 공지가 없을 때도 「새 글 없음」을 알려야 처음 칸(오늘의 뉴스)이 바로 정해진다
@@ -285,11 +303,10 @@ function updateNewBadges(posts) {
         let postDateStr = post.createdAt;
         if (!postDateStr) return;
 
-        postDateStr = postDateStr.replace(/\./g, '-');
-        const postDate = new Date(postDateStr);
+        const postMs = promoKstMs(postDateStr);   // 한국 시각으로(휴대폰 시간대와 무관 — 2026-11-21)
 
-        if (!isNaN(postDate.getTime())) {
-            const diff = now - postDate;
+        if (!isNaN(postMs)) {
+            const diff = now.getTime() - postMs;
             if (diff >= 0 && diff < ONE_DAY) {
                 hasNew['ALL'] = true;
                 if (hasNew.hasOwnProperty(post.category)) {
@@ -479,8 +496,8 @@ function renderPromoPosts(posts) {
         // [New] 24시간 이내 새 글 뱃지 (리스트용)
         let newBadgeHtml = '';
         if (post.createdAt) {
-            let pDate = new Date(post.createdAt.replace(/\./g, '-'));
-            if (!isNaN(pDate.getTime()) && (now - pDate) >= 0 && (now - pDate) < ONE_DAY) {
+            const pMs = promoKstMs(post.createdAt);   // 한국 시각으로(휴대폰 시간대와 무관 — 2026-11-21)
+            if (!isNaN(pMs) && (now.getTime() - pMs) >= 0 && (now.getTime() - pMs) < ONE_DAY) {
                 newBadgeHtml = '<span class="new-badge" style="vertical-align: middle; margin-left: 6px;">N</span>';
             }
         }
@@ -593,6 +610,8 @@ window.searchPromo = function () {
 window.openPromoDetail = async function (postId) {
     const modal = document.getElementById('promo-detail-modal');
     if (!modal) return;
+    // 뉴스·공지·어황 탭(2026-11-21): 공지 팝업의 「게시글로 이동」·딥링크로 글을 열면 아래 칸도 공지사항으로(닫았을 때 뉴스가 보이지 않게 — 검토 지적)
+    if (window.NoticeHub && typeof window.NoticeHub.pick === 'function') window.NoticeHub.pick('notice');
 
     try {
         // 상세 조회 API 호출 (조회수 자동 증가)

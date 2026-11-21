@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-21 10:44 KST] ✅완료 — 뉴스·공지·어황 적대검증 2건 반영 완료
+별도 에이전트 2개(서버·화면) 독립 검토 → 지적을 검토자 재현 스크립트·직접 실행으로 확인한 뒤 고침. 서버(커밋 0ddb4d88): 다시 변환 중 숨기기·삭제 되돌아감(exclusive 한 줄 세우기), 요약 숫자 부분 문자열 비교(덩이 비교), 검색어 일부 실패 시 기사 영영 놓침(kwstate.json), 사진 전달 부하·내부 주소·리다이렉트·크기, 보관 30일, 싣기 원문 주소로. 화면: 기기 시간대가 한국이 아니면 처음 칸·N 틀림(promoKstMs), 다시 열 때 낡은 판정, 늦은 판정이 사용자 고른 칸 덮음·빈 화면, 좁은 폰 「오늘」 두 줄, 자정 넘어 어제에 갇힘, 게시글로 이동 시 공지 칸(NoticeHub.pick), 관리자 늦은 그리기, aria·방향키, N 30분마다. 사용자 확정: 숨긴 카드에 같은 사건 흡수 「이대로 두기」. 검사: test_news_hub_ui 20/20, test_news_admin 11/11, test_news_collector 48/48, test_fishcond_collector 45/45, promo_detail_ui 12/12, promo_detail_keyboard 16/16, tab_structure 42/42, life_safety_tab_keep 25/25, notice_markdown 9/9, simulate 회귀 없음. 남은 일: 배포 후 운영 확인(nifs·네이버·AI·사진·앱 안 브라우저) — 배포는 사용자 결정.
+
+
 ### [2026-11-21 10:22 KST] ✅완료 — 뉴스·공지·어황 관리자 화면 완료 (4단계)
 관리자 → 게시판 관리: 위 3칸 [공지사항|어황정보|오늘의 뉴스](admin_collect.js switchNhubAdminTab), [게시판 관리|게시글 관리]는 공지사항 칸에만. 새 client/js/admin/admin_news_hub.js — 어황: 마지막 확인·결과·보관 건수·[지금 확인]·[원문]·[숨기기/다시 보이기]·[다시 변환]·[삭제]; 뉴스: 날짜·마지막 갱신·결과·받음→판정→실음·판정한 AI·받지 못한 검색어·[지금 갱신]·검색어 칩 추가/삭제·실린 기사 [원문]/[숨기기]·뺀 기사 [원문]/[싣기](분류 고름). 서버: routes/news.js·fishcond.js 에 /api/admin/*(services/admin_auth.requireAdminToken), news_collector adminDay·setHidden·publish·runNow(뺀 기사에 desc 저장), fishcond_collector adminList·setHidden·remove(removed.json — 다시 받지 않음)·reconvert·runNow, 둘 다 afterRun(수집 도는 중 변경은 끝난 뒤 적용). 앱 목록은 숨긴 것 제외. 검사 test_news_admin 10/10(인증 401·숨기기·싣기·삭제 후 재수집 안 함·도는 중 숨기기 덮이지 않음·관리자 화면 Chromium), news 45/45, fishcond 42/42. 남은 일: 별도 에이전트 적대검증(진행), 배포 후 운영 확인(nifs·네이버·AI·사진·앱 안 브라우저).
 

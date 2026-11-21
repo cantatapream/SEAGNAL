@@ -24,6 +24,9 @@
     var SEA_COLOR = { '서해': '#448aff', '남해': '#69f0ae', '동해': '#4dd0e1', '전국': '#cbd5e1' };
     var STATUS = { ok: '정상', no_pdf: 'PDF 없음', convert_failed: '그림 실패', pending: '받는 중' };
     var newsDate = null, newsBusy = false;
+    // 그리기 차례 — 어황·뉴스 칸이 같은 상자(#nhub-admin-other)를 쓰므로, 늦게 온 응답·늦은 다시 그리기가 지금 칸을 덮지 않게 차례 번호로 거른다
+    //   (별도 에이전트 검토 2026-11-21: 어황 [지금 확인] 뒤 8초 안에 뉴스 칸으로 옮기면 뉴스 자리에 어황 목록이 그려졌다)
+    var drawSeq = 0;
 
     function api(p) { return ((w.CONFIG && w.CONFIG.API_BASE) || '') + p; }
     function el(tag, style, text) { var e = document.createElement(tag); if (style) e.style.cssText = style; if (text != null) e.textContent = String(text); return e; }
@@ -65,18 +68,19 @@
      * @param {HTMLElement} host [연계] ← admin_collect.js switchNhubAdminTab('fishcond') / → GET /api/admin/fishcond
      */
     async function renderAdminFishcond(host) {
+        var my = ++drawSeq;
         host.innerHTML = '<div style="padding:16px;color:#94a3b8;">불러오는 중…</div>';
         var j;
         try { var r = await fetch(api('/api/admin/fishcond')); j = await r.json(); if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status)); }
-        catch (e) { return failBox(host, '어황정보를 불러오지 못했습니다: ' + (e && e.message)); }
-        if (!host.isConnected) return;
+        catch (e) { if (my === drawSeq) failBox(host, '어황정보를 불러오지 못했습니다: ' + (e && e.message)); return; }
+        if (!host.isConnected || my !== drawSeq) return;
         host.innerHTML = '';
         var st = j.state || {}, posts = j.posts || [];
         var mb = posts.reduce(function (s, p) { return s + (p.bytes || 0); }, 0) / 1048576;
         var runBtn = btn(j.running ? '확인 중…' : '지금 확인', async function () {
             runBtn.disabled = true; runBtn.textContent = '확인 중…';
             try { await post('/api/admin/fishcond/run'); } catch (e) { alert('지금 확인 실패: ' + e.message); }
-            setTimeout(function () { renderAdminFishcond(host); }, 8000);
+            setTimeout(function () { if (my === drawSeq) renderAdminFishcond(host); }, 8000);
         }, 'blue');
         runBtn.disabled = !!j.running;
         host.appendChild(statBox([
@@ -116,12 +120,13 @@
      * [연계] ← admin_collect.js switchNhubAdminTab('news') / → GET /api/admin/news
      */
     async function renderAdminNews(host, date) {
+        var my = ++drawSeq;
         if (date) newsDate = date;
         host.innerHTML = '<div style="padding:16px;color:#94a3b8;">불러오는 중…</div>';
         var j;
         try { var r = await fetch(api('/api/admin/news' + (newsDate ? '?date=' + newsDate : ''))); j = await r.json(); if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status)); }
-        catch (e) { return failBox(host, '오늘의 뉴스를 불러오지 못했습니다: ' + (e && e.message)); }
-        if (!host.isConnected) return;
+        catch (e) { if (my === drawSeq) failBox(host, '오늘의 뉴스를 불러오지 못했습니다: ' + (e && e.message)); return; }
+        if (!host.isConnected || my !== drawSeq) return;
         newsDate = j.date;
         host.innerHTML = '';
         var st = j.state || {};
@@ -138,7 +143,7 @@
         var runBtn = btn(j.running ? '갱신 중…' : '지금 갱신', async function () {
             runBtn.disabled = true; runBtn.textContent = '갱신 중…';
             try { await post('/api/admin/news/run'); } catch (e) { alert('지금 갱신 실패: ' + e.message); }
-            setTimeout(function () { renderAdminNews(host); }, 15000);
+            setTimeout(function () { if (my === drawSeq) renderAdminNews(host); }, 15000);
         }, 'blue');
         runBtn.disabled = !!j.running;
         var prov = st.providers ? Object.keys(st.providers).map(function (k) { return k + ' ' + st.providers[k]; }).join(' · ') : '';

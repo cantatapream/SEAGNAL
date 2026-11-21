@@ -12685,3 +12685,15 @@ body.mc-fullscreen-active {
 .fishcond-detail-body { padding: 0 !important; background: #fff; }
 .fishcond-detail-body iframe { display: block; width: 100%; height: 70vh; border: 0; }
 .fishcond-detail-body .fishcond-nopreview { background: #0f1a2e; color: #94a3b8; text-align: center; padding: 34px 12px; font-size: 0.85rem; }
+
+/* 날짜줄 — 좁은 폰(405px 미만)에서 「오늘」이 두 줄로 깨지고 날짜가 가운데에서 밀리던 것(별도 에이전트 검토 2026-11-21, 320·360·393px 재현) */
+.news-dbtn { white-space: nowrap; flex-shrink: 0; }
+@media (max-width: 404px) {
+    .news-dateline, .news-dateline .mid, .news-dateline .rt { gap: 4px; }
+    .news-dbtn { height: 30px; min-width: 30px; padding: 0 7px; font-size: 0.78rem; }
+    .news-dlabel { font-size: 0.9rem; }
+}
+@media (max-width: 350px) {
+    .news-dbtn { height: 28px; min-width: 28px; padding: 0 5px; font-size: 0.74rem; }
+    .news-dlabel { font-size: 0.82rem; padding: 0; }
+}

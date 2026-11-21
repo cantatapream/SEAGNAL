@@ -22,7 +22,7 @@
     var CAT_SHORT = { money: '돈', duty: '처벌', rule: '규칙', safety: '안전', sea: '바다', conflict: '갈등' };
     var SEEN_KEY = 'nhub_news_seen_v1';   // 마지막으로 본 오늘 기사 중 가장 새 발행 시각(ms) — 탭 N 표시용(기기마다)
     var LATE_MS = 3 * 3600000;            // 최종 업데이트가 이보다 오래면 주황(수집이 멈췄을 수 있다 — 낡은 목록을 최신으로 오해하지 않게)
-    var st = { date: null, data: null, dates: [], openId: null, loading: false, latestToday: 0 };
+    var st = { date: null, data: null, dates: [], openId: null, loading: false, latestToday: 0, onToday: false };   // onToday = 「오늘」을 보고 있었다(자정이 지나도 오늘을 따라간다)
 
     function api(p) { return ((w.CONFIG && w.CONFIG.API_BASE) || '') + p; }
     /** KST 오늘(YYYY-MM-DD). 예: '2026-11-21' */
@@ -133,7 +133,7 @@
         mid.appendChild(mk('', 'fa-chevron-right', '다음날', st.date < today, function () { load(shift(st.date, 1)); }));
         host.appendChild(mid);
         var rt = el('div', 'rt');
-        var tb = mk(st.date === today ? 'on' : '', null, null, true, function () { load(today); }); tb.textContent = '오늘'; rt.appendChild(tb);
+        var tb = mk(st.date === today ? 'on' : '', null, null, true, function () { load(todayKst()); }); tb.textContent = '오늘'; rt.appendChild(tb);   // 누르는 때의 오늘(그린 때의 오늘을 붙잡지 않는다 — 자정을 넘기면 어제를 다시 불렀다, 검토 지적)
         rt.appendChild(el('span', 'sp'));
         rt.appendChild(mk('', 'fa-calendar-days', '달력에서 날짜 고르기', st.dates.length > 0, openCalendar));
         host.appendChild(rt);
@@ -177,7 +177,7 @@
      * [연계] ← open · 날짜줄 · 달력 · 빈 목록의 [어제 뉴스 보기] / → GET /api/news
      */
     function load(d) {
-        st.date = d; st.openId = null; st.loading = true;
+        st.date = d; st.openId = null; st.loading = true; st.onToday = d === todayKst();
         renderDateline();
         var list = document.getElementById('news-list');
         if (list) list.innerHTML = '<div class="news-empty"><i class="fa-solid fa-circle-notch fa-spin"></i> 불러오는 중…</div>';
@@ -245,7 +245,8 @@
 
     w.NewsTab = {
         /** 탭이 보일 때 — 처음이면 오늘을, 오늘을 보고 있었으면 다시 받는다(1시간마다 늘어난다). [연계] ← notice_hub.show('news') */
-        open: function () { if (!st.date || st.date === todayKst()) return load(todayKst()); markSeenIfToday(); return Promise.resolve(); },
+        // 오늘을 보고 있었으면 자정이 지났어도 새 오늘로(앱을 켜 둔 채 밤을 넘기면 어제에 갇혔다 — 별도 에이전트 검토 2026-11-21, 실행으로 재현)
+        open: function () { if (!st.date || st.onToday || st.date === todayKst()) return load(todayKst()); markSeenIfToday(); return Promise.resolve(); },
         /** 앱이 켜질 때 N 표시만을 위해 오늘 목록을 받아 둔다(화면에 그리지 않는다). [연계] ← notice_hub 시작 */
         prefetch: function () {
             return fetch(api('/api/news?date=' + todayKst())).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {

@@ -42,10 +42,10 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
 (async () => {
     let browser, server;
     const hits = { open: [], view: [], img: 0 };
-    const S = { promo: [], newsToday: CARDS, lastRun: new Date().toISOString(), dates: [YDAY, TODAY] };
+    const S = { promo: [], newsToday: CARDS, lastRun: new Date().toISOString(), dates: [YDAY, TODAY], promoDelay: 0 };
     try {
         const app = express();
-        app.get('/api/promo', (req, res) => res.json(S.promo));
+        app.get('/api/promo', (req, res) => setTimeout(() => res.json(S.promo), S.promoDelay));
         app.get('/api/boards', (req, res) => res.json([{ id: 'notice', name: '공지사항', badgeText: '공지', badgeColor: '#ff5252' }, { id: 'patch', name: '패치노트', badgeText: '패치', badgeColor: '#ffab40' }]));
         app.get('/api/reactions/counts', (req, res) => res.json({}));
         app.get('/api/comments/counts', (req, res) => res.json({}));
@@ -65,8 +65,9 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
         browser = await chromium.launch({ ...((process.env.PW_CHROME || process.env.SIM_CHROMIUM || process.env.CHROMIUM_EXECUTABLE) ? { executablePath: process.env.PW_CHROME || process.env.SIM_CHROMIUM || process.env.CHROMIUM_EXECUTABLE } : {}), headless: true, args: ['--no-sandbox'] });
         const errors = [];
         const clean = (page) => page.evaluate(() => ['server-maintenance-popup', 'network-error-popup', 'splash-screen', 'main-notice-popup', 'zone-guide-popup', 'survey-user-popup'].forEach((id) => { const e = document.getElementById(id); if (e) e.remove(); }));
-        const fresh = async (ls) => {
-            const ctx = await browser.newContext({ viewport: { width: 412, height: 915 }, timezoneId: 'Asia/Seoul', deviceScaleFactor: 2 }), page = await ctx.newPage();
+        const fresh = async (ls, opt) => {
+            opt = opt || {};
+            const ctx = await browser.newContext({ viewport: { width: opt.width || 412, height: 915 }, timezoneId: opt.tz || 'Asia/Seoul', deviceScaleFactor: 2 }), page = await ctx.newPage();
             page.on('pageerror', (e) => errors.push(e.message));
             await page.route('**/*', (r) => (r.request().url().startsWith(base) || r.request().url().startsWith('https://img.test/')) ? (r.request().url().startsWith('https://img.test/') ? r.fulfill({ contentType: 'image/png', body: PNG }) : r.continue()) : r.abort());
             await page.addInitScript((x) => { try { localStorage.setItem('seagnal_device_id', 'test-device'); for (const k of Object.keys(x || {})) localStorage.setItem(k, x[k]); } catch (e) { /* 저장소 없음 */ } window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; }, ls || {});
@@ -210,6 +211,80 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             await p3.screenshot({ path: path.join(SHOT, '7_empty.png') });
             await p3.click('#news-list .news-empty button');
             await p3.waitForFunction(() => document.querySelectorAll('#news-list .news-card').length === 1);
+        });
+
+        // ── D. 별도 에이전트 검토(2026-11-21)에서 재현된 것들 — 회귀 검사
+        S.newsToday = CARDS; S.lastRun = new Date().toISOString();
+        await check('[시간대] 휴대폰이 한국 시간대가 아니어도(LA·베트남) 30분 전 공지면 공지사항부터 · 25시간 전 공지면 뉴스부터', async () => {
+            for (const tz of ['America/Los_Angeles', 'Asia/Ho_Chi_Minh', 'UTC']) {
+                S.promo = [{ id: 7, title: '새 공지', createdAt: promoAt(Date.now() - 30 * 60000), category: 'notice', views: 0 }];
+                const pg = await fresh(null, { tz });
+                await pg.locator('.main-tabs .tab-btn[data-target="promo-section"]').click();
+                await pg.waitForFunction(() => window.NoticeHub.current() === 'notice', null, { timeout: 8000 });
+                await pg.context().close();
+                S.promo = [{ id: 8, title: '어제 공지', createdAt: promoAt(Date.now() - 25 * 3600000), category: 'notice', views: 0 }];
+                const pg2 = await fresh(null, { tz });
+                await pg2.locator('.main-tabs .tab-btn[data-target="promo-section"]').click();
+                await pg2.waitForTimeout(1500);
+                assert.equal(await pg2.evaluate(() => window.NoticeHub.current()), 'news', tz);
+                await pg2.context().close();
+            }
+        });
+        await check('[다시 열기] 다른 탭에 다녀오는 사이 새 공지가 오면 다시 열 때 공지사항부터(지난번 판정에 머물지 않음)', async () => {
+            S.promo = [];
+            const pg = await fresh();
+            const tabBtn = pg.locator('.main-tabs .tab-btn[data-target="promo-section"]');
+            await tabBtn.click(); await pg.waitForFunction(() => window.NoticeHub.current() === 'news');
+            await pg.evaluate(() => window.switchMainTab('weather-group'));
+            S.promo = [{ id: 9, title: '방금 공지', createdAt: promoAt(Date.now() - 5 * 60000), category: 'notice', views: 0 }];
+            await tabBtn.click();
+            await pg.waitForFunction(() => window.NoticeHub.current() === 'notice', null, { timeout: 8000 });
+            await pg.context().close();
+        });
+        await check('[직접 고름] 공지 판정이 늦게 와도 그사이 사용자가 고른 칸(어황정보)을 덮지 않는다 · 기다리는 동안 빈 화면 없음', async () => {
+            S.promo = [{ id: 10, title: '방금 공지', createdAt: promoAt(Date.now() - 5 * 60000), category: 'notice', views: 0 }];
+            const pg = await fresh();
+            S.promoDelay = 2000;
+            await pg.locator('.main-tabs .tab-btn[data-target="promo-section"]').click();
+            await pg.waitForTimeout(300);
+            assert.ok(await pg.evaluate(() => !!document.querySelector('.nhub-panel.active')), '기다리는 동안에도 한 칸은 보인다');
+            await pg.click('#nhub-tabs .nhub-tab[data-nhub="fishcond"]');
+            await pg.waitForTimeout(2600);
+            assert.equal(await pg.evaluate(() => window.NoticeHub.current()), 'fishcond');
+            S.promoDelay = 0;
+            await pg.context().close();
+        });
+        await check('[게시글로 이동] 글을 연 뒤 탭이 바뀌어도 아래 칸은 공지사항(닫았을 때 뉴스가 보이지 않게)', async () => {
+            S.promo = [{ id: 11, title: '지난주 공지', createdAt: promoAt(Date.now() - 3 * 86400000), category: 'notice', views: 0 }];
+            const pg = await fresh();
+            await pg.evaluate(() => { window.NoticeHub.pick('notice'); window.switchMainTab('promo-section'); });
+            await pg.waitForTimeout(600);
+            assert.equal(await pg.evaluate(() => window.NoticeHub.current()), 'notice');
+            await pg.context().close();
+        });
+        await check('[자정] 오늘을 보다가 날짜가 바뀌면 다시 열 때 새 오늘 · [오늘] 단추도 누르는 때의 오늘', async () => {
+            S.promo = [];
+            const pg = await fresh();
+            await pg.evaluate(() => window.switchMainTab('promo-section'));
+            await pg.waitForFunction(() => window.NewsTab._st.date && document.querySelectorAll('#news-list .news-card').length === 3);
+            const next = await pg.evaluate(() => { const o = Date.now; Date.now = () => o() + 86400000; window.NewsTab.open(); return new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10); });
+            await pg.waitForFunction((d) => window.NewsTab._st.date === d, next);
+            await pg.click('#news-dateline .rt button:has-text("오늘")');
+            await pg.waitForFunction((d) => window.NewsTab._st.date === d, next);
+            await pg.context().close();
+        });
+        await check('[좁은 폰 320·360px] 「오늘」 한 줄 · 날짜 가운데 · 겹침·가로 스크롤 없음', async () => {
+            for (const wd of [320, 360]) {
+                S.promo = [];
+                const pg = await fresh(null, { width: wd });
+                await pg.evaluate(() => window.switchMainTab('promo-section'));
+                await pg.waitForSelector('#news-dateline .news-dlabel');
+                const g = await pg.evaluate(() => { const R = (e) => e.getBoundingClientRect(); const row = R(document.getElementById('news-dateline')), lab = R(document.querySelector('#news-dateline .news-dlabel')), mid = R(document.querySelector('#news-dateline .mid'));
+                    const t = [...document.querySelectorAll('#news-dateline .rt button')].find((x) => x.textContent === '오늘');
+                    return { off: Math.abs((lab.left + lab.width / 2) - (row.left + row.width / 2)), nowrap: getComputedStyle(t).whiteSpace === 'nowrap' && t.scrollWidth <= t.clientWidth + 1, overlap: mid.right - R(t).left, sw: document.documentElement.scrollWidth - innerWidth }; });
+                assert.ok(g.off < 3 && g.nowrap && g.overlap <= 0 && g.sw <= 0, wd + ' ' + JSON.stringify(g));
+                await pg.context().close();
+            }
         });
 
         await check('페이지 오류 없음', async () => { assert.deepStrictEqual(errors, []); });
