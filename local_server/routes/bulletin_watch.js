@@ -101,7 +101,7 @@ function createRouter({ bulletinAi = require('../services/bulletin_ai'), watch =
     //   Gemma 를 실제 키로 불러 본 적이 없어(작업 환경에 AI 키 없음) 운영에서 이 버튼으로 되는지 본다. POST { model } → { ok, model, ms, text|error }
     router.post('/api/admin/bulletin-ai/try-model', authorize, async (req, res) => {
         res.set('Cache-Control', 'no-store');
-        res.json(await bulletinAi.tryModel(String((req.body || {}).model || '')));
+        res.json(await bulletinAi.tryModel(String((req.body || {}).model || ''), (req.body || {}).feature === 'news' ? 'news' : ''));   // ⑦ 은 견본 기사로 뉴스 판정 시험(2026-11-21)
     });
     // 「시험 요약」(2026-11-19) — ⑥ 해상 기상 요약: 그 지방청의 지금 통보문을 지금 설정(먼저 Gemma → ⑥ 순서)대로 요약해 본다. 저장하지 않는다.
     //   사용자 「젬마로 요약을 실제 해봐야 하겠는걸 ?」 — 작업 환경에 AI 키가 없어 운영 키로 여기서 본다. 누가 답했는지·걸린 까닭(원문 대조)·걸린 시간을 함께 준다.

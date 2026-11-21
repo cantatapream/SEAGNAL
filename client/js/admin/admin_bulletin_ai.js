@@ -84,7 +84,7 @@
         row.appendChild(gsel);
         var out = el('div', 'flex-basis:100%;font-size:0.75rem;color:#94a3b8;word-break:break-all', '');
         out.setAttribute('data-bai-try-out', f);
-        var tryBtn = btn('시험 호출', function () { tryModel(gsel.value || (ch.gemma.tryModels && ch.gemma.tryModels[0]) || '', out); });   // 지금 화면에 고른 값(안 골랐으면 기본 Gemini 모델 — 그 모델이 아직 불리는지 볼 때)
+        var tryBtn = btn('시험 호출', function () { tryModel(gsel.value || (ch.gemma.tryModels && ch.gemma.tryModels[0]) || '', out, f); });   // 지금 화면에 고른 값(안 골랐으면 기본 Gemini 모델 — 그 모델이 아직 불리는지 볼 때)
         tryBtn.setAttribute('data-bai-try', f);
         row.appendChild(tryBtn);
         var act = f === 'seasummary' ? '요약' : f === 'news' ? '판정' : '색칠';   // ③ 은 색칠, ⑥ 은 요약, ⑦ 은 판정
@@ -106,10 +106,11 @@
      * @param {string} model @param {HTMLElement} out 결과를 적을 곳
      * [연계] ← gemmaRow(③ 「먼저 Gemma」 줄) → POST /api/admin/bulletin-ai/try-model
      */
-    function tryModel(model, out) {
+    function tryModel(model, out, feature) {
         out.style.color = '#94a3b8';
-        out.textContent = model + ' 부르는 중…';
-        fetch('/api/admin/bulletin-ai/try-model', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: model }) })
+        out.textContent = model + (feature === 'news' ? ' 로 견본 기사 2건 판정 중…' : ' 부르는 중…');
+        // ⑦ 은 견본 기사 2건으로 실제 뉴스 판정을 시험한다(2026-11-21 사용자 「왜 시험호출햇는데 기상전망을 읽은거지?」 — 종전에는 모든 칸이 같은 날씨 문장 하나로 응답만 봤다)
+        fetch('/api/admin/bulletin-ai/try-model', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(feature === 'news' ? { model: model, feature: 'news' } : { model: model }) })
             .then(function (r) { return r.json(); })
             .then(function (j) {
                 out.style.color = j && j.ok ? '#34d399' : '#f87171';
