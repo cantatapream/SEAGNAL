@@ -256,6 +256,18 @@ gemini.callGemini = async (a) => { calls.push({ id: 'gemini', model: a.model });
       ok('⑦ 관리자가 고른 값이 저장된다(Gemma 끄기 · 클로드 키2 다시 추가)', sv.ok && sv.config.news.gemma === '' && sv.config.news.order.filter((id) => !sv.config.news.removed.includes(id)).join() === 'gemini,claude2'
         && bai.getConfig().news.gemma === '', JSON.stringify(sv.config.news).slice(0, 400));
       await (await post({ feature: 'news', gemma: 'gemma-4-26b-a4b-it', removed: ['claude2', 'claude1', 'upstage', 'chatgpt'] })).json();   // 뒤 검사를 위해 기본으로 되돌림
+      // ⑦ 「시험 호출」은 날씨 문장이 아니라 견본 기사 2건으로 뉴스 판정을 해 본다(사용자 「왜 시험호출햇는데 기상전망을 읽은거지?」)
+      plain.length = 0;
+      gemmaAnswer = () => ({ success: true, text: '{"items":[{"i":0,"score":4,"cat":"duty","summary":"12월 1일부터 단속","reason":"처벌·단속"},{"i":1,"score":1,"cat":"none","reason":"행사"}]}' });
+      const tn = await bai.tryModel('gemma-4-26b-a4b-it', 'news');
+      ok('⑦ 시험 호출: 뉴스 판정 지시문으로 부르고 「1번(대게 단속) 4점·처벌·의무 / 2번 … 1점」으로 줄여 보인다', tn.ok && /대게/.test(String(plain[0] && plain[0].contents)) && !/풍랑경보/.test(String(plain[0] && plain[0].contents))
+        && /^견본 2건 판정 — 1번\(대게 단속\) 4점·처벌·의무 — 처벌·단속 \/ 2번\(반찬 나눔 행사\) 1점 — 행사$/.test(tn.text), JSON.stringify(tn));
+      gemmaAnswer = () => ({ success: true, text: '{"해역":"동해중부먼바다"}' });
+      const tb = await bai.tryModel('gemma-4-26b-a4b-it', 'news');
+      ok('⑦ 시험 호출: 답이 뉴스 판정 모양이 아니면 실패로 보인다(Gemma 는 모양 검사에서 먼저 걸린다)', tb.ok === false && /뉴스 판정 모양이 아님|Gemma 답을 쓸 수 없다/.test(tb.error || ''), JSON.stringify(tb));
+      gemmaAnswer = () => ({ success: true, text: '{"해역":"동해중부먼바다","시점":"오늘 밤부터"}' });
+      const tw = await bai.tryModel('gemma-4-26b-a4b-it');
+      ok('다른 칸의 시험 호출은 종전 그대로(날씨 문장)', tw.ok && /동해중부먼바다/.test(tw.text));
     }
     // ⑥ 해상 기상 요약(2026-11-19 사용자 「2.순서 - 전용칸 6」 「이 작업은 젬마가 진행하도록 하고 젬마가 안되면 … 순서로서 ai api 호출」)
     {

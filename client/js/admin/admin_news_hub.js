@@ -143,12 +143,15 @@
         top.appendChild(sel);
         host.appendChild(top);
         // 상태
-        var runBtn = btn(j.running ? '갱신 중…' : '지금 갱신', async function () {
-            runBtn.disabled = true; runBtn.textContent = '갱신 중…';
-            try { await post('/api/admin/news/run'); } catch (e) { notifyFail('지금 갱신 실패: ', e); }
+        // 「지금 뉴스 수집」 — 지금 한 번 모은다(평소에는 매시 2분 자동). 사용자 2026-11-21 「수집버튼은 요기에 반영하도록하고 버튼을 누르면 오늘뉴스를 수집토록해」
+        //   수집이 도는 동안(첫 수집은 지난 26시간치라 몇 분~십여 분)에는 눌리지 않고 「수집 중…」 — 15초마다 저절로 다시 그려 끝나면 결과가 바로 보인다.
+        var runBtn = btn(j.running ? '수집 중…' : '지금 뉴스 수집', async function () {
+            runBtn.disabled = true; runBtn.textContent = '수집 중…';
+            try { await post('/api/admin/news/run'); } catch (e) { notifyFail('지금 뉴스 수집 실패: ', e); }
             setTimeout(function () { if (my === drawSeq) renderAdminNews(host); }, 15000);
         }, 'blue');
         runBtn.disabled = !!j.running;
+        if (j.running) setTimeout(function () { if (my === drawSeq && host.isConnected) renderAdminNews(host); }, 15000);
         var prov = st.providers ? Object.keys(st.providers).map(function (k) { return k + ' ' + st.providers[k]; }).join(' · ') : '';
         host.appendChild(statBox([
             ['마지막 갱신', st.lastRun ? kst(st.lastRun) : '아직 없음'],
@@ -158,7 +161,8 @@
         ], runBtn));
         if (st.lastRun && !st.ok) host.appendChild(el('div', 'color:#f87171;font-size:0.8rem;margin:-2px 2px 8px;', '실패 까닭: ' + (st.error || '알 수 없음')));
         if (st.keywordErrors && st.keywordErrors.length) host.appendChild(el('div', 'color:#fbbf24;font-size:0.78rem;margin:-2px 2px 8px;', '받지 못한 검색어 ' + st.keywordErrors.length + '개: ' + st.keywordErrors.slice(0, 3).join(' / ')));
-        host.appendChild(el('div', 'color:#94a3b8;font-size:0.78rem;margin-bottom:4px;', '매시 2분에 네이버 뉴스를 모아 「AI 모델 설정 ⑦」 순서의 AI 가 판정합니다(3점 이상만 실음). 숨긴 카드는 앱에서만 빠집니다.'));
+        if (j.running) host.appendChild(el('div', 'color:#fbbf24;font-size:0.8rem;margin:-2px 2px 8px;', '지금 뉴스를 모으고 판정하는 중입니다. 처음 수집은 지난 26시간치라 몇 분~십여 분 걸립니다 — 끝나면 이 화면이 저절로 결과로 바뀝니다.'));
+        host.appendChild(el('div', 'color:#94a3b8;font-size:0.78rem;margin-bottom:4px;', '매시 2분에 네이버 뉴스를 자동으로 모아 「AI 모델 설정 ⑦」 순서의 AI 가 판정합니다(3점 이상만 실음). 바로 모으려면 [지금 뉴스 수집]. 숨긴 카드는 앱에서만 빠집니다.'));
         // 검색어
         host.appendChild(heading('수집 검색어 (' + (j.keywords || []).length + '개)'));
         var chips = el('div', 'display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;');
