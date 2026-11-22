@@ -13,6 +13,7 @@
  *                    GET /api/station-briefing/now(「지금 밀집」만 — 화면이 1분마다, since 가 같으면 unchanged, §11.10.24)
  *                    GET·PUT /api/admin/station-briefing/config · GET /api/admin/station-briefing/status(?only=progress — 진행 게이지용 가벼운 응답) · POST /api/admin/station-briefing/run
  *                    GET /api/admin/station-briefing/stations · GET /api/admin/station-briefing/preview(관리자 미리보기 — 노출 범위와 무관)
+ *                    GET …/automation/autofix-answers · POST …/automation/autofix-decisions · POST /api/admin/station-briefing/autofix/decisions/:id/answer(결정 답 — §11.10.62)
  *                    GET /api/station-briefing/automation/job · POST …/automation/job-result · GET …/automation/jobs(세션 정시 판 — 관리자 또는 자동화 열쇠, §11.10.56) · POST …/automation/error-export·autofix-done(누적 오류 자동 처리 세션 — §11.10.59) · GET /api/admin/station-briefing/autofix · POST …/autofix/prs/:n/merge·dismiss(관리자) · …/automation/trial-*(세션 시험, §11.10.53)
  *                    POST /api/admin/station-briefing/error-log/export(처리 안 된 오류 전부 + 유형 번호 — 누적 md, 내보내기 기록을 남김 · §11.10.48)
  *                    POST /api/admin/station-briefing/error-log/exports/:id/resolve(관리자 버튼 — 그 내보내기의 남은 유형을 처리 완료)
@@ -53,6 +54,8 @@ function createRouter({
     const router = express.Router(), SB = require('../services/station_briefing'), downloads = new Map();   // token → {name, text, exp}
     const svc = () => service || SB.forDefault();
     const af = () => autofix || require('../services/station_briefing_autofix').forDefault();
+    /** 「처리 안 된 오류」 꼬리표 재료(§11.10.62) — 못 읽어도 상태 응답은 준다. @returns {object|null} */
+    const autofixBrief = () => { try { const a = af(); return typeof a.brief === 'function' ? a.brief() : null; } catch (e) { console.error('[station_briefing] 자동 처리 꼬리표 읽기 실패(상태는 줌):', e && e.message); return null; } };
     /** 요청에서 기기 식별(관리자 기기 판정용)·관리자 토큰을 꺼낸다 — 이름은 adminToken·endpoint 쿼리, X-Admin-Device·X-Admin-Token 헤더(옛 특보 예측과 같은 규약). */
     const who = (req) => ({ deviceId: (req.query && (req.query.adminToken || req.query.endpoint)) || req.get('X-Admin-Device') || '', adminToken: req.get('X-Admin-Token') || (req.query && req.query.adminAuthToken) || '' });
     const gate = (req) => SB.decideExposure(svc().readConfig().exposure, who(req), { isAdminDevice, verifyToken });
@@ -125,7 +128,7 @@ function createRouter({
     });
     router.put(admin + '/config', express.json({ limit: '8kb' }), (req, res) => { try { res.json({ ok: true, config: svc().writeConfig(req.body || {}) }); } catch (e) { fail(res, e); } });
     // ?only=progress — 진행 게이지가 실행 중 2.5초마다 부른다(§11.10.7). 전체 status 는 최근 3일 오류 전부를 실어 무거워 진행만 준다.
-    router.get(admin + '/status', (req, res) => { try { res.set('Cache-Control', 'no-store').json({ ok: true, ...(req.query.only === 'progress' ? svc().progressNow() : svc().status()) }); } catch (e) { fail(res, e); } });
+    router.get(admin + '/status', (req, res) => { try { res.set('Cache-Control', 'no-store').json({ ok: true, ...(req.query.only === 'progress' ? svc().progressNow() : { ...svc().status(), autofixBrief: autofixBrief() }) }); } catch (e) { fail(res, e); } });
     // 오류 md 맡기기(§11.10.7) — {name:'station_briefing_errors_20261017_1831.md', text} → {token}. 이름은 영문·숫자·_-. 와 .md 만(머리글에 그대로 넣으므로).
     //   또는 몸통이 글 그대로(Content-Type text/markdown) + ?name= (§11.10.48 — 5MB 넘는 누적 md).
     router.post(admin + '/download', express.json({ limit: '5mb' }), express.text({ type: 'text/markdown', limit: DOWNLOAD_TEXT_MAX }), (req, res) => {
@@ -172,6 +175,20 @@ function createRouter({
         try { const n = Number(req.params.n), r = await af().mergeNow(Number.isInteger(n) ? n : -1, '관리자(앱)'); res.set('Cache-Control', 'no-store').status(r.ok ? 200 : (r.status || 409)).json(r); }
         catch (e) { console.error('[station_briefing] 자동 처리 PR 머지 버튼 실패:', e && e.message); fail(res, e); }
     });
+    // 결정 답(§11.10.62 — 2026-11-22 사용자 「맞다, 아니다, 기타 의견을 기록하여 전송 … 다음 절차가 자동으로」) — 몸통 {choice:'allow'|'block'|'other', text}.
+    //   「아니다(막기)」는 곧바로 끝나고 그 결정이 걸린 유형을 처리 완료(by 'decision')로 닫는다 · 「맞다」·「기타」는 다음 새벽 05:48 세션이 반영한다.
+    router.post(admin + '/autofix/decisions/:id/answer', express.json({ limit: '8kb' }), (req, res) => {
+        try {
+            const b = req.body || {}, r = af().answer(String(req.params.id || ''), String(b.choice || ''), typeof b.text === 'string' ? b.text : '', '관리자(앱)');
+            if (r.ok && r.close) {
+                let why = null;
+                try { const x = svc().resolveExport(r.close.exportId, [r.close.code], '사장님 결정: 아니다(막기) — 「' + r.decision.title + '」', 'decision'); if (!x.ok) why = '내보내기 ' + r.close.exportId + ' 가 없음'; else if ((x.unknown || []).length) why = r.close.exportId + ' 에 유형 ' + x.unknown.join('·') + ' 가 없음'; }
+                catch (e) { why = String((e && e.message) || e).slice(0, 80); console.error('[station_briefing] 결정 「막기」 처리 완료 기록 실패(답은 저장됨):', why); }
+                if (why) try { af().closeIssue('결정 「' + r.decision.title + '」 막기는 저장했지만 그 오류를 닫지 못함 — ' + why); } catch (e) { console.error('[station_briefing] 닫기 실패 알림 기록 실패:', e && e.message); }
+            }
+            res.set('Cache-Control', 'no-store').status(r.ok ? 200 : (r.status || 400)).json(r.ok ? { ok: true, decision: r.decision } : { ok: false, error: r.error });
+        } catch (e) { console.error('[station_briefing] 결정 답 받기 실패:', e && e.message); fail(res, e); }
+    });
     router.post(admin + '/autofix/prs/:n/dismiss', (req, res) => {
         try { const n = Number(req.params.n), r = af().dismiss(Number.isInteger(n) ? n : -1); res.set('Cache-Control', 'no-store').status(r.ok ? 200 : (r.status || 409)).json(r); }
         catch (e) { fail(res, e); }
@@ -215,9 +232,33 @@ function createRouter({
         } catch (e) { fail(res, e); }
     });
     // 세션 결과 보고(늘 — PR·nothing·skipped·failed). PR 이면 조건부 자동 머지 담당에 넘긴다(§11.10.59). 본문 검사 실패는 400.
-    router.post(trial + '/autofix-done', authorizeTrial, express.json({ limit: '64kb' }), async (req, res) => {
-        try { const r = await af().done(req.body); res.set('Cache-Control', 'no-store').status(r.ok ? 200 : (r.status || 400)).json(r.ok ? r : { ok: false, error: r.error }); }
+    router.post(trial + '/autofix-done', authorizeTrial, express.json({ limit: '256kb' }), async (req, res) => {   // 결정 글(배경·실제 문장 …)이 실려 64kb 를 넘을 수 있다(독립 검토 하9)
+        try {
+            const r = await af().done(req.body);
+            // 판정 자동 닫기(§11.10.62 — 사용자 「처리한 건은 … 자동으로 목록에서 삭제」): 세션이 그대로 둔 유형을 그 판정 글과 함께 처리 완료(by 'auto')
+            if (r.ok && r.close) {
+                const KIND_NOTE = { ai: '세션 판정: AI 가 실제로 규칙을 어김 — 고칠 코드 없음', external: '세션 판정: AI 호출 문제(시간초과·응답 깨짐 등) — 고칠 코드 없음' };
+                const problems = [];
+                for (const kind of Object.keys(KIND_NOTE)) {
+                    const codes = r.close.groups.filter((g) => g.kind === kind).map((g) => g.code);
+                    if (!codes.length) continue;
+                    try { const x = svc().resolveExport(r.close.exportId, codes, KIND_NOTE[kind], 'auto'); if (!x.ok) problems.push('내보내기 ' + r.close.exportId + ' 가 없음'); else if ((x.unknown || []).length) problems.push(r.close.exportId + ' 에 유형 ' + x.unknown.join('·') + ' 가 없음'); }
+                    catch (e) { problems.push(String((e && e.message) || e).slice(0, 80)); console.error('[station_briefing] 세션 판정 자동 닫기 실패(결과는 받음):', e && e.message); }
+                }
+                // 아무것도 못 닫았으면 화면에 알린다(독립 검토 하7 — 조용히 지나가면 「세션 처리 전」 꼬리표가 사실과 달라진다). 잘 닫혔으면 지운다.
+                try { af().closeIssue(problems.length ? '세션 판정 자동 닫기 일부 실패 — ' + [...new Set(problems)].join(' · ') : null); } catch (e) { console.error('[station_briefing] 닫기 실패 알림 기록 실패:', e && e.message); }
+                r.closeProblems = problems;
+            }
+            res.set('Cache-Control', 'no-store').status(r.ok ? 200 : (r.status || 400)).json(r.ok ? r : { ok: false, error: r.error });
+        }
         catch (e) { console.error('[station_briefing] 자동 처리 결과 받기 실패:', e && e.message); fail(res, e); }
+    });
+    // 결정 답 받아 가기(§11.10.62 — 세션이 반영할 「맞다」·「기타」, 아직 안 끝난 것) · 결정만 따로 올리기(세션 — 결과 보고와 별개)
+    router.get(trial + '/autofix-answers', authorizeTrial, (req, res) => {
+        try { const list = af().answers(); res.set('Cache-Control', 'no-store').json({ ok: true, count: list.length, answers: list, known: typeof af().known === 'function' ? af().known() : [] }); } catch (e) { fail(res, e); }
+    });
+    router.post(trial + '/autofix-decisions', authorizeTrial, express.json({ limit: '256kb' }), async (req, res) => {
+        try { const r = await af().addDecisions(req.body); res.set('Cache-Control', 'no-store').status(r.ok ? 200 : (r.status || 400)).json(r); } catch (e) { console.error('[station_briefing] 결정 올리기 실패:', e && e.message); fail(res, e); }
     });
     router.get(trial + '/trials', authorizeTrial, (req, res) => {
         try { res.set('Cache-Control', 'no-store').json({ ok: true, trials: svc().trialLog() }); }
