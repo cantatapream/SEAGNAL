@@ -129,6 +129,13 @@
             if (now === 'promo-section' && last !== 'promo-section') onMainOpen();
             last = now;
         }).observe(document.body, { attributes: true, attributeFilter: ['data-active-tab'] });
+        // 고정 머리가 맨 위에 붙었을 때만 배경(페이지 무늬와 같은 것)을 깐다 — style.css .nhub-head.stuck (사용자 2026-11-22 「헤더부분 배경색이 기존 스타일과 다른데?」)
+        var nhead = document.querySelector('#promo-section .nhub-head');
+        if (nhead) {
+            var stick = function () { nhead.classList.toggle('stuck', document.body.getAttribute('data-active-tab') === 'promo-section' && (w.scrollY || 0) > 0 && nhead.getBoundingClientRect().top <= 0.5); };
+            w.addEventListener('scroll', stick, { passive: true });
+            w.NoticeHub._stick = stick;
+        }
         // 당겨서 새로고침 — 이 탭이 보이고 팝업이 없을 때, 지금 보이는 칸만 다시 받는다(뉴스는 서버가 모아 둔 것을 다시 받을 뿐 새로 수집하지 않는다)
         var ptr = document.getElementById('nhub-ptr'), sec = document.getElementById('promo-section');
         if (ptr && sec && w.PullRefresh) {

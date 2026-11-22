@@ -346,16 +346,22 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
                 await pg.evaluate(() => { document.getElementById('news-list').style.minHeight = ''; window.scrollTo(0, 0); });
             });
             await check('[머리 고정] 스크롤을 내려도 제목·안쪽 탭 줄이 맨 위에 붙어 있고 그 아래로 카드가 지나간다(사용자 2026-11-22 「상단 상태표시줄을 침범」 「스크롤을 내렸을때」)', async () => {
+                await pg.evaluate(() => { document.getElementById('news-list').style.minHeight = '3000px'; window.scrollTo(0, 600); });
+                await pg.waitForTimeout(150);   // 스크롤 알림(.stuck 붙이기)이 돈 뒤
                 const r = await pg.evaluate(() => {
-                    const host = document.getElementById('news-list'); host.style.minHeight = '3000px'; window.scrollTo(0, 600);
-                    const h = document.querySelector('.nhub-head').getBoundingClientRect(), top = document.elementFromPoint(200, h.top + 10);
+                    const head = document.querySelector('.nhub-head'), h = head.getBoundingClientRect(), top = document.elementFromPoint(200, h.top + 10);
                     const dl = document.getElementById('news-dateline').getBoundingClientRect(), tabs = document.getElementById('nhub-tabs').getBoundingClientRect();
-                    const out = { y: window.scrollY, headTop: Math.round(h.top), inHead: !!(top && top.closest('.nhub-head')), bg: getComputedStyle(document.querySelector('.nhub-head')).backgroundColor,
+                    return { y: window.scrollY, headTop: Math.round(h.top), inHead: !!(top && top.closest('.nhub-head')),
+                        // 「헤더부분 배경색이 기존 스타일과 다른데?」 — 붙었을 때는 페이지와 같은 줄무늬 배경
+                        stuck: head.classList.contains('stuck'), img: getComputedStyle(head).backgroundImage,
                         // 날짜줄도 함께 고정(사용자 「뉴스에서 날짜 부분도 고정되었으면 좋겠는데」) — 탭 줄 바로 아래, 머리 안
                         dateInHead: dl.height > 0 && dl.top >= tabs.bottom - 1 && dl.bottom <= h.bottom + 0.5 };
-                    host.style.minHeight = ''; window.scrollTo(0, 0); return out;
                 });
-                assert.ok(r.y === 600 && r.headTop === 0 && r.inHead && r.bg !== 'rgba(0, 0, 0, 0)' && r.dateInHead, JSON.stringify(r));
+                assert.ok(r.y === 600 && r.headTop === 0 && r.inHead && r.stuck && /repeating-linear-gradient/.test(r.img) && r.dateInHead, JSON.stringify(r));
+                await pg.evaluate(() => { document.getElementById('news-list').style.minHeight = ''; window.scrollTo(0, 0); });
+                await pg.waitForTimeout(150);
+                const back = await pg.evaluate(() => { const h = document.querySelector('.nhub-head'); return { stuck: h.classList.contains('stuck'), img: getComputedStyle(h).backgroundImage, color: getComputedStyle(h).backgroundColor }; });
+                assert.ok(!back.stuck && back.img === 'none' && (back.color === 'rgba(0, 0, 0, 0)' || back.color === 'transparent'), '맨 위에서는 투명(단색 띠 없음) ' + JSON.stringify(back));
             });
             await check('[다 봤어요] 오늘의 뉴스 목록 맨 끝 ✓ 다 봤어요 + [어제 뉴스 보기] → 누르면 어제 목록', async () => {
                 const end = await pg.$eval('#news-list > :last-child', (x) => ({ cls: x.className, text: x.textContent }));
