@@ -16,11 +16,13 @@
  *      3점 이상만 카드. 같은 사건은 묶는다. 이미 실은 카드와 같은 사건이면: 같은 날이면 그 카드에 더하고(새 사실이면 카드 머리를 최신 소식으로 바꾼다),
  *      다른 날이면 새 사실이 있을 때만 새 카드(사용자 「사고 보도의 경우 새소식 있을 때만」 — 질문이 「매일 다시 올릴까요」였다).
  *      판정이 끝까지 실패한 기사는 pending 에 두고 다음 시간에 다시 묻는다(26시간이 지나면 버린다).
+ *   ③-2 새 카드가 생긴 날은 그날 카드 전체(숨긴 것 빼고)를 news_judge.groupDuplicates 로 한 번 더 묶어 같은 사건 카드를 합친다
+ *      (사용자 2026-11-22 「중복내용 제외」 — 판정 묶음에서 빠뜨려 해수부 원산지 점검 한 발표가 카드 4장으로 실렸다).
  *   ④ 새 카드의 대표 기사 페이지에서 og:image·og:site_name 을 읽는다(사진 파일은 저장하지 않는다 — 주소만).
  *   ⑤ 30일이 지난 날짜 파일·조회 수를 지운다. 결과를 state.json 에 남긴다(관리자 화면이 「마지막 갱신·결과」를 띄운다 — 조용한 실패를 막는다).
  * ----------------------------------------------------------------------------
  * [연계]
- *  - 사용하는 파일 : services/naver_search(searchNews) · services/news_judge(judge) · services/atomic_write
+ *  - 사용하는 파일 : services/naver_search(searchNews) · services/news_judge(judge · groupDuplicates) · services/atomic_write
  *  - 저장          : data/news/<YYYY-MM-DD>.json(그날 카드·뺀 기사) · state.json · views.json(펼친 횟수) · seen.json(판정한 기사 열쇠 3일) · pending.json · kwstate.json(검색어마다 마지막으로 받은 때) · data/news_config.json(검색어)
  *  - 나를 쓰는 곳  : server.js(운영에서만 start) · routes/news.js(앱 · 관리자) · 검사 scripts/test_news_collector.js
  *  관리자(2026-11-21 시안 8-3 · 사용자 「뺀기사는 원문 링크 볼수있는 버튼 [원문] 반영」): 실린 카드 숨기기·다시 보이기 · AI 가 뺀 기사 싣기 · 검색어 · 지금 갱신.
@@ -103,9 +105,10 @@ async function realMeta(url) {
  * @returns {object} run · day · dates · hit · state · keywords · setKeywords · imageKnown · start
  * [연계] ← 모듈 기본(운영) / 검사 test_news_collector
  */
-function createNews({ dir = path.join(DATA, 'news'), configFile = path.join(DATA, 'news_config.json'), search = null, judge = null, meta = realMeta, now = Date.now } = {}) {
+function createNews({ dir = path.join(DATA, 'news'), configFile = path.join(DATA, 'news_config.json'), search = null, judge = null, meta = realMeta, now = Date.now, dedupe = null } = {}) {
     const doSearch = search || ((q, opt) => require('./naver_search').searchNews(q, opt));
     const doJudge = judge || ((arts, cards) => require('./news_judge').judge(arts, cards));
+    const doGroup = dedupe || ((cards) => require('./news_judge').groupDuplicates(cards));
     const f = (n) => path.join(dir, n);
     let running = null, timer = null;
     // 한 줄 세우기 — 매시 확인(run)·관리자 바꾸기(숨기기·삭제·다시 변환·싣기)를 한 번에 하나씩만 한다.
@@ -263,6 +266,53 @@ function createNews({ dir = path.join(DATA, 'news'), configFile = path.join(DATA
                 st.judgeErrors = judgeErrors.slice(0, 5);
                 st.failed = failedSet.size; st.judged = cands.length - failedSet.size;
                 const newPending = cands.filter((_, i) => failedSet.has(i));
+                // ③-2 그날 카드 전체에서 같은 사건 한 번 더 합치기(사용자 2026-11-22 「중복내용 제외」) — 판정 묶음에서 빠뜨린 중복을 잡는다.
+                //   이번에 새 카드가 생긴 날과 지난 회차에 묶기가 실패한 날만(새 카드가 없으면 지난번에 이미 합쳤다). 숨긴 카드는 건드리지 않는다.
+                //   합쳐서 빠진 카드는 지우지 않고 그날 「AI 가 뺀 기사」로 옮긴다(관리자가 [싣기]로 되살릴 수 있게 — 검토 지적: AI 가 잘못 묶으면 되돌릴 길이 없었다).
+                //   관리자가 직접 실은 카드(manual)는 묶기에 넣지 않는다(검토 지적 — 관리자가 고른 분류가 사라졌다). AI 가 실패하면 합치지 않는다(기계로 제목을 비교하면 「통영/여수 어선 전복」 같은 다른 사고가 붙었다 — 검토 실측 0.75).
+                const retry = new Set(((readJson(f('state.json'), null) || {}).dedupeRetry) || []);   // 지난 회차에 묶기 AI 가 실패한 날 — 새 카드가 없어도 다시 묻는다
+                st.dedupeRetry = [];
+                const moves = [];   // 펼친 횟수 옮기기 [옛 열쇠, 새 열쇠] — 쓰기 직전에 다시 읽어 적용(AI 를 기다리는 사이 들어온 펼침을 덮지 않게)
+                for (const d of Object.keys(days)) {
+                    if (!DAY_RE.test(d) || !(retry.has(d) || days[d].cards.some((c) => fresh.has(c)))) continue;
+                    const live = days[d].cards.filter((c) => !c.hidden && !c.manual);   // 관리자가 고른 카드(숨김·직접 실음)는 묶지 않는다
+                    if (live.length < 2) continue;
+                    const G = await doGroup(live.map((c) => ({ title: c.title, summary: c.summary })));
+                    st.dedupeBy = G.by;
+                    if (G.by === 'failed') { st.dedupeError = G.error || ''; st.dedupeRetry.push(d); }
+                    for (const g of G.groups || []) {
+                        const members = g.map((i) => live[i]).filter(Boolean);
+                        // id 를 남길 카드: 보도가 가장 많은 것 → 원문 요약이 긴 것(펼친 횟수·주소가 이어지게)
+                        members.sort((x, y) => (y.count || 1) - (x.count || 1) || (y.rep.desc || '').length - (x.rep.desc || '').length);
+                        const main = members[0];
+                        // 카드 머리는 묶음에서 가장 최근 기사로(「사고 보도의 경우 새소식」이 묻히지 않게 — 판정 단계의 같은 날 새 소식 규칙과 같다)
+                        const newest = members.slice().sort((x, y) => y.rep.pubMs - x.rep.pubMs)[0];
+                        if (newest !== main && newest.rep.pubMs > main.rep.pubMs) {
+                            Object.assign(main, { title: newest.title, summary: newest.summary, summaryFixed: newest.summaryFixed, cat: newest.cat, rep: newest.rep, image: newest.image, site: newest.site });
+                            if (fresh.has(newest)) fresh.add(main);
+                        }
+                        for (const other of members.slice(1)) {
+                            main.count = (main.count || 1) + (other.count || 1);
+                            for (const h of other.hosts || []) if (!main.hosts.includes(h)) main.hosts.push(h);
+                            main.score = Math.max(main.score || 0, other.score || 0);
+                            moves.push([d + '/' + other.id, d + '/' + main.id]);
+                            days[d].cards = days[d].cards.filter((c) => c !== other);
+                            const r = other.rep;
+                            days[d].rejected.push({ title: r.title, desc: r.desc, link: r.originallink || r.link, source: r.host, pubMs: r.pubMs, score: other.score, reason: '같은 사건으로 합침 → 「' + main.title + '」' });
+                            if (fresh.has(other) && other.addedAt === new Date(t0).toISOString()) st.added--;   // 이번에 새로 실었다가 합친 카드는 「새 카드」에서 뺀다
+                            fresh.delete(other);
+                            st.deduped = (st.deduped || 0) + 1;
+                        }
+                    }
+                }
+                if (moves.length) {
+                    const vw = readJson(f('views.json'), {}) || {}; vw.count = vw.count || {};
+                    for (const [kOld, kNew] of moves) {
+                        if (vw.count[kOld]) vw.count[kNew] = (vw.count[kNew] || 0) + vw.count[kOld];
+                        delete vw.count[kOld]; if (vw.adminDay) delete vw.adminDay[kOld];
+                    }
+                    write(f('views.json'), vw);
+                }
                 // ④ 새 카드의 사진·언론사 이름(사진 파일은 저장하지 않는다)
                 for (const c of fresh) { const m = await meta(c.rep.originallink || c.rep.link); c.image = m.image || ''; c.site = m.site || ''; }   // 대표 기사가 바뀐 카드도 다시 읽는다(사진이 다른 기사 것이 되지 않게)
                 for (const d of Object.keys(days)) if (DAY_RE.test(d) && (days[d].cards.length || days[d].rejected.length)) { days[d].date = d; days[d].updatedAt = new Date(t0).toISOString(); write(dayFile(d), days[d]); }
@@ -397,7 +447,8 @@ function createNews({ dir = path.join(DATA, 'news'), configFile = path.join(DATA
         timer.unref();
         return true;
     }
-    return { run, day, dates, hit, state, keywords, setKeywords, imageKnown, start, adminDay, setHidden, publish, runNow, running: () => !!running };
+    // today: 날짜를 안 고른 화면이 볼 「오늘」(KST) — 수집과 같은 시계를 쓴다(검사에서 시계를 바꿔 끼워도 화면 날짜가 실제 날짜로 어긋나지 않게)
+    return { run, day, dates, hit, state, keywords, setKeywords, imageKnown, start, adminDay, setHidden, publish, runNow, running: () => !!running, today: () => kstDate(now()) };
 }
 
 let real = null;
@@ -406,6 +457,6 @@ const getReal = () => (real = real || createNews());
 module.exports = {
     run: () => getReal().run(), day: (d) => getReal().day(d), dates: () => getReal().dates(), hit: (d, id, a) => getReal().hit(d, id, a),
     state: () => getReal().state(), keywords: () => getReal().keywords(), setKeywords: (l) => getReal().setKeywords(l), imageKnown: (u) => getReal().imageKnown(u), start: () => getReal().start(),
-    adminDay: (d) => getReal().adminDay(d), setHidden: (d, id, h) => getReal().setHidden(d, id, h), publish: (d, i, c) => getReal().publish(d, i, c), runNow: () => getReal().runNow(), running: () => getReal().running(),
+    adminDay: (d) => getReal().adminDay(d), setHidden: (d, id, h) => getReal().setHidden(d, id, h), publish: (d, i, c) => getReal().publish(d, i, c), runNow: () => getReal().runNow(), running: () => getReal().running(), today: () => getReal().today(),
     createNews, clean, urlKey, titleKey, kstDate, kstShort, DEFAULT_KEYWORDS, DROP_RE, KEEP_DAYS,
 };

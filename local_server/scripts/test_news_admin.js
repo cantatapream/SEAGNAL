@@ -37,6 +37,7 @@ const news = NC.createNews({
     search: async (q, o) => ({ ok: true, items: (ng.results[q] || []).slice(o.start - 1, o.start + 99), total: 0 }),
     judge: async (arts, cards) => { if (ng.slowJudge) await ng.slowJudge; return { results: arts.map((a, i) => Object.assign({ i, score: 1, cat: 'none', region: '', group: '', same: '', newInfo: false, summary: a.desc, summaryFixed: false, reason: '행사', provider: 'gemma' }, ng.verdict(a.title))), failed: [], providers: { gemma: 1 }, errors: [] }; },
     meta: async (u) => ({ image: 'https://img.test/' + path.basename(u) + '.jpg', site: '테스트일보' }),
+    dedupe: async () => ({ groups: [], by: 'gemma' }),   // 같은 사건 합치기 — 진짜 AI 를 부르지 않게(이 검사는 관리자 화면·API 를 본다)
 });
 const fcDir = tmp(), fg = { html: '', clock: T0 };
 const row = (id, title, date, fileId) => `<tr><td class="subject"><a href="javascript:fnPopupPrevew('${id}')">${title}</a></td><td data-label="부서">기후환경자원과</td><td data-label="원본"><a href="/cmmnFile/fileDownloadStat.do?FILE_ID=${fileId}" title="${title}.pdf">p</a></td><td data-label="작성일" class="date">${date}</td></tr>`;

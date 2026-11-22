@@ -156,10 +156,12 @@
         host.appendChild(statBox([
             ['마지막 갱신', st.lastRun ? kst(st.lastRun) : '아직 없음'],
             ['결과', !st.lastRun ? '—' : st.ok ? '정상 · 새 카드 ' + (st.added || 0) + '장' : '실패', !st.lastRun ? null : st.ok ? '#34d399' : '#f87171'],
-            ['이번 회차', st.lastRun ? '받음 ' + (st.fetched || 0) + ' → 판정 ' + (st.judged || 0) + ' → 실음 ' + (st.kept || 0) : '—'],
+            ['이번 회차', st.lastRun ? '받음 ' + (st.fetched || 0) + ' → 판정 ' + (st.judged || 0) + ' → 실음 ' + (st.kept || 0) + (st.deduped ? ' · 같은 사건 합침 ' + st.deduped + '장' : '') : '—'],
             ['판정한 AI', prov || '—'],
         ], runBtn));
         if (st.lastRun && !st.ok) host.appendChild(el('div', 'color:#f87171;font-size:0.8rem;margin:-2px 2px 8px;', '실패 까닭: ' + (st.error || '알 수 없음')));
+        // 같은 사건 합치기 AI 가 실패하면 그 회차는 합치지 않는다 — 조용히 넘어가지 않게 띄운다(중복 카드가 남아 있을 수 있음)
+        if (st.dedupeBy === 'failed') host.appendChild(el('div', 'color:#fbbf24;font-size:0.78rem;margin:-2px 2px 8px;', '같은 사건 합치기 실패 — 이번 회차는 중복 카드를 합치지 못했습니다(다음 수집 때 다시): ' + (st.dedupeError || '')));
         if (st.keywordErrors && st.keywordErrors.length) host.appendChild(el('div', 'color:#fbbf24;font-size:0.78rem;margin:-2px 2px 8px;', '받지 못한 검색어 ' + st.keywordErrors.length + '개: ' + st.keywordErrors.slice(0, 3).join(' / ')));
         if (j.running) host.appendChild(el('div', 'color:#fbbf24;font-size:0.8rem;margin:-2px 2px 8px;', '지금 뉴스를 모으고 판정하는 중입니다. 처음 수집은 지난 26시간치라 몇 분~십여 분 걸립니다 — 끝나면 이 화면이 저절로 결과로 바뀝니다.'));
         host.appendChild(el('div', 'color:#94a3b8;font-size:0.78rem;margin-bottom:4px;', '매시 2분에 네이버 뉴스를 자동으로 모아 「AI 모델 설정 ⑦」 순서의 AI 가 판정합니다(3점 이상만 실음). 바로 모으려면 [지금 뉴스 수집]. 숨긴 카드는 앱에서만 빠집니다.'));

@@ -160,4 +160,48 @@ async function judge(arts, cards, o) {
     return { results, failed, providers, errors };
 }
 
-module.exports = { judge, prompt, shapeOk, fixSummary, CATS, REGIONS, BATCH };
+/**
+ * 그날 실린 카드 가운데 같은 사건을 묶는다 — 판정(20건씩)에서 AI 가 묶음 표시를 빠뜨려 같은 발표가 여러 장으로 실린 것을 한 번 더 걸러 낸다.
+ *   사용자 2026-11-22 「중복내용 제외」 — 해수부 「김장철 수산물 원산지 특별점검」 한 발표가 카드 4장으로 실렸다(운영 화면).
+ *   AI(⑦ 순서)에 제목·요약 앞부분 목록을 주고 묶음을 받는다. AI 가 실패하거나 답이 틀리면 묶지 않는다(groups:[] · by:'failed').
+ *   기계로 제목을 비교하지 않는다 — 「통영/여수 해상서 어선 전복」(0.75)·「해수부/경남도 원산지 점검」(0.70)처럼 틀이 같은 다른 사건이 붙는다(검토 실측 2026-11-22).
+ * 예: await groupDuplicates([{title:'해수부, 김장철 원산지 특별점검'}, {title:'김장철 수산물 원산지 특별점검…해수부'}, {title:'해광호 수색'}]) → { groups:[[0,1]], by:'gemma' }
+ * @param {Array<{title:string, summary?:string}>} cards @param {{call?:function}} [o]
+ * @returns {Promise<{groups:number[][], by:string, error?:string}>} 두 장 이상인 묶음만, 카드 하나는 한 묶음에만
+ * [연계] ← news_collector.run(매 수집 끝) / → bulletin_ai.call('news')
+ */
+async function groupDuplicates(cards, o) {
+    const n = cards.length;
+    if (n < 2) return { groups: [], by: 'none' };
+    const valid = (p) => {
+        if (!p || typeof p !== 'object' || !Array.isArray(p.groups)) return false;
+        const seen = new Set();
+        for (const g of p.groups) {
+            if (!Array.isArray(g) || g.length < 2) return false;
+            for (const i of g) { if (!Number.isInteger(i) || i < 0 || i >= n || seen.has(i)) return false; seen.add(i); }
+        }
+        return true;
+    };
+    const list = cards.map((c, i) => `[${i}] ${c.title} — ${String(c.summary || '').replace(/\s+/g, ' ').slice(0, 70)}`).join('\n');
+    const text = `아래는 같은 날 실린 해양 뉴스 카드 목록이다. 같은 사건·같은 발표·같은 사고를 다룬 카드끼리 묶어라.
+- 같은 기관의 같은 발표를 여러 언론이 쓴 것(예: 해수부 김장철 수산물 원산지 특별점검)은 한 묶음
+- 같은 사고의 같은 날 보도(수색·발견·원인 등 후속 포함)는 한 묶음
+- 주제가 비슷해도 기관·지역·사건이 다르면 따로(예: 부산해경 김장철 단속과 해수부 원산지 점검은 따로)
+답은 JSON 하나만: {"groups":[[번호,번호,...],...]} — 두 장 이상인 묶음만, 한 카드는 한 묶음에만. 묶을 것이 없으면 {"groups":[]}
+
+${list}`;
+    try {
+        const call = (o && o.call) || require('./bulletin_ai').call;
+        const r = await call('news', text, { caller: 'NewsDedupe', accept: valid });
+        const p = r && r.success ? require('./bulletin_ai').looseJson(r.text) : undefined;
+        if (valid(p)) return { groups: p.groups, by: r.provider || 'ai' };
+        const error = String((r && r.error) || '답 모양이 틀림').slice(0, 120);
+        console.warn('[오늘의 뉴스] 같은 사건 묶기 AI 실패 — 이번엔 합치지 않는다:', error);
+        return { groups: [], by: 'failed', error };
+    } catch (e) {
+        console.warn('[오늘의 뉴스] 같은 사건 묶기 중 예외 — 이번엔 합치지 않는다:', e && e.message);
+        return { groups: [], by: 'failed', error: String((e && e.message) || e).slice(0, 120) };
+    }
+}
+
+module.exports = { judge, prompt, shapeOk, fixSummary, groupDuplicates, CATS, REGIONS, BATCH };

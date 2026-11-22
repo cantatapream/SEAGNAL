@@ -40,9 +40,12 @@ function fake() {
     };
     f.meta = async (u) => { f.metas.push(u); return { image: /kbs/.test(u) ? 'http://news.kbs.co.kr/a.jpg' : 'https://img.example.com/' + path.basename(u) + '.jpg', site: /kbs/.test(u) ? 'KBS' : '' }; };
     f.now = () => f.clock;
+    f.groups = () => [];   // 그날 카드 전체 같은 사건 묶기(가짜) — 기본은 묶을 것 없음
+    f.grouped = [];
+    f.dedupe = async (cards) => { f.grouped.push(cards.map((x) => x.title)); return { groups: f.groups(cards), by: 'gemma' }; };
     return f;
 }
-const mk = (f, dir) => N.createNews({ dir, configFile: path.join(dir, 'cfg.json'), search: f.search, judge: f.judge, meta: f.meta, now: f.now });
+const mk = (f, dir) => N.createNews({ dir, configFile: path.join(dir, 'cfg.json'), search: f.search, judge: f.judge, meta: f.meta, now: f.now, dedupe: (cards) => f.dedupe(cards) });
 
 (async () => {
     console.log('① 글 정리·열쇠');
@@ -130,6 +133,101 @@ const mk = (f, dir) => N.createNews({ dir, configFile: path.join(dir, 'cfg.json'
         };
         const s3 = await cc.run();
         ok('판정을 20건씩 나눠 부르고, 둘째 묶음에 첫 묶음 카드를 준다 → 같은 사건 한 장(「외 1건」)', g.judged.length === 2 && g.judged[1].cards.length === 1 && s3.added === 1 && cc.day('2026-11-21').cards[0].more === 1, { judged: g.judged.map((j) => [j.titles.length, j.cards.length]), s3 });
+    }
+
+    console.log('④-2 그날 카드 전체에서 같은 사건 한 번 더 합치기(사용자 2026-11-22 「중복내용 제외」 — 해수부 원산지 점검 카드 4장)');
+    {
+        const g = fake(), dd = tmp(), cc = mk(g, dd);
+        await cc.setKeywords(['k']);
+        const T = ['해수부, 김장철 수산물 원산지 표시 특별 점검', '해수부, 김장철 맞이 천일염·젓갈 원산지 집중 단속', '김장철 수산물 원산지 특별점검…해수부, 천일염·젓갈 집중단속', '경남도, 23일부터 김장철 수산물 원산지 특별 단속 실시', '숨긴 카드: 해수부 원산지 점검'];
+        g.results.k = T.map((t, i) => item(t, i === 2 ? '해양수산부가 다음 달 4일까지 김장철 수산물 원산지 표시 특별점검을 한다. 천일염·젓갈이 중점이다.' : '내용 ' + i, 'https://o.com/' + i, T0 - (5 - i) * 600000));
+        g.verdict = () => ({ score: 4, cat: 'duty' });   // 판정 단계는 묶음을 빠뜨렸다(운영에서 실제로 난 일)
+        await cc.run();
+        let D = cc.day('2026-11-21');
+        ok('준비: 판정만으로는 카드 5장', D.cards.length === 5, D.cards.map((x) => x.title));
+        const id = (i) => D.cards.find((x) => x.title === T[i]).id;
+        cc.hit('2026-11-21', id(0)); cc.hit('2026-11-21', id(1)); cc.hit('2026-11-21', id(1));
+        await cc.setHidden('2026-11-21', id(4), true);
+        // 다음 회차: 새 기사 1건 + 묶기 AI 가 해수부 3장을 한 묶음으로
+        g.clock = T0 + H;
+        g.results.k.unshift(item('해광호 수색', '수색', 'https://o.com/z', T0 + 0.5 * H));
+        g.verdict = (t) => /해광호/.test(t) ? { score: 5, cat: 'safety' } : { score: 4, cat: 'duty' };
+        g.groups = (cards) => { const i = (s) => cards.findIndex((x) => x.title.startsWith(s)); return [[i('해수부, 김장철 수산물'), i('해수부, 김장철 맞이'), i('김장철 수산물 원산지 특별점검')]]; };
+        g.grouped.length = 0;
+        const s = await cc.run();
+        D = cc.day('2026-11-21');
+        const main = D.cards.find((x) => /원산지/.test(x.title) && !/경남/.test(x.title));
+        ok('묶기에 숨긴 카드는 넣지 않는다', g.grouped.length === 1 && !g.grouped[0].some((t) => /숨긴/.test(t)) && g.grouped[0].length === 5, g.grouped);
+        ok('해수부 3장 → 1장(「외 2건」) · 다른 기관(경남도)은 따로 · 보이는 카드 5→3(숨긴 1장 빼고)', s.deduped === 2 && D.cards.length === 3 && main && main.more === 2 && D.cards.some((x) => /경남도/.test(x.title)), { s, cards: D.cards.map((x) => [x.title, x.more]) });
+        ok('카드 머리는 묶음에서 가장 최근 기사', main && main.title === T[2], main && main.title);
+        ok('펼친 횟수는 남는 카드에 더한다(1+2)', main && main.views === 3, main && main.views);
+        const adm = cc.adminDay('2026-11-21');
+        ok('숨긴 카드는 그대로 남는다', adm.cards.some((x) => x.hidden && /숨긴/.test(x.title)));
+        const moved = adm.rejected.filter((x) => /같은 사건으로 합침/.test(x.reason));
+        ok('합쳐서 빠진 카드는 「AI 가 뺀 기사」로 옮긴다(관리자가 [싣기]로 되살릴 수 있게 — 검토 지적)', moved.length === 2 && moved.every((x) => x.link && x.reason.includes(T[2])), adm.rejected);
+        ok('「새 카드」 수는 합친 뒤 숫자(이번에 새로 실은 해광호 1장)', s.added === 1, s.added);
+        g.clock = T0 + 2 * H; g.grouped.length = 0;
+        await cc.run();
+        ok('새 카드가 없는 회차는 묶기를 부르지 않는다(AI 호출 아끼기)', g.grouped.length === 0, g.grouped);
+    }
+    {
+        // 사고 후속: 머리가 최신 소식 · 관리자가 실은 카드는 빼지 않음 · AI 를 기다리는 사이 들어온 펼침을 덮지 않음
+        const g = fake(), dd = tmp(), cc = mk(g, dd);
+        await cc.setKeywords(['k']);
+        g.results.k = [item('해광호 실종 수색 사흘째', '수색이 이어졌다. 해경 함정 10척이 투입됐다.', 'https://h.com/1', T0 - 3 * H), item('해광호 수색 계속', '수색', 'https://h.com/2', T0 - 2.5 * H), item('관리자 기사', '내용', 'https://h.com/m', T0 - 2 * H)];
+        g.verdict = (t) => /관리자/.test(t) ? { score: 1, reason: '홍보' } : { score: 5, cat: 'safety' };
+        await cc.run();
+        const rj = cc.adminDay('2026-11-21').rejected.find((x) => /관리자/.test(x.title));
+        await cc.publish('2026-11-21', 0, 'rule', rj.link);
+        let D = cc.day('2026-11-21');
+        const old = D.cards.find((x) => x.title === '해광호 실종 수색 사흘째') || D.cards.find((x) => /해광호/.test(x.title));
+        cc.hit('2026-11-21', old.id);
+        g.clock = T0 + H;
+        g.results.k.unshift(item('해광호 선원 시신 발견', '선원 1명을 발견했다.', 'https://h.com/3', T0 + 0.5 * H));
+        g.verdict = () => ({ score: 5, cat: 'safety' });
+        let manId = D.cards.find((x) => /관리자/.test(x.title)).id, otherId = D.cards.find((x) => /해광호/.test(x.title) && x.id !== old.id);
+        otherId = otherId && otherId.id;
+        g.dedupe = async (cards) => {
+            cc.hit('2026-11-21', manId); cc.hit('2026-11-21', manId);   // AI 를 기다리는 사이 다른 카드 펼침 2번
+            return { groups: [cards.map((_, i) => i)], by: 'gemma' };   // AI 가 지나치게 묶음(관리자 카드까지)
+        };
+        await cc.run();
+        D = cc.day('2026-11-21');
+        const acc = D.cards.find((x) => /해광호/.test(x.title));
+        ok('후속 소식이 합쳐지면 카드 머리는 최신 소식(「시신 발견」이 묻히지 않게 — 검토 지적)', D.cards.filter((x) => /해광호/.test(x.title)).length === 1 && acc.title === '해광호 선원 시신 발견', D.cards.map((x) => x.title));
+        ok('관리자가 실은 카드는 묶기에 넣지 않는다(AI 가 모두 한 묶음이라 해도 — 관리자 고른 분류 그대로)', D.cards.some((x) => /관리자/.test(x.title) && x.cat === 'rule'), D.cards.map((x) => [x.title, x.cat]));
+        ok('AI 를 기다리는 사이 들어온 펼친 횟수를 덮지 않는다(검토 지적 — 종전엔 0)', D.cards.find((x) => /관리자/.test(x.title)).views === 2, D.cards.map((x) => [x.title, x.views]));
+        ok('합친 카드의 펼친 횟수는 남는 카드로', acc.views === 1, acc.views);
+    }
+    {
+        // 묶기 AI 가 실패하면 합치지 않고, 새 카드가 없어도 다음 회차에 다시 묻는다 · 관리자 화면에 띄울 실패 기록
+        const g = fake(), dd = tmp(), cc = mk(g, dd);
+        await cc.setKeywords(['k']);
+        g.results.k = [item('통영 해상서 어선 전복…선원 2명 실종', '통영', 'https://t.com/1', T0 - 2 * H), item('여수 해상서 어선 전복…선원 2명 실종', '여수', 'https://t.com/2', T0 - H)];
+        g.verdict = () => ({ score: 5, cat: 'safety' });
+        g.dedupe = async (cards) => { g.grouped.push(cards.length); return { groups: [], by: 'failed', error: '모든 AI 실패' }; };
+        const s1 = await cc.run();
+        ok('AI 실패 → 합치지 않음(제목 틀이 같은 다른 사고가 붙지 않게) · 실패 기록', cc.day('2026-11-21').cards.length === 2 && s1.dedupeBy === 'failed' && s1.dedupeError === '모든 AI 실패' && s1.dedupeRetry.join() === '2026-11-21' && s1.ok, s1);
+        g.clock = T0 + H;
+        const s2 = await cc.run();
+        ok('새 카드가 없어도 지난 회차에 실패한 날은 다시 묻는다', g.grouped.length === 2 && s2.dedupeRetry.length === 1, { n: g.grouped, s2 });
+        g.dedupe = async () => ({ groups: [], by: 'gemma' });
+        g.clock = T0 + 2 * H;
+        const s3 = await cc.run();
+        ok('다시 물어 성공하면 더 묻지 않는다', s3.dedupeRetry.length === 0 && s3.dedupeBy === 'gemma', s3);
+    }
+    {
+        const calls = [];
+        const cards = [{ title: '해수부, 김장철 수산물 원산지 표시 특별 점검' }, { title: '해수부, 내달 4일까지 김장철 수산물 원산지 표시 특별점검' }, { title: '부산해경, 김장철 농수산물 유통 특별단속' }, { title: '실종 어선 해광호 수색 닷새째' }];
+        const r1 = await J.groupDuplicates(cards, { call: async (fn, prm, o) => { calls.push(fn + '|' + prm); return { success: false, error: '모든 AI 실패' }; } });
+        ok('groupDuplicates: AI 실패 → 묶지 않는다(by failed · 까닭)', r1.by === 'failed' && r1.groups.length === 0 && r1.error === '모든 AI 실패', r1);
+        ok('⑦ news 로 부른다 · 지시문: 제목·요약 목록과 「기관·지역·사건이 다르면 따로」', /^news\|/.test(calls[0]) && /\[3\] 실종 어선 해광호/.test(calls[0]) && /기관·지역·사건이 다르면 따로/.test(calls[0]));
+        const bad = await J.groupDuplicates(cards, { call: async () => ({ success: true, text: '{"groups":[[0,9]]}', provider: 'gemma' }) });
+        ok('답에 없는 번호가 있으면 버린다', bad.by === 'failed' && bad.groups.length === 0, bad);
+        const dup = await J.groupDuplicates(cards, { call: async () => ({ success: true, text: '{"groups":[[0,1],[1,2]]}', provider: 'gemma' }) });
+        ok('한 카드가 두 묶음에 있으면 버린다', dup.by === 'failed', dup);
+        const good = await J.groupDuplicates(cards, { call: async (fn, prm, o) => { const text = '{"groups":[[0,1]]}'; return o.accept(JSON.parse(text)) ? { success: true, text, provider: 'gemma' } : { success: false }; } });
+        ok('좋은 답은 그대로 · 누가 답했나', good.by === 'gemma' && JSON.stringify(good.groups) === '[[0,1]]', good);
     }
 
     console.log('⑤ 판정이 실패하면 다음 시간에 다시');
