@@ -201,15 +201,15 @@ function make(opts = {}) {
         }
 
         console.log('\n── C. 대기 중 상태 변화 표 ──');
-        {   // C1 실패 알림 후 재기동
+        {   // C1 실패 알림 후 재기동 (2026-11-22 너울이 12시간 대기로 바뀌어 첫 실패에 보내는 기상부이로 옮김 — 너울은 S 절)
             const m = make();
-            await m.al.report('swell', { ok: false, error: new Error('forecast-times 503') });
+            await m.al.report('marineBuoys', { ok: false, error: new Error('HTTP 503') });
             const s2 = fakeSender();
             const al2 = A.createAlerter({ file: m.file, clock: () => m.clock.now, send: s2.send });
-            await al2.report('swell', { ok: false, error: new Error('forecast-times 503') });
+            await al2.report('marineBuoys', { ok: false, error: new Error('HTTP 503') });
             ok('C1 실패 알림 후 재기동 → 같은 실패를 다시 보내지 않는다', m.s.calls.length === 1 && s2.calls.length === 0);
-            await al2.report('swell', { ok: true });
-            ok('C1 재기동 뒤 복구 → 복구 1통(알렸던 것을 기억)', s2.calls.length === 1 && /너울 위험등급 \(기상청 MMIS\) 수집 복구/.test(s2.calls[0].body), s2.calls[0] && s2.calls[0].body);
+            await al2.report('marineBuoys', { ok: true });
+            ok('C1 재기동 뒤 복구 → 복구 1통(알렸던 것을 기억)', s2.calls.length === 1 && /기상부이 관측 \(기상청 MMIS\) 수집 복구/.test(s2.calls[0].body), s2.calls[0] && s2.calls[0].body);
         }
         {   // C2 실패 중 재기동(기준 미달 상태에서)
             const m = make();
@@ -288,16 +288,16 @@ function make(opts = {}) {
             const after = A.createAlerter({ file, clock: () => clock.now, send: fakeSender().send }).records();
             ok('C5 파일에 4항목 모두 「알렸다」로 남는다(덮어쓰기 없음)', ['marineBuoys', 'marineWhBuoys', 'marineLhBuoys', 'marineVs'].every((id) => after[id] && after[id].notified === true), JSON.stringify(after));
         }
-        {   // C6 실패 알림을 보내는 사이 복구
+        {   // C6 실패 알림을 보내는 사이 복구 (2026-11-22 너울 → 첫 실패에 보내는 이안류로 옮김)
             const { al, s } = make();
             const release = s.hold();
-            const p = al.report('swell', { ok: false, error: new Error('wfs 500') });
+            const p = al.report('ripCurrent', { ok: false, error: new Error('HTTP 500') });
             await new Promise((r) => setImmediate(r));
-            await al.report('swell', { ok: true });
+            await al.report('ripCurrent', { ok: true });
             ok('C6 보내는 중 들어온 성공은 기다렸다가 처리(아직 1통)', s.calls.length === 1);
             release();
             await p;
-            ok('C6 실패 알림이 전달된 뒤 곧바로 복구 1통 — 「실패」만 남지 않는다', s.calls.length === 2 && s.calls[1].data.phase === 'recover' && al.records().swell.notified === false, s.calls.map((c) => c.data.phase).join(','));
+            ok('C6 실패 알림이 전달된 뒤 곧바로 복구 1통 — 「실패」만 남지 않는다', s.calls.length === 2 && s.calls[1].data.phase === 'recover' && al.records().ripCurrent.notified === false, s.calls.map((c) => c.data.phase).join(','));
             ok('C6 그 복구 알림의 시각 = 보내는 중 들어온 성공 시각(10/16 03:00)', /수집 복구 — 10\/16 03:00$/.test(s.calls[1].body), s.calls[1] && s.calls[1].body);
         }
         {   // C7 같은 항목 실패 보고 둘이 동시에(정시 수집 + 화면 요청 수집)
@@ -460,7 +460,67 @@ function make(opts = {}) {
             ok('W10 강풍은 5분이 지나도 푸시 없음(특보 1통에 담김)', s.calls.length === 0);
             await al.report('marineVs', { ok: false, error: new Error('HTTP 503') });
             ok('W10 시정계 관측은 종전처럼 첫 실패에 1통', s.calls.length === 1 && /^시정계 관측 \(기상청 MMIS\) 수집 실패/.test(s.calls[0].body), bodies(s));
-            ok('W10 5분 대기는 특보에만 걸려 있다', Object.keys(A.ITEMS).filter((id) => A.ITEMS[id].minFailMs).join() === 'warnings' && A.ITEMS.warnings.minFailMs === 5 * 60 * 1000);
+            ok('W10 5분 대기는 특보에만 걸려 있다(대기가 걸린 항목은 특보 5분·너울 12시간 둘뿐 — 2026-11-22)', Object.keys(A.ITEMS).filter((id) => A.ITEMS[id].minFailMs).join() === 'warnings,swell' && A.ITEMS.warnings.minFailMs === 5 * 60 * 1000 && A.ITEMS.swell.minFailMs === 12 * 3600 * 1000);
+        }
+
+        console.log('\n── S. 너울 12시간 대기 표(설계 문서 §4-3, 사용자 확정 2026-11-22) ──');
+        {   // S1 사용자 화면 꼴 — 11:32 복구 뒤 14:11 실패 → 14:41 복구, 17:33 실패 → 19:33 복구(1시간마다 확인)
+            const { al, s, clock } = make();
+            const SW = (hm) => KST('2026-11-22T' + hm);
+            const TOs = () => Object.assign(new Error('network timeout at: https://marine.kma.go.kr/x'), { type: 'request-timeout' });
+            for (const [hm, r] of [['14:11:00', 0], ['14:41:00', 1], ['17:33:00', 0], ['18:33:00', 0], ['19:33:00', 1]]) {
+                clock.now = SW(hm);
+                await al.report('swell', r ? { ok: true } : { ok: false, error: TOs() });
+            }
+            ok('S1 12시간 안에 풀린 실패(30분·2시간) → 실패·복구 0통', s.calls.length === 0, bodies(s));
+        }
+        {   // S2 12시간 넘게 이어짐 — 1시간마다 실패 보고
+            const { al, s, clock } = make();
+            const t0 = KST('2026-11-22T14:11:00');
+            for (let h = 0; h <= 11; h++) { clock.now = t0 + h * 3600000; await al.report('swell', { ok: false, error: new Error('HTTP 503') }); }
+            ok('S2 11시간째(01:11)까지는 안 보냄', s.calls.length === 0, bodies(s));
+            clock.now = t0 + 12 * 3600000 - 1000;
+            await al.report('swell', { ok: false, error: new Error('HTTP 503') });
+            ok('S2 11시간 59분 59초에도 안 보냄', s.calls.length === 0, bodies(s));
+            clock.now = t0 + 12 * 3600000;
+            await al.report('swell', { ok: false, error: new Error('HTTP 503') });
+            ok('S2 12시간(11/23 02:11) 실패 보고 때 1통 — 발생 시각 11/22 14:11 이 적힌다',
+                s.calls.length === 1 && s.calls[0].title === '자료 수집 실패' && s.calls[0].body === '너울 위험등급 (기상청 MMIS) 수집 실패 — HTTP 503, 발생 11/22 14:11 · 12시간 넘게 복구 안 됨', bodies(s));
+            clock.now = t0 + 13 * 3600000;
+            await al.report('swell', { ok: false, error: new Error('HTTP 503') });
+            ok('S2 그 뒤 실패가 이어져도 더 없음', s.calls.length === 1);
+            clock.now = t0 + 14 * 3600000;
+            await al.report('swell', { ok: true });
+            ok('S2 받으면 복구 1통 「… 수집 복구 — 11/23 04:11」', s.calls.length === 2 && s.calls[1].body === '너울 위험등급 (기상청 MMIS) 수집 복구 — 11/23 04:11', bodies(s));
+        }
+        {   // S3 11시간 실패 → 한 번 성공 → 다시 실패: 새로 12시간을 잰다
+            const { al, s, clock } = make();
+            const t0 = KST('2026-11-22T00:00:00');
+            for (let h = 0; h <= 11; h++) { clock.now = t0 + h * 3600000; await al.report('swell', { ok: false, error: new Error('HTTP 503') }); }
+            clock.now = t0 + 12 * 3600000;
+            await al.report('swell', { ok: true });
+            for (let h = 13; h <= 24; h++) { clock.now = t0 + h * 3600000; await al.report('swell', { ok: false, error: new Error('HTTP 503') }); }
+            ok('S3 사이에 한 번 받으면 따로 잰다 → 11시간째까지 0통', s.calls.length === 0, bodies(s));
+            clock.now = t0 + 25 * 3600000;
+            await al.report('swell', { ok: false, error: new Error('HTTP 503') });
+            ok('S3 새 연속의 12시간째에 1통 — 발생 시각은 새 연속의 처음(11/22 13:00)', s.calls.length === 1 && /발생 11\/22 13:00 · 12시간 넘게 복구 안 됨$/.test(s.calls[0].body), bodies(s));
+        }
+        {   // S4 대기 중 재기동 — 처음 실패 시각을 이어 잰다
+            const m = make();
+            const t0 = KST('2026-11-22T14:11:00');
+            m.clock.now = t0;
+            await m.al.report('swell', { ok: false, error: new Error('HTTP 503') });
+            const s2 = fakeSender();
+            const al2 = A.createAlerter({ file: m.file, clock: () => m.clock.now, send: s2.send });
+            m.clock.now = t0 + 6 * 3600000;
+            await al2.report('swell', { ok: false, error: new Error('HTTP 503') });
+            ok('S4 재기동 뒤 6시간째 → 안 보냄', s2.calls.length === 0);
+            m.clock.now = t0 + 12 * 3600000;
+            await al2.report('swell', { ok: false, error: new Error('HTTP 503') });
+            ok('S4 재기동 전 처음 실패(14:11)부터 12시간째 1통', s2.calls.length === 1 && /발생 11\/22 14:11/.test(s2.calls[0].body), s2.calls.map((c) => c.body).join(' / '));
+        }
+        {   // S5 다른 항목 문장은 그대로(「…부터」) — failNote 는 너울에만
+            ok('S5 failNote 는 너울에만', Object.keys(A.ITEMS).filter((id) => A.ITEMS[id].failNote).join() === 'swell');
         }
 
         console.log('\n── D. 개발/운영 발송 경로 ──');
