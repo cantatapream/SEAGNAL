@@ -349,10 +349,13 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
                 const r = await pg.evaluate(() => {
                     const host = document.getElementById('news-list'); host.style.minHeight = '3000px'; window.scrollTo(0, 600);
                     const h = document.querySelector('.nhub-head').getBoundingClientRect(), top = document.elementFromPoint(200, h.top + 10);
-                    const out = { y: window.scrollY, headTop: Math.round(h.top), inHead: !!(top && top.closest('.nhub-head')), bg: getComputedStyle(document.querySelector('.nhub-head')).backgroundColor };
+                    const dl = document.getElementById('news-dateline').getBoundingClientRect(), tabs = document.getElementById('nhub-tabs').getBoundingClientRect();
+                    const out = { y: window.scrollY, headTop: Math.round(h.top), inHead: !!(top && top.closest('.nhub-head')), bg: getComputedStyle(document.querySelector('.nhub-head')).backgroundColor,
+                        // 날짜줄도 함께 고정(사용자 「뉴스에서 날짜 부분도 고정되었으면 좋겠는데」) — 탭 줄 바로 아래, 머리 안
+                        dateInHead: dl.height > 0 && dl.top >= tabs.bottom - 1 && dl.bottom <= h.bottom + 0.5 };
                     host.style.minHeight = ''; window.scrollTo(0, 0); return out;
                 });
-                assert.ok(r.y === 600 && r.headTop === 0 && r.inHead && r.bg !== 'rgba(0, 0, 0, 0)', JSON.stringify(r));
+                assert.ok(r.y === 600 && r.headTop === 0 && r.inHead && r.bg !== 'rgba(0, 0, 0, 0)' && r.dateInHead, JSON.stringify(r));
             });
             await check('[다 봤어요] 오늘의 뉴스 목록 맨 끝 ✓ 다 봤어요 + [어제 뉴스 보기] → 누르면 어제 목록', async () => {
                 const end = await pg.$eval('#news-list > :last-child', (x) => ({ cls: x.className, text: x.textContent }));
@@ -361,8 +364,9 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
                 await pg.waitForFunction((y) => window.NewsTab._st.date === y && document.querySelectorAll('#news-list .news-card').length === 1, YDAY);
                 assert.ok(!/어제 뉴스 보기|전날 뉴스 보기/.test(await pg.$eval('#news-list .news-end', (x) => x.textContent)), '그 전날은 보관하지 않아 단추 없음');
             });
-            await check('[당겨서 새로고침] 공지사항: 공지 목록을 다시 받는다 · 「다 봤어요」는 없다', async () => {
+            await check('[당겨서 새로고침] 공지사항: 공지 목록을 다시 받는다 · 「다 봤어요」는 없다 · 뉴스 날짜줄은 숨는다', async () => {
                 await pg.click('#nhub-tabs .nhub-tab[data-nhub="notice"]');
+                assert.equal(await pg.$eval('#news-dateline', (x) => x.getBoundingClientRect().height), 0, '공지 칸에서는 날짜줄 없음');
                 await pg.waitForFunction(() => document.querySelectorAll('#promo-list .promo-item').length === 1);
                 const n0 = hits.req.promo;
                 assert.ok(await pull(200) >= 60);

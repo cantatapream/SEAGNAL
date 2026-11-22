@@ -12,7 +12,7 @@
  *                    · notice/news/news.js(window.NewsTab) · notice/fishcond/fishcond.js(window.FishcondTab)
  *                    · shared/ui/pull_refresh.js(window.PullRefresh — 세 칸 당겨서 새로고침, 사용자 2026-11-22 「오늘의 뉴스, 공지사항, 그리고 어항 정보」)
  *  - 서버 API      : GET /api/promo(앱이 켜질 때 공지 N 판정 — 목록은 그리지 않는다)
- *  - 마크업        : index2.html #nhub-tabs(.nhub-tab[data-nhub]) · #nhub-ptr(당겨서 새로고침 띠) · #nhub-news · #nhub-notice · #nhub-fishcond · 하단 .tab-btn[data-target="promo-section"]
+ *  - 마크업        : index2.html .nhub-head(고정 머리 — 오늘의 뉴스면 on-news 로 날짜줄 #news-dateline 을 보인다) · #nhub-tabs(.nhub-tab[data-nhub]) · #nhub-ptr(당겨서 새로고침 띠) · #nhub-news · #nhub-notice · #nhub-fishcond · 하단 .tab-btn[data-target="promo-section"]
  *  - 나를 쓰는 곳  : promo.js updateNewBadges(setNoticeNew) · 하단 탭이 이 탭으로 바뀜(core/index2_patch.js switchMainTab 이 body[data-active-tab] 을 바꾸면 이 파일이 본다)
  * [로드 순서] notice/fishcond/fishcond.js 다음 — 순서 변경 금지(NewsTab·FishcondTab 이 먼저 있어야 한다)
  * ============================================================================
@@ -56,6 +56,8 @@
             if (b) { b.classList.toggle('active', n === name); b.setAttribute('aria-selected', n === name ? 'true' : 'false'); }
             if (p) p.classList.toggle('active', n === name);
         });
+        // 뉴스 날짜줄은 고정된 머리(.nhub-head) 안에 있다 — 오늘의 뉴스 칸일 때만 보이게(사용자 2026-11-22 「뉴스에서 날짜 부분도 고정되었으면」)
+        var head = document.querySelector('#promo-section .nhub-head'); if (head) head.classList.toggle('on-news', name === 'news');
         if (name === 'news' && w.NewsTab) { badge.news = false; w.NewsTab.open(); }
         if (name === 'fishcond' && w.FishcondTab) { badge.fishcond = false; w.FishcondTab.open(); }
         refresh();

@@ -12730,3 +12730,7 @@ body[data-active-tab="promo-section"] .content-area { overflow: visible !importa
 }
 .nhub-head .nhub-tabs { margin-bottom: 0; }
 .nhub-head + .ptr { margin-top: 12px; }
+/* 뉴스 날짜줄도 머리와 함께 고정(사용자 2026-11-22 「뉴스에서 날짜 부분도 고정되었으면 좋겠는데」) — 오늘의 뉴스 칸일 때만(notice_hub.js on-news) */
+.nhub-head .news-dateline { display: none; margin: 10px 0 0; padding-bottom: 8px; }
+.nhub-head.on-news .news-dateline { display: grid; }
+.nhub-head.on-news + .ptr { margin-top: 6px; }
