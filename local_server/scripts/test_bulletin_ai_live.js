@@ -7,6 +7,7 @@
  * AI 는 가짜로 바꿔 끼운다(네트워크 없음). 시각은 고정값만 쓴다.
  */
 'use strict';
+require('../config/zone_split')._forceForTest(false);   // 2026-11-26 구역 분할 전 기준으로 고정 — 이 검사는 옛 이름(제주도남쪽바깥먼바다)을 쓴다. 전환 뒤 동작은 test_zone_split 이 본다(시각 의존 금지)
 const fs = require('fs'), os = require('os'), path = require('path');
 const L = require('../services/bulletin_ai_live');
 const S = require('../services/bulletin_status');

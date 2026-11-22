@@ -3291,10 +3291,12 @@ function _graftBulletinSplitZones(newCurrent, newPrevious, disk) {
     if (!ZONE_SPLIT.isActive()) return;
     let st = null;
     try { st = require('./services/bulletin_status').read(); } catch (e) { console.warn('[구역 분할] 통보문 기준 특보현황을 못 읽음:', e && e.message); }
-    const age = st && st.updatedAt ? Date.now() - Date.parse(st.updatedAt) : Infinity;
+    // 신선도는 listsOkMs(방재기상플랫폼 목록을 마지막으로 다 받은 시각)로 본다 — updatedAt 은 목록을 못 받아도 매분 새로 찍힌다
+    const okMs = st && (st.listsOkMs || Date.parse(st.updatedAt || ''));
+    const age = okMs ? Date.now() - okMs : Infinity;
     if (!(age < SPLIT_BULLETIN_STALE_MS) && Date.now() - _splitStaleWarnAt > 10 * 60 * 1000) {
         _splitStaleWarnAt = Date.now();
-        console.warn(`[구역 분할] ⚠ 통보문 기준 특보현황이 낡았다(${st && st.updatedAt ? Math.round(age / 60000) + '분 전' : '없음'}) — 제주 바깥먼바다 2구역 표출이 최신이 아닐 수 있다`);
+        console.warn(`[구역 분할] ⚠ 통보문 기준 특보현황이 낡았다(${okMs ? Math.round(age / 60000) + '분 전' : '없음'}) — 제주 바깥먼바다 2구역 표출이 최신이 아닐 수 있다`);
     }
     const src = st && st.current ? _collectLeafZonesByName(st.current) : new Map();
     const cur = _collectLeafZonesByName(newCurrent), prv = _collectLeafZonesByName(newPrevious);
@@ -4734,6 +4736,8 @@ module.exports = {
     _STATE_FILE,
     // [Followup E-2] weather_alerts.json 갱신 (테스트용 노출)
     _buildZoneTreeFromSnapshot,
+    _dropSplitZones,              // [구역 분할 2026-11-26] 검사용
+    _graftBulletinSplitZones,
     _writeWeatherAlertsJson,
     _WEATHER_ALERTS_FILE,
     _isSnapshotEmpty,

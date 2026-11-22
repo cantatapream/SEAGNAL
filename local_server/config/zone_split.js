@@ -80,10 +80,30 @@ function isPushBlocked(zone) {
     return z === OLD || NEW.includes(z);
 }
 
+/**
+ * 특보 푸시 묶음(payload.items)에서 막을 구역을 뺀다 — 그 구역만 빼고, 구역이 하나도 안 남은 묶음은 버린다.
+ * 예: (26일 이후) [{zones:['제주도남부앞바다','제주도남쪽바깥먼바다']}, {zones:['제주도남서쪽바깥먼바다']}] → {items:[{zones:['제주도남부앞바다']}], cut:2}
+ * @param {Array<{zones?: string[]}>} items
+ * @returns {{items: Array, cut: number}} cut = 뺀 구역 수(0 이면 items 는 받은 그대로)
+ * [연계] ← routes/push.js POST /api/push-custom 의 특보 묶음 분기 — 자동·재시도·관리자 「발송」 버튼이 모두 지나는 곳
+ */
+function filterPushItems(items) {
+    if (!Array.isArray(items) || !isActive()) return { items, cut: 0 };
+    let cut = 0;
+    const out = [];
+    for (const it of items) {
+        if (!it || !Array.isArray(it.zones)) { out.push(it); continue; }
+        const kept = it.zones.filter((z) => !isPushBlocked(z));
+        cut += it.zones.length - kept.length;
+        if (kept.length) out.push(kept.length === it.zones.length ? it : Object.assign({}, it, { zones: kept }));
+    }
+    return { items: cut ? out : items, cut };
+}
+
 /** 이 구역이 분할 대상(옛 이름·새 두 이름)인가 — 전환 여부와 무관. 예: isSplitZone('제주도남쪽바깥먼바다') → true */
 function isSplitZone(zone) { const z = norm(zone); return z === OLD || NEW.includes(z); }
 
 /** 검사용: 전환 여부를 고정한다(true/false), null 이면 다시 시계를 본다. [연계] ← test_zone_split 등 */
 function _forceForTest(v) { _forced = (v === true || v === false) ? v : null; }
 
-module.exports = { OLD, NEW, NEW_WEST, NEW_EAST, AT_MS, isActive, splitNames, isPushBlocked, isSplitZone, _forceForTest };
+module.exports = { OLD, NEW, NEW_WEST, NEW_EAST, AT_MS, isActive, splitNames, isPushBlocked, filterPushItems, isSplitZone, _forceForTest };

@@ -399,6 +399,23 @@
      */
     function createBox(zoneName, opts) {
         opts = opts || {};
+        // [구역 분할 2026-11-26] 새 두 구역(제주도남서쪽·남동쪽바깥먼바다)은 해구·소해구 배정을 아직 다시 못 했다 → 수치 자리에 「-」만 두고,
+        //   누르면 「추후 제공」 안내를 띄운다(사용자 확정 「수치 부분을 -로 표시하고 누르면 추후 나오게 될거라는 토스트 메시지」).
+        //   refreshAll 이 5분마다 이 함수로 박스를 갈아 끼우므로 자리표시도 여기서 만든다.
+        if (window.ZoneSplit && window.ZoneSplit.isPending(zoneName)) {
+            const ph = document.createElement('div');
+            ph.className = 'zone-avg-box' + (opts.inline ? ' inline' : '');
+            ph.dataset.zoneName = zoneName;
+            [['vsby vsby-disabled', '시정'], ['wave', '유의파고'], ['wind', '풍속']].forEach(([cls, lbl]) => {
+                const b = document.createElement('span');
+                b.className = 'zone-avg-badge ' + cls;
+                b.innerHTML = `<span class="lbl">${lbl}</span> -`;
+                ph.appendChild(b);
+            });
+            ph.style.cursor = 'pointer';
+            ph.addEventListener('click', (e) => { e.stopPropagation(); window.ZoneSplit.toast(window.ZoneSplit.MSG_VALUE); });
+            return ph;
+        }
         const result = getAverages(zoneName);
         if (!result) return null; // 매핑/예보 없음 → 박스 생성 안 함
 

@@ -295,6 +295,17 @@ router.post('/api/push-custom', requireAdminOrInternal, async (req, res) => {
 
     // 수동 그룹 발송 모드 (개인화 필터링 적용)
     if (isManualGroupSend && payload) {
+        // [구역 분할 2026-11-26] 제주 바깥먼바다(옛 이름·새 두 이름)의 특보 푸시는 전환 뒤 보내지 않는다(사용자 확정 — config/zone_split.js).
+        //   특보 푸시가 전부 이 분기를 지난다 — 자동(크롤러·보류실)·실패 재시도(pending_pushes)·관리자 수동 특보 입력·관리자 「발송」 버튼.
+        //   그 구역만 빼고 나머지 구역은 그대로 보낸다. 아래 「직접 발송」(title/content/targetZones — 안내 푸시)은 막지 않는다.
+        {
+            const { items: keptItems, cut } = require('../config/zone_split').filterPushItems(payload.items);
+            if (cut) {
+                payload.items = keptItems;
+                console.log(`[Push] 구역 분할: 제주 바깥먼바다 ${cut}곳을 발송에서 뺌`);
+                if (payload.items.length === 0) return res.json({ success: true, successCount: 0, failureCount: 0, skipped: 'zone_split', message: '제주 바깥먼바다 특보 푸시는 구역 개편 검토 중이라 보내지 않습니다.' });
+            }
+        }
         if (!payload.items || payload.items.length === 0) {
             return res.status(400).json({ error: '발송 데이터가 없습니다.' });
         }
@@ -357,7 +368,8 @@ router.post('/api/push-custom', requireAdminOrInternal, async (req, res) => {
                 } else {
                     // [기존 커스텀 모드]
                     const sendAll = sendToAllSubscribers || targetZones.includes('전체 해역') || targetZones.includes('전체해역') || targetZones.includes('구독자 전원');
-                    const zoneList = sendAll ? [] : targetZones.split(',').map(z => z.trim());
+                    // [구역 분할 2026-11-26] 대상에 옛 이름을 적어도 전환 뒤에는 새 두 구역으로 본다(구독 쪽 expandToMinorZones 와 같은 규칙)
+                    const zoneList = sendAll ? [] : require('../config/zone_split').splitNames(targetZones.split(',').map(z => z.trim()));
 
                     if (sendAll || (user.options && user.options.target === 'all')) {
                         shouldSend = true;

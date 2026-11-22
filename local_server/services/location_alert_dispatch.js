@@ -280,7 +280,8 @@ function extractActiveWarnings(tree) {
         }
     }
     walk(tree, null);
-    return out;
+    // [구역 분할 2026-11-26] 제주 바깥먼바다 2구역은 전환 뒤 화면에만 표출하고 알림은 보내지 않는다(사용자 확정 — config/zone_split.js). 위치기반 알림도 푸시다.
+    return out.filter((w) => !require('../config/zone_split').isPushBlocked(w.zone));
 }
 
 // 변화 감지용 — 직전 발송 스냅샷 시그니처(구역:tier:event). 같은 상황이면 재발송/이력 폭주 방지.

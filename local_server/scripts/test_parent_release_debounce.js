@@ -7,6 +7,7 @@
 //   예비취소 억제됨"). 즉 발효중 부모에만 관찰 절차가 없었다.
 //   [연계] marine_warning_crawler(_applyParentReleaseDebounce) — 이 파일이 그 계약을 고정한다.
 // ============================================================================
+require('../config/zone_split')._forceForTest(false);   // 2026-11-26 구역 분할 전 기준으로 고정 — 이 검사는 옛 이름(제주도남쪽바깥먼바다)을 쓴다. 전환 뒤 동작은 test_zone_split 이 본다(시각 의존 금지)
 const path = require('path');
 const mc = require(path.join(__dirname, '..', 'marine_warning_crawler.js'));
 

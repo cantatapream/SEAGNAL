@@ -16,6 +16,7 @@
  * [로드 순서] 해당 없음(단독 실행: node local_server/scripts/test_bulletin_escalation.js)
  * ============================================================================
  */
+require('../config/zone_split')._forceForTest(false);   // 2026-11-26 구역 분할 전 기준으로 고정 — 이 검사는 옛 이름(제주도남쪽바깥먼바다)을 쓴다. 전환 뒤 동작은 test_zone_split 이 본다(시각 의존 금지)
 const fs = require('fs'), os = require('os'), path = require('path');
 process.env.BULLETIN_AI_CONFIG_FILE = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'esc-cfg-')), 'cfg.json');   // ⑤ 설정 검사가 운영 설정 파일을 건드리지 않게
 const E = require('../services/bulletin_escalation');

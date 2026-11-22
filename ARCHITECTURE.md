@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 137개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 138개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -54,6 +54,7 @@ client/js/
 │   ├── backbutton.js
 │   ├── config.js
 │   ├── index2_patch.js
+│   ├── zone_split.js
 ├── engagement/  ← ⚡ 제보·설문
 │   ├── report_user.js
 │   ├── survey_user.js
@@ -263,6 +264,7 @@ client/js/
 | `backbutton.js` | 하드웨어 뒤로가기 버튼 처리 + 팝업 스택 관리 |
 | `config.js` | 전역 설정(CONFIG), 해역 상수, 윈디 매핑, 해역 분류 체계 |
 | `index2_patch.js` | 1. 하단 탭 바 구조에 맞춰 탭 그룹 매핑 데이터를 오버라이드 |
+| `zone_split.js` | 기상청 해상 특보구역 개편(2026-11-26)을 화면이 「그날 00시(한국시각)부터」 스스로 따르게 한다. |
 
 ### `client/js/engagement/`
 
@@ -532,7 +534,7 @@ client/js/
 | 파일 | 역할 |
 |------|------|
 | `locate_toast.js` | 「내 위치」(GPS) 버튼을 눌렀을 때 화면 하단에 진행 토스트를 띄우고 현재 위치를 가져온다. |
-| `pull_refresh.js` | 「당겨서 새로고침」 — 화면 맨 위에서 손가락으로 아래로 당겼다 놓으면 파란 동그라미가 돌며 목록을 다시 받는다. |
+| `pull_refresh.js` | 「당겨서 새로고침」 — 화면 맨 위에서 손가락으로 아래로 당겼다 놓으면 파란 동그라미가 돌며 목록을 다시 받는다(당기는 만큼  |
 | `text_fit.js` | 긴 안내 글을 읽기 좋게 줄을 맞춘다(여러 화면이 함께 쓰는 도구). |
 | `ui_modal.js` | 공통 UI 모달 (기상청 iframe, SEAGNAL 시스템 모달) |
 | `wheel_date_picker.js` | 앱의 모든 날짜칸(<input type="date">)·날짜시각칸(<input type="datetime-local">)을 누 |

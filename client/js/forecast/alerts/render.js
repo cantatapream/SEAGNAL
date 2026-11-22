@@ -1349,6 +1349,18 @@ function createAlertElement(items) {
         actionsContainer.appendChild(allBtn);
     }
 
+    // [구역 분할 2026-11-26] 새 두 구역(제주도남서쪽·남동쪽바깥먼바다) 카드는 버튼 4개를 회색으로 두고, 누르면 안내만 띄운다 —
+    //   사용자 확정 「기상예보 버튼이 비활성화 … 윈디 … 종합정보 버튼도 비활성화 … "기상청 특보구역 변경에 따른 수정 진행 중입니다." 토스트」「해구기상도 비활성」.
+    //   위에서 만든 버튼(일부는 매핑이 없어 안 생긴다)을 걷어내고 네 칸을 같은 크기로 다시 놓는다.
+    if (window.ZoneSplit && window.ZoneSplit.isPending(data.zoneName)) {
+        actionsContainer.innerHTML = '';
+        [['기상예보', 'linear-gradient(135deg, #ffd54f, #ff9800, #f57c00)', '#1a1e2e'], ['해구기상', 'linear-gradient(135deg, #e94560, #0f3460)', 'white'],
+         ['윈디', 'linear-gradient(135deg, #00c6ff, #0072ff)', 'white'], ['종합정보', 'linear-gradient(135deg, #14b8a6, #0f766e)', 'white']].forEach(([label, bg, fg]) => {
+            actionsContainer.appendChild(window.ZoneSplit.makeDisabledButton(label, '',
+                `flex: 1; padding: 10px 4px; background: ${bg}; color: ${fg}; border: none; border-radius: 8px; font-size: 0.78rem; font-weight: bold;`));
+        });
+    }
+
     details.appendChild(actionsContainer);
     return card;
 }

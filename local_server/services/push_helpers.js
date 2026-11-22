@@ -94,6 +94,7 @@ function formatWarnTimeKST(tmEf) {
 // [ZONE_HIERARCHY] 대분류 → 중분류 → 소분류(특보구역) 계층 구조
 // 앱의 SEA_REGIONS + SUB_REGION_ZONES 구조와 완전 일치시킴
 // ============================================================================
+const ZONE_SPLIT = require('../config/zone_split');   // 2026-11-26 구역 분할(제주 바깥먼바다 → 둘)
 const ZONE_HIERARCHY = {
     // 대분류: 동해
     '동해': {
@@ -134,10 +135,13 @@ const ZONE_HIERARCHY = {
     },
     // 대분류: 제주
     '제주': {
-        '제주해역': [
-            '제주도북부앞바다', '제주도남부앞바다', '제주도동부앞바다', '제주도서부앞바다',
-            '제주도남서쪽안쪽먼바다', '제주도남동쪽안쪽먼바다', '제주도남쪽바깥먼바다'
-        ]
+        // [구역 분할 2026-11-26] 전환 뒤 옛 「제주도남쪽바깥먼바다」 자리에 남서쪽·남동쪽바깥 둘(config/zone_split.js). 읽을 때마다 지금 기준으로 답한다.
+        get '제주해역'() {
+            return ZONE_SPLIT.splitNames([
+                '제주도북부앞바다', '제주도남부앞바다', '제주도동부앞바다', '제주도서부앞바다',
+                '제주도남서쪽안쪽먼바다', '제주도남동쪽안쪽먼바다', '제주도남쪽바깥먼바다'
+            ]);
+        }
     }
 };
 
@@ -176,7 +180,9 @@ function expandToMinorZones(userZones) {
         minorZones.add(uz);
     });
 
-    return Array.from(minorZones);
+    // [구역 분할 2026-11-26] 기기가 옛 이름으로 구독해 둔 채면(앱을 다시 열기 전) 전환 뒤 새 두 구역 구독으로 본다 —
+    //   없으면: 옛 구독자가 구독자 통계 어느 칸에도 안 세어지고, 관리자 직접 발송(안내 푸시) 대상에서 빠진다.
+    return ZONE_SPLIT.splitNames(minorZones);
 }
 
 /**
