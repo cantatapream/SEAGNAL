@@ -1,14 +1,14 @@
 /**
  * ============================================================================
  * 파일명: client/js/shared/ui/pull_refresh.js
- * 역할  : 「당겨서 새로고침」 — 화면 맨 위에서 손가락으로 아래로 당겼다 놓으면 파란 동그라미가 돌며 목록을 다시 받는다.
+ * 역할  : 「당겨서 새로고침」 — 화면 맨 위에서 손가락으로 아래로 당겼다 놓으면 파란 동그라미가 돌며 목록을 다시 받는다(당기는 만큼 동그라미 자리가 벌어진다).
  *         어느 화면에서 쓸지·무엇을 다시 받을지는 쓰는 쪽이 정한다(지금은 「뉴스·공지·어황」 세 칸).
  * 사용자 확정(2026-11-22, 원문은 js/notice/news_hub.design.md): 「아래로 내려서 당기는 모션이 반영되는 것은 오늘의 뉴스, 공지사항, 그리고 어항 정보」
- *   — 보낸 그림처럼 위쪽에 연한 파란 띠 + 파란 동그라미.
+ *   — 파란 동그라미만(처음엔 보낸 그림처럼 연한 파란 띠도 깔았으나 사용자 「로딩 스피너만 나오면 될 것 같은데 파란색 영역도 같이 나오고 있거든」으로 뺐다).
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : 없음
- *  - 마크업        : 쓰는 쪽이 띠(indicator) 요소를 준다 — index2.html #nhub-ptr
+ *  - 마크업        : 쓰는 쪽이 자리(indicator) 요소를 준다 — 동그라미 <i> + 「새로고침 중입니다」 .ptr-txt(받는 동안만 보임) — index2.html #nhub-ptr
  *  - 나를 쓰는 곳  : notice/hub/notice_hub.js(window.PullRefresh.attach)
  *  - 스타일        : style.css .ptr
  * [로드 순서] notice/news/news.js 이전(그보다 앞이면 어디든) — notice_hub.js 가 시작할 때 window.PullRefresh 를 쓴다
@@ -17,6 +17,7 @@
 (function (w) {
     var PULL_MAX = 90;      // 띠가 늘어나는 최대 높이(px)
     var TRIGGER = 60;       // 이만큼 당긴 뒤 놓으면 새로고침
+    var SPIN_H = 72;        // 받는 동안 자리 높이 — 동그라미 + 그 밑 「새로고침 중입니다」(style.css .ptr-txt)
     var MIN_SPIN_MS = 600;  // 너무 빨리 끝나도 동그라미가 돈 것을 볼 수 있게
 
     /**
@@ -40,7 +41,7 @@
         };
         var refresh = function () {
             if (busy) return Promise.resolve();
-            busy = true; ind.classList.add('spin'); set(TRIGGER, true);
+            busy = true; ind.classList.add('spin'); set(SPIN_H, true);
             var t0 = Date.now();
             var p;
             try { p = Promise.resolve(o.onRefresh()); } catch (e) { p = Promise.reject(e); }

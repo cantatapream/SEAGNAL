@@ -324,6 +324,10 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
                 const h = await pull(200);
                 assert.ok(h >= 60, '띠 높이 ' + h);
                 assert.ok(await pg.$eval('#nhub-ptr', (x) => x.classList.contains('spin')), '받는 중 동그라미');
+                // 2026-11-22 사용자 「로딩 스피너만」 — 띠 배경 없음 · 「새로고침 중입니다라고 … 로딩 스피너 밑에」
+                const look = await pg.$eval('#nhub-ptr', (x) => { const i = x.querySelector('i').getBoundingClientRect(), t = x.querySelector('.ptr-txt'), tr = t.getBoundingClientRect(); return { bg: getComputedStyle(x).backgroundColor, txt: t.textContent, shown: getComputedStyle(t).display !== 'none', below: tr.top >= i.bottom - 1, inside: tr.bottom <= x.getBoundingClientRect().bottom + 0.5 }; });
+                assert.ok((look.bg === 'rgba(0, 0, 0, 0)' || look.bg === 'transparent') && look.txt === '새로고침 중입니다' && look.shown && look.below, JSON.stringify(look));
+                await pg.screenshot({ path: path.join(SHOT, '7_pull_spin.png'), clip: { x: 0, y: 0, width: 412, height: 400 } });
                 assert.equal(await pg.$$eval('#news-list .news-card', (x) => x.length), 3, '받는 동안 목록이 그대로');
                 await waitIdle();
                 assert.ok(hits.req.news > n0, '다시 받음');
@@ -332,6 +336,7 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             await check('[당겨서 새로고침] 조금만 당기고 놓으면 다시 받지 않는다 · 화면을 내려 둔 상태에서는 당겨지지 않는다', async () => {
                 const h = await pull(60);   // 띠 30px — 문턱(60) 아래
                 assert.ok(h > 0 && h < 60, '띠 높이 ' + h);
+                assert.equal(await pg.$eval('#nhub-ptr .ptr-txt', (t) => getComputedStyle(t).display), 'none', '당기는 중(아직 새로고침 전)에는 문구 없음');
                 assert.ok(!(await pg.$eval('#nhub-ptr', (x) => x.classList.contains('spin'))), '문턱 아래면 동그라미가 돌지 않는다');
                 await waitIdle();
                 await pg.evaluate(() => { document.getElementById('news-list').style.minHeight = '3000px'; window.scrollTo(0, 400); });
