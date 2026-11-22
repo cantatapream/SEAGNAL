@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-22 15:15 KST] ✅완료 — 오늘의 뉴스: 날짜줄도 머리와 함께 고정
+사용자 「뉴스에서 날짜 부분도 고정되었으면」 → #news-dateline 을 .nhub-head 안으로, 뉴스 칸일 때만 표시(on-news). test_news_hub_ui 28/0(머리 고정 항목에 날짜줄·공지 칸 숨김 확인 추가) · test_tab_structure 42/0. PR #1563 머지됨 → 새 PR.
+
+
 ### [2026-11-22 14:34 KST] ✅완료 — 뉴스·공지·어황: 제목·탭 줄 고정(스크롤 시 상태표시줄 침범)
 이 탭은 문서 전체 스크롤 + 휴대폰 폭에서 .content-area overflow-y:auto 라 sticky 가 안 붙었다. .nhub-head(제목+탭) sticky + 이 탭에서만 content-area overflow visible + safe-area 까지 덮는 배경. test_news_hub_ui 28/0(새 항목은 고치기 전 실패 확인) · test_tab_structure 42/0. PR #1562 는 04:07Z 머지됨 → 새 PR.
 

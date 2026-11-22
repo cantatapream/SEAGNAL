@@ -12,7 +12,7 @@
  * [연계]
  *  - 사용하는 파일 : 없음(CONFIG.API_BASE · window.Capacitor.Plugins.Browser · window.PopupStack(core/backbutton.js — 달력 닫기))
  *  - 서버 API      : GET /api/news?date=YYYY-MM-DD · POST /api/news/:date/:id/open · GET /api/news/img?u=(http 사진) — local_server/routes/news.js
- *  - 마크업        : index2.html #nhub-news(#news-dateline · #news-updated · #news-list)
+ *  - 마크업        : index2.html #nhub-news(#news-updated · #news-list) · #news-dateline(고정 머리 .nhub-head 안 — 2026-11-22 「날짜 부분도 고정」)
  *  - 나를 쓰는 곳  : notice/hub/notice_hub.js(window.NewsTab.open · refresh(당겨서 새로고침) · hasNew · markSeen · prefetch)
  * [로드 순서] notice/board/promo.js·comments 다음 · notice/hub/notice_hub.js 이전 — 순서 변경 금지
  * ============================================================================
