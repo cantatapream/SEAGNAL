@@ -397,6 +397,26 @@ const GOOD_SUMMER = () => ({
         ok('원문 받기: 지방청 수집이 끝날 때마다(부팅·발표 시간대) — 방재기상플랫폼 관찰기와 무관하게', (sch.match(/regionalBulletinCollector\.syncDocs\(\)/g) || []).length === 2 && /syncExtra\(docs\)/.test(col));
         ok('화면 자료: 원문 그림이 있는 관서에만 doc(보기·받기 주소)을 붙인다', /docs\.pages\(d\.key\)\.length/.test(wea) && /viewUrl: '\/api\/bulletin-doc\/' \+ d\.key \+ '\/view'/.test(wea) && /e\.doc\.downloadUrl = '\/api\/bulletin-doc\/' \+ d\.key \+ '\/pdf'/.test(wea));
         ok('관리자 「시험 요약」: 지방청 7곳 가운데서만 · 저장하지 않는다(trial)', /try-sea-summary', authorize/.test(adm) && /BULLETIN_OFFICES\.some\(\(o\) => o\.code === office\)/.test(adm) && /regional_sea_summary'\)\.trial\(raw\)/.test(adm));
+        // 「바람·물결」(2026-11-22 운영 제주 — 숫자 없는 바다 글은 종전엔 어떤 답도 통과하지 못해 원문 그대로 나갔다)
+        {
+            const JL = '○ (해상) 모레(24일)부터 제주도해상과 남해서부서쪽먼바다에는 차차 바람이 강하게 불고 물결이 높게 일겠으니, 항해 및 조업하는 선박은 유의하기 바라며, 앞으로 발표하는 기상정보를 참고하기 바랍니다.';
+            const JI = [{ label: '해상', sec: '강풍 및 해상', lines: [JL] }], JR = '<강풍 및 해상>\n' + JL;
+            const note = (text, kind = '바람·물결') => ({ zones: [], notes: [{ kind, text }] });
+            const good = '모레(24일)부터 {{loc:제주도해상}}과 {{loc:남해서부서쪽먼바다}}에 {{warn:바람이 강하게 불고 물결이 높게}} 일겠음';
+            ok('바람·물결: 제주 11-22 글을 한 줄로 낸 답은 통과(종류 이름의 점·띄어쓰기도 고른다)', S.check(note(good), JI, JR) === '' && S.check(note(good, '바람 물결'), JI, JR) === '', S.check(note(good), JI, JR));
+            ok('바람·물결: 숫자 없는 글에 빈 답은 걸린다 · 숫자 없는 해역 줄만 낸 답도 걸린다', /답이 비었다/.test(S.check({ zones: [], notes: [] }, JI, JR)) && /답이 비었다/.test(S.check({ zones: [{ zone: '제주도해상', period: '모레(24일)~', wind: null, wave: null }], notes: [] }, JI, JR)));
+            ok('바람·물결: 글에 없는 「매우」를 붙이면 걸린다(부풀리기)', /글에 없는 말이 있다: 매우/.test(S.check(note(good.replace('바람이 강하게', '바람이 매우 강하게')), JI, JR)));
+            ok('바람·물결: 「모레」를 「내일」로 바꿔 적으면 걸린다', /날이 글과 다르다: 내일/.test(S.check(note(good.replace('모레', '내일')), JI, JR)));
+            ok('바람·물결: 글에 없는 해역을 적으면 걸린다', /지역 이름이 글에 없다: 남해서부동쪽먼바다/.test(S.check(note(good.replace('남해서부서쪽먼바다', '남해서부동쪽먼바다')), JI, JR)));
+            const NL = '○ (해상) 내일(23일)은 동해중부먼바다에 바람이 30~65km/h(9~18m/s)로 매우 강하게 불고 물결이 1.5~4.0m로 매우 높게 일겠습니다.';
+            const NI = [{ label: '해상', sec: '해상', lines: [NL] }];
+            const zoneOk = { zones: [{ zone: '동해중부먼바다', period: '내일(23일)', wind: '9~18', wave: '1.5~4.0' }], notes: [] };
+            ok('바람·물결: 숫자가 적힌 줄이면 요구하지 않고, 덧붙인 바람·물결 줄은 군더더기로 버린다(해역 줄이 싣는다)',
+                S.check(zoneOk, NI, NL) === '' && S.check(Object.assign({}, zoneOk, { notes: [{ kind: '바람·물결', text: '내일 {{loc:동해중부먼바다}}에 {{warn:바람이 매우 강하게}}' }] }), NI, NL) === ''
+                && S.trim(S.normalize({ zones: zoneOk.zones, notes: [{ kind: '바람·물결', text: 'x' }] }), NI).p.notes.length === 0);
+            ok('바람·물결: 빠뜨림으로 요구하지는 않는다 — 숫자 없는 줄 옆에 특보 가능성 등 다른 종류가 있으면 그것만 낸 답도 받는다(실제 수도권 글: 「풍랑특보가 길게 이어질 가능성」 줄)', S.check({ zones: [], notes: [{ kind: '천둥·번개', text: '모레 {{loc:제주도해상}}에 천둥·번개' }] }, [{ label: '해상', sec: '해상', lines: [JL, '- 또한, 모레 제주도해상에 천둥·번개가 치는 곳이 있겠습니다.'] }], JR) === '');
+            ok('바람·물결: 지시문·화면 딱지(노랑)에 있다', /"바람·물결"/.test(S.PROMPT('x')) && /'바람·물결': 'yellow'/.test(read('../client/js/forecast/outlook/marine_forecast.js')));
+        }
         ok('MMIS 코드를 쓰지 않는다', !/mmis/i.test(read('services/regional_sea_summary.js').replace(/\/\*[\s\S]*?\*\//g, '')));
     }
 

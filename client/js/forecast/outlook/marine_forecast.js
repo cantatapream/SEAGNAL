@@ -772,12 +772,14 @@ function isPdfTemperatureForToday(publishTime) {
     }
     if (pdfMonth === null) return false;
 
-    // 현재 KST 날짜 — 서버 timezone 무관하게 동일 결과
+    // 현재 KST 날짜 — 기기 시간대와 무관하게 동일 결과.
+    //   「지금 + 기기 시차 + 9시간」은 KST 벽시계를 **기기 시간대 값**으로 만든 것이라 getMonth/getDate(기기 시간대)로 읽어야 한다.
+    //   getUTC* 로 읽으면 한국 시간 휴대폰에서 9시간이 빠져 00~09시(KST)에 어제 날짜가 된다(2026-11-23 시험이 잡음 — 그 시간엔 오늘 05시 판 기온이 숨고 어제 17시 판 기온이 보였다).
     const now = new Date();
     const kstMs = now.getTime() + (now.getTimezoneOffset() * 60000) + (9 * 3600000);
     const kst = new Date(kstMs);
-    const todayMonth = kst.getUTCMonth() + 1;
-    const todayDay = kst.getUTCDate();
+    const todayMonth = kst.getMonth() + 1;
+    const todayDay = kst.getDate();
 
     return pdfMonth === todayMonth && pdfDay === todayDay;
 }
@@ -1038,7 +1040,7 @@ function bindRegionalFold(bodyEl, code) {
 }
 
 // 「해상 기상 요약」 딱지 색 — 종류별(서버 regional_sea_summary.KINDS 의 종류). 모르는 종류는 회색.
-const SEA_CHIP = { '특보 가능성': 'red', '해제 예고': 'green', '이안류': 'red', '기상해일': 'red', '폭풍해일': 'red', '천둥·번개': 'yellow', '너울': 'purple', '조고': 'green', '바다 안개': 'grey' };
+const SEA_CHIP = { '특보 가능성': 'red', '해제 예고': 'green', '바람·물결': 'yellow', '이안류': 'red', '기상해일': 'red', '폭풍해일': 'red', '천둥·번개': 'yellow', '너울': 'purple', '조고': 'green', '바다 안개': 'grey' };
 
 /**
  * 「해상 기상 요약」 상자의 HTML — 기온 박스 아래. 서버가 만든 seaSummary 의 상태대로 그린다.
