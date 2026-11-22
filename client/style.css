@@ -12643,6 +12643,8 @@ body.mc-fullscreen-active {
 .news-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; position: absolute; inset: 0; }
 .news-thumb .def-ico { font-size: 1.5rem; }
 .news-thumb .news-cat { position: absolute; top: 4px; left: 4px; z-index: 1; background: rgba(13,21,38,0.85); }
+/* 사진 칸(78px)보다 긴 분류 이름(「바다 이용 갈등·제도」 101px · 「조업·이용 규칙」 79px — 실측)은 칸 안에서 띄어쓰기 자리로 두 줄 접는다(사용자 2026-11-22 「사진 안에 텍스트가 길어서 잘리는」) */
+.news-thumb .news-cat { max-width: calc(100% - 8px); box-sizing: border-box; white-space: normal; word-break: keep-all; line-height: 13px; padding: 1px 5px; }
 .news-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .news-title { font-weight: 700; font-size: 0.9rem; line-height: 1.35; color: #f1f5f9; margin-bottom: 3px; word-break: keep-all; overflow-wrap: anywhere; }
 .news-sum { color: #c8d2e0; font-size: 0.8rem; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; word-break: keep-all; overflow-wrap: anywhere; }

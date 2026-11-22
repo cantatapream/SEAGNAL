@@ -119,6 +119,15 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             assert.ok(rt < 2, '오른쪽 끝 정렬 ' + rt);
         });
         await page.screenshot({ path: path.join(SHOT, '1_news.png') });
+        await check('[카드] 사진 위 분류 꼬리표가 사진 칸 안에 다 들어간다 — 긴 이름은 두 줄(사용자 2026-11-22 「사진 안에 텍스트가 길어서 잘리는」 · 「바다 이용 갈등·제도」 101px > 칸 78px)', async () => {
+            const r = await page.evaluate(() => {
+                const t = document.querySelector('#news-list .news-thumb'); const names = ['돈', '처벌·의무', '조업·이용 규칙', '안전', '바다 여건', '바다 이용 갈등·제도'];
+                const old = t.querySelector('.news-cat'); const out = [];
+                for (const nm of names) { const sp = document.createElement('span'); sp.className = 'news-cat conflict'; sp.textContent = nm; t.appendChild(sp); const a = t.getBoundingClientRect(), c = sp.getBoundingClientRect(); out.push([nm, c.right <= a.right + 0.5 && c.bottom <= a.bottom + 0.5 && sp.scrollWidth <= sp.clientWidth + 1]); sp.remove(); }
+                return { out, oldOk: !!old };
+            });
+            assert.ok(r.oldOk && r.out.every((x) => x[1]), JSON.stringify(r));
+        });
         await check('[아코디언] 누르면 펼침 + 펼친 횟수 기록·갱신 → 다른 카드 누르면 앞 카드 접힘 → 펼친 카드를 다시 누르면 기사 열기', async () => {
             const cards = await page.$$('#news-list .news-card');
             await cards[0].click(); await page.waitForTimeout(300);
