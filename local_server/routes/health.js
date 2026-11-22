@@ -191,7 +191,11 @@ function buildResponseHtml() {
     if (!cachedHtml) return '';
     const json = JSON.stringify(cachedMaintenance);
     const safe = escapeForScriptTag(json);
-    const injection = `<script>window.__MAINTENANCE__ = ${safe};</script>`;
+    // [구역 분할 2026-11-26] 화면(client/js/core/zone_split.js)이 전환 시각과 서버 시계를 서버에서 받게 한다 —
+    //   화면에 박아 둔 시각만 쓰면 서버 시각(ZONE_SPLIT_AT)을 바꿨을 때나 기기 시계가 틀렸을 때 화면과 서버가 어긋난다(독립 검토 2026-11-23:
+    //   화면만 먼저 새 기준이 되면 새 이름으로 구독해 옛 구역 푸시를 놓치고, 꺼 둔 구역 카드가 보였다). 숫자 두 개뿐이라 이스케이프할 것이 없다.
+    const zoneSplit = `window.__ZONE_SPLIT__ = {atMs:${Number(require('../config/zone_split').AT_MS)},nowMs:${Date.now()}};`;
+    const injection = `<script>window.__MAINTENANCE__ = ${safe};${zoneSplit}</script>`;
     return cachedHtml.replace(INJECT_MARKER, injection);
 }
 

@@ -479,7 +479,7 @@ const SUB_REGION_ZONES = {
     ],
     // [구역 분할 2026-11-26] 00:00 KST 부터 「제주도남쪽바깥먼바다」 자리에 남서쪽·남동쪽바깥먼바다 둘(core/zone_split.js — 사용자 확정).
     //   이 목록을 설정 관심해역·⚙ 관심해역 지도·기상현황 카드·관리자(수동 특보 입력·직접 발송·구독자 통계)가 모두 따른다.
-    '제주해역': window.ZoneSplit.splitNames([
+    '제주해역': (window.ZoneSplit ? window.ZoneSplit.splitNames : function (a) { return a; })([   // zone_split.js 가 없으면(옛 HTML 과 섞인 한 번) 종전 목록
         '제주도북부앞바다',
         '제주도남부앞바다',
         '제주도동부앞바다',

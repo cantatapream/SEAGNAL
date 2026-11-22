@@ -26,7 +26,12 @@
     'use strict';
     var OLD = '제주도남쪽바깥먼바다';
     var NEW = ['제주도남서쪽바깥먼바다', '제주도남동쪽바깥먼바다'];
-    var AT_MS = Date.parse('2026-11-26T00:00:00+09:00');   // 기기 시간대와 무관한 한 순간(서버 local_server/config/zone_split.js 와 같다)
+    // 전환 시각·지금 시각은 서버가 index2.html 에 실어 준 값을 먼저 쓴다(window.__ZONE_SPLIT__ = {atMs, nowMs} — local_server/routes/health.js).
+    //   서버가 전환 시각을 미루거나(ZONE_SPLIT_AT) 기기 시계가 틀려도 화면이 서버와 같은 순간에 바뀐다. 못 받으면 아래 고정 시각 + 기기 시계.
+    var INJ = (root.__ZONE_SPLIT__ && typeof root.__ZONE_SPLIT__.atMs === 'number' && typeof root.__ZONE_SPLIT__.nowMs === 'number') ? root.__ZONE_SPLIT__ : null;
+    var AT_MS = INJ ? INJ.atMs : Date.parse('2026-11-26T00:00:00+09:00');   // 기기 시간대와 무관한 한 순간(서버 local_server/config/zone_split.js 와 같다)
+    var CLOCK_SKEW = INJ ? INJ.nowMs - Date.now() : 0;   // 서버 시계 − 기기 시계(화면을 연 순간)
+    function nowMs() { return Date.now() + CLOCK_SKEW; }
     var SETTINGS_KEY = 'weatherAppSettings_v1';
     var MSG_BUTTON = '기상청 특보구역 변경에 따른\n수정 진행 중입니다.';
     var MSG_VALUE = '기상청 특보구역 변경에 따라 준비 중입니다.\n추후 제공될 예정입니다.';
@@ -41,7 +46,7 @@
      */
     function isActive() {
         if (_forced !== null) return _forced;
-        return Date.now() >= AT_MS;
+        return nowMs() >= AT_MS;
     }
     var _activeAtLoad = isActive();
 
@@ -122,11 +127,18 @@
     //   구역 목록(config.js)과 지도 구역 그림(/api/warn-zones)은 화면을 열 때 한 번만 읽혀, 안 고치면 옛 한 덩어리 그림에 새 이름 특보가 안 칠해진다.
     function reloadIfSwitched() {
         if (_activeAtLoad || !isActive()) return;
+        // 쓰던 것을 지우지 않는다 — 글 쓰는 중(입력 칸에 커서)이거나 설정 창에 저장 안 한 변경이 있으면 20초 뒤 다시 본다
+        try {
+            var el = root.document && root.document.activeElement, tag = el && el.tagName;
+            var typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el && el.isContentEditable);
+            var unsaved = typeof root.settingsModalHasUnsaved === 'function' && root.settingsModalHasUnsaved();
+            if (typing || unsaved) { root.setTimeout(reloadIfSwitched, 20000); return; }
+        } catch (e) { /* 판정 실패 — 그냥 새로 고친다 */ }
         _activeAtLoad = true;   // 한 번만
         try { root.location.reload(); } catch (e) { /* 새로 고침이 막힌 환경 — 다음 실행 때 반영 */ }
     }
     if (!_activeAtLoad && _forced === null) {
-        var wait = AT_MS - Date.now();
+        var wait = AT_MS - nowMs();
         if (wait < 0x7fffffff) root.setTimeout(reloadIfSwitched, wait + 1500);   // 서버 전환 직후(1.5초 뒤)
         if (root.document && root.document.addEventListener) {
             root.document.addEventListener('visibilitychange', function () { if (!root.document.hidden) reloadIfSwitched(); });
