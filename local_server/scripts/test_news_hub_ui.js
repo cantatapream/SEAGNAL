@@ -345,6 +345,15 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
                 assert.ok(!(await pg.$eval('#nhub-ptr', (x) => x.classList.contains('spin'))));
                 await pg.evaluate(() => { document.getElementById('news-list').style.minHeight = ''; window.scrollTo(0, 0); });
             });
+            await check('[머리 고정] 스크롤을 내려도 제목·안쪽 탭 줄이 맨 위에 붙어 있고 그 아래로 카드가 지나간다(사용자 2026-11-22 「상단 상태표시줄을 침범」 「스크롤을 내렸을때」)', async () => {
+                const r = await pg.evaluate(() => {
+                    const host = document.getElementById('news-list'); host.style.minHeight = '3000px'; window.scrollTo(0, 600);
+                    const h = document.querySelector('.nhub-head').getBoundingClientRect(), top = document.elementFromPoint(200, h.top + 10);
+                    const out = { y: window.scrollY, headTop: Math.round(h.top), inHead: !!(top && top.closest('.nhub-head')), bg: getComputedStyle(document.querySelector('.nhub-head')).backgroundColor };
+                    host.style.minHeight = ''; window.scrollTo(0, 0); return out;
+                });
+                assert.ok(r.y === 600 && r.headTop === 0 && r.inHead && r.bg !== 'rgba(0, 0, 0, 0)', JSON.stringify(r));
+            });
             await check('[다 봤어요] 오늘의 뉴스 목록 맨 끝 ✓ 다 봤어요 + [어제 뉴스 보기] → 누르면 어제 목록', async () => {
                 const end = await pg.$eval('#news-list > :last-child', (x) => ({ cls: x.className, text: x.textContent }));
                 assert.ok(end.cls === 'news-end' && /다 봤어요/.test(end.text) && /어제 뉴스 보기/.test(end.text), JSON.stringify(end));
