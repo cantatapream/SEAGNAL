@@ -12716,3 +12716,17 @@ body.mc-fullscreen-active {
 .news-end .ok { display: inline-flex; width: 40px; height: 40px; border-radius: 50%; align-items: center; justify-content: center; border: 2px solid var(--accent-blue, #448aff); color: var(--accent-blue, #448aff); font-size: 1.05rem; margin-bottom: 8px; }
 .news-end .big { font-size: 0.95rem; font-weight: 700; color: #e2e8f0; margin-bottom: 2px; }
 .news-end .news-dbtn { margin-top: 12px; height: 36px; padding: 0 16px; border-color: var(--accent-blue, #448aff); color: var(--accent-blue, #448aff); }
+
+/* ── 「뉴스·공지·어황」 제목 + 안쪽 탭 줄 고정(2026-11-22 사용자 「공지사항, 뉴스, 어황탭이 상단 상태표시줄을 침범하는데? 헤더 고정이되는게 아니라.」 · 「스크롤을 내렸을때 말이야」)
+      이 탭은 문서 전체가 스크롤된다. 휴대폰 폭(≤480px)에서는 .content-area 에 overflow-y:auto 가 걸려 있어 그 안의 sticky 가 붙지 않으므로
+      이 탭에서만 풀어 준다(.content-area 는 늘어나기만 하고 스스로 스크롤하지 않는다 — 실측 scrollHeight = clientHeight).
+      붙었을 때 상태표시줄 자리(safe-area)까지 덮도록 위 여백을 머리 안으로 옮기고, 좌우 여백(1rem)까지 넓혀 그 아래로 지나가는 카드를 가린다. */
+body[data-active-tab="promo-section"] .content-area { overflow: visible !important; }
+.nhub-head {
+    position: sticky; top: 0; z-index: 30;
+    margin: calc(-6px - env(safe-area-inset-top, 0px)) -1rem 0; padding: calc(6px + env(safe-area-inset-top, 0px)) 1rem 0;   /* 6px = 붙었을 때 제목이 상태표시줄에 딱 붙지 않게(안 붙었을 때 자리는 그대로) */
+    background: rgba(10, 16, 31, 0.94);
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+.nhub-head .nhub-tabs { margin-bottom: 0; }
+.nhub-head + .ptr { margin-top: 12px; }

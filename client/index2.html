@@ -2598,7 +2598,7 @@
     <link rel="stylesheet" href="/assets/vendor/fonts/fonts.css">
 
     <!-- Styles -->
-    <link rel="stylesheet" href="style.css?v=NHub_20261122b">
+    <link rel="stylesheet" href="style.css?v=NHub_20261122c">
     <link rel="stylesheet" href="splash.css?v=Lifevest_20261120">
 
 
@@ -4673,6 +4673,8 @@
                  사용자: 「하단 탭 이름도 "뉴스·공지·어황"으로 바꾸고 위도 이렇게 바꾸자.」 · 「오늘의 뉴스, 공지사항, 어황정보 이렇게 3개 탭으로 구성(알약식말고)」
                  안쪽 탭 = 밑줄형 + 아이콘(시안 4-B). 어느 탭부터 보일지·N 표시는 notice/hub/notice_hub.js. id(promo-section)는 그대로 둔다(다른 코드·검사가 이 id 로 탭을 연다). -->
             <section id="promo-section" class="tab-content">
+                <!-- 제목 + 안쪽 탭 줄은 스크롤해도 맨 위에 붙어 있다(2026-11-22 사용자 「공지사항, 뉴스, 어황탭이 상단 상태표시줄을 침범하는데? 헤더 고정이되는게 아니라.」 · 「스크롤을 내렸을때 말이야」) — style.css .nhub-head -->
+                <div class="nhub-head">
                 <div class="section-header-with-info">
                     <h2 class="section-title"><i class="fa-solid fa-bullhorn"></i> 뉴스·공지·어황</h2>
                 </div>
@@ -4682,6 +4684,7 @@
                     <button type="button" class="nhub-tab" data-nhub="notice" role="tab"><i class="fa-solid fa-bullhorn" aria-hidden="true"></i><span class="nhub-tab-label">공지사항</span></button>
                     <button type="button" class="nhub-tab" data-nhub="fishcond" role="tab"><i class="fa-solid fa-fish" aria-hidden="true"></i><span class="nhub-tab-label">어황정보</span></button>
                 </div>
+                </div><!-- /.nhub-head -->
 
                 <!-- 오늘의 뉴스 — notice/news/news.js 가 채운다(날짜줄 시안 5-1 B · 카드 시안 5-2 B) -->
                 <!-- 당겨서 새로고침 띠(2026-11-22 사용자 「아래로 내려서 당기는 모션이 반영되는 것은 오늘의 뉴스, 공지사항, 그리고 어항 정보」) — shared/ui/pull_refresh.js · notice_hub.js 가 붙인다. 평소 높이 0 -->
