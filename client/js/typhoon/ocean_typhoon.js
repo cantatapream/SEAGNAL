@@ -2049,6 +2049,9 @@
         show: function () { setVisible(true); },
         hide: function () { setVisible(false); },
         isVisible: function () { return _visible; },
+        // 활성 태풍이 있는가 — 통합 메뉴(ocean_menu.js)가 태풍 줄의 자리(있으면 제자리·없으면 맨 뒤)를 정할 때 읽는다.
+        //   예: 활성 태풍 1개 → true · 없음 또는 아직 못 받음 → false. 10회 눌러 연 것(_unlocked)은 세지 않는다.
+        hasActive: function () { return !!(_activeData && _activeData.hasActive && (_activeData.typhoons || []).length); },
         // 지도·모듈 초기화(tryInit) 완료 여부 — 딥링크(assistant_deeplink)가 demoFocus 호출 타이밍 게이트로 사용.
         isReady: function () { return !!_map; },
         demoFocus: demoFocus,   // 위치기반 태풍 반경 알림 탭: 실제 통보문을 강제 활성화 표출 + 지도 이동

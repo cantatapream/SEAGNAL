@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 137개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 138개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -176,6 +176,8 @@ client/js/
 │   │   ├── ocean_northup.js
 │   │   ├── ocean_overlay_labels.js
 │   │   ├── ocean_overlay.js
+│   ├── menu/
+│   │   ├── ocean_menu.js
 │   ├── observation/
 │   │   ├── ocean_buoy.js
 │   ├── timeline/
@@ -484,6 +486,12 @@ client/js/
 | `ocean_overlay.js` | 해양현황 캔버스 오버레이 (해류/바람/파고 색상 + 파티클 애니메이션) |
 | `ocean_overlay_labels.js` | 해양종합정보 색칠 지도 위에 "그 자리 값"을 글자로 얹는 그리기 도구. |
 
+### `client/js/ocean-map/menu/`
+
+| 파일 | 역할 |
+|------|------|
+| `ocean_menu.js` | 해양종합정보의 「새 모드」 — 지도 오른쪽 버튼 줄 대신 [메뉴] 버튼 하나와 |
+
 ### `client/js/ocean-map/observation/`
 
 | 파일 | 역할 |
@@ -532,7 +540,7 @@ client/js/
 | 파일 | 역할 |
 |------|------|
 | `locate_toast.js` | 「내 위치」(GPS) 버튼을 눌렀을 때 화면 하단에 진행 토스트를 띄우고 현재 위치를 가져온다. |
-| `pull_refresh.js` | 「당겨서 새로고침」 — 화면 맨 위에서 손가락으로 아래로 당겼다 놓으면 파란 동그라미가 돌며 목록을 다시 받는다. |
+| `pull_refresh.js` | 「당겨서 새로고침」 — 화면 맨 위에서 손가락으로 아래로 당겼다 놓으면 파란 동그라미가 돌며 목록을 다시 받는다(당기는 만큼  |
 | `text_fit.js` | 긴 안내 글을 읽기 좋게 줄을 맞춘다(여러 화면이 함께 쓰는 도구). |
 | `ui_modal.js` | 공통 UI 모달 (기상청 iframe, SEAGNAL 시스템 모달) |
 | `wheel_date_picker.js` | 앱의 모든 날짜칸(<input type="date">)·날짜시각칸(<input type="datetime-local">)을 누 |

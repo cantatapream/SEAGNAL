@@ -286,8 +286,11 @@
         var isIntl = feature.get('category') === '해역';
         // 통항분리대 라벨은 항로 이름 라벨(11px)보다 작게(9px) — 항로 이름과 구분되도록.
         var fontSize = _isTrafficSeparation(feature) ? 9 : 11;
+        // [새 모드(body.om-mode) — 2026-11-22 사용자 「항로에 명시된 이름도 모두 제거」] 관제구역과 함께 그릴 때
+        //   글자가 겹치므로 항로 이름을 그리지 않는다(해역 이름은 남긴다). 평소 화면은 종전 그대로.
+        var omNoLabel = !isIntl && document.body.classList.contains('om-mode');
         var textStyle = new ol.style.Text({
-            text: feature.get('_hideLabel') ? '' : _displayName(feature),
+            text: (omNoLabel || feature.get('_hideLabel')) ? '' : _displayName(feature),
             font: 'bold ' + fontSize + 'px "Pretendard", sans-serif',
             fill: new ol.style.Fill({ color: isIntl ? INTL_TEXT : SEAWAY_TEXT }),
             stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.85)', width: 3 }),
