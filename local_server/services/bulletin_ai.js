@@ -229,20 +229,36 @@ function gemmaStatus() { return JSON.parse(JSON.stringify(gemmaLast)); }
 /**
  * 관리자 「시험 호출」 — 고른 모델을 짧은 지시문으로 한 번 불러 본다(설정을 바꾸지 않는다). 이 저장소의 작업 환경에는 AI 키가 없어 Gemma 를 실제로 불러 보지 못했다 — 운영에서 이 버튼으로 확인한다.
  * 예: await tryModel('gemma-4-31b-it') → { ok:true, model, ms:812, text:'{"해역":"동해중부먼바다","시점":"오늘 밤부터"}' } | { ok:false, model, ms, error:'…' }
- * @param {string} model 기본 Gemini 모델 또는 GEMMA_MODELS 중 하나 @returns {Promise<{ok:boolean, model:string, ms?:number, text?:string, error?:string}>}
+ * ⑦ news(2026-11-21 사용자 「왜 시험호출햇는데 기상전망을 읽은거지?」): feature 가 'news' 면 날씨 문장 대신 견본 기사 2건을 실제 뉴스 판정 지시문(news_judge.prompt)으로 묻고,
+ *   답 모양을 판정 검사(shapeOk)로 본 뒤 「1번 4점·처벌·의무 / 2번 1점」처럼 줄여 보인다 — 그 모델이 뉴스 판정을 실제로 해내는지 본다.
+ * @param {string} model 기본 Gemini 모델 또는 GEMMA_MODELS 중 하나 @param {string} [feature] 'news' 면 뉴스 판정 시험
+ * @returns {Promise<{ok:boolean, model:string, ms?:number, text?:string, error?:string}>}
  * [연계] ← routes/bulletin_watch.js POST /api/admin/bulletin-ai/try-model
  */
-async function tryModel(model) {
+const NEWS_TRY_ARTS = [
+    { title: '암컷 대게, 잡아도 팔아도 처벌…울진해경 12월 1일부터 특별단속', desc: '울진해경이 12월 1일부터 3개월간 대게 불법 포획·유통·판매를 특별단속한다. 암컷과 몸길이 9cm 이하 대게가 대상이다.', source: '견본', time: '견본' },
+    { title: '○○수협, 어촌계와 반찬 나눔 행사 개최', desc: '○○수협이 어촌계와 함께 이웃에게 반찬 100세트를 나눴다.', source: '견본', time: '견본' },
+];
+async function tryModel(model, feature) {
     const picks = [GEMINI_MODEL].concat(GEMMA_MODELS);
     if (!picks.includes(model)) return { ok: false, model: String(model), error: '고를 수 있는 모델이 아니다(' + picks.join('|') + ')' };
-    const prompt = '다음 글에서 「풍랑경보로 변경될 가능성」이 있다고 한 해역과 시점을 글에 적힌 그대로 뽑아 JSON 만 답하라: {"해역":"…","시점":"…"}\n글: 동해중부먼바다는 오늘 밤부터 물결이 더욱 높게 일면서 풍랑경보로 변경될 가능성이 있겠습니다.';
+    const news = feature === 'news', NJ = news ? require('./news_judge') : null;
+    const prompt = news ? NJ.prompt(NEWS_TRY_ARTS, [])
+        : '다음 글에서 「풍랑경보로 변경될 가능성」이 있다고 한 해역과 시점을 글에 적힌 그대로 뽑아 JSON 만 답하라: {"해역":"…","시점":"…"}\n글: 동해중부먼바다는 오늘 밤부터 물결이 더욱 높게 일면서 풍랑경보로 변경될 가능성이 있겠습니다.';
+    const shape = news ? (p) => NJ.shapeOk(p, NEWS_TRY_ARTS.length) : (p) => !!p && typeof p === 'object' && !Array.isArray(p);
     const t0 = Date.now();
     let r;
     try {
-        r = GEMMA_MODELS.includes(model) ? await callGemma(model, prompt, { caller: 'Bulletin-TryModel', shape: (p) => !!p && typeof p === 'object' && !Array.isArray(p) })
+        r = GEMMA_MODELS.includes(model) ? await callGemma(model, prompt, { caller: 'Bulletin-TryModel', shape })
             : await require('./gemini_client').callPlain({ model, contents: prompt, config: { responseMimeType: 'application/json' }, caller: 'Bulletin-TryModel' });
     } catch (e) { console.warn('[AI 특보 분석] 시험 호출 중 예외:', model, e && e.message); r = { success: false, error: String((e && e.message) || e) }; }
     const ms = Date.now() - t0;
+    if (r.success && news) {
+        const p = looseJson(r.text);
+        if (!shape(p)) return { ok: false, model, ms, error: '답이 뉴스 판정 모양이 아님(번호 빠짐·점수·분류 밖): ' + String(r.text || '').slice(0, 200) };
+        const text = '견본 2건 판정 — ' + p.items.slice().sort((a, b) => a.i - b.i).map((it) => (it.i + 1) + '번(' + (it.i === 0 ? '대게 단속' : '반찬 나눔 행사') + ') ' + it.score + '점' + (it.score >= 3 ? '·' + (NJ.CATS[it.cat] || it.cat) : '') + (it.reason ? ' — ' + String(it.reason).slice(0, 40) : '')).join(' / ');
+        return { ok: true, model, ms, text };
+    }
     return r.success ? { ok: true, model, ms, text: String(r.text || '').slice(0, 300) } : { ok: false, model, ms, error: String(r.error || '실패').slice(0, 300) };
 }
 

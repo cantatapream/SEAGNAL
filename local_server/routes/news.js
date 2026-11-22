@@ -25,7 +25,7 @@ const router = express.Router();
 const nc = () => require('../services/news_collector');
 
 router.get('/api/news', (req, res) => {
-    const d = req.query.date ? String(req.query.date) : nc().kstDate(Date.now());
+    const d = req.query.date ? String(req.query.date) : nc().today();
     const day = nc().day(d);
     if (!day) return res.status(400).json({ error: 'date 는 YYYY-MM-DD' });
     const st = nc().state();
@@ -72,7 +72,7 @@ const reportFail = (res, e) =>   // 운영 기록(console.error) + 500 — 오�
     { console.error('[오늘의 뉴스 관리자]', e && e.message); res.status(500).json({ ok: false, error: String((e && e.message) || e) }); };
 router.get('/api/admin/news', auth, (req, res) => {
     try {
-        const d = req.query.date ? String(req.query.date) : nc().kstDate(Date.now());
+        const d = req.query.date ? String(req.query.date) : nc().today();
         const day = nc().adminDay(d);
         if (!day) return res.status(400).json({ ok: false, error: 'date 는 YYYY-MM-DD' });
         res.set('Cache-Control', 'no-store').json(Object.assign({ ok: true, state: nc().state(), running: nc().running(), keywords: nc().keywords(), dates: nc().dates() }, day));

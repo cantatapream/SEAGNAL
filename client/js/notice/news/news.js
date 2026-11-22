@@ -6,13 +6,14 @@
  * 사용자 확정(원문은 js/notice/news_hub.design.md §1·§1-2):
  *   「날짜선택은 달력에 날짜선택하는걸로 해주되, 날짜는 보유하고있는 뉴스 기간까지만.」 · 「< 0월 0일(토) > 가 화면 가운데 위치. 날짜피커는 현위치, 오늘은 > 바로 오른쪽에」 ·
  *   「펼쳐진 후 한번 더 누르면 그 페이지로 이동. 다른 아코디언 뉴스카드를 누르면 직전 눌렀던거 접힘.」 · 「앱 안에 브라우저 창 개념으로 가자.」 ·
- *   「우측 하단 정렬하여 작게 그 기사가 발표된 시각도」 · 「일시 왼쪽에 사용자가 눌러서 아코디언 열어본 횟수도 기록」 · 꼬리표는 사진 위에(시안 5-2 B)
+ *   「우측 하단 정렬하여 작게 그 기사가 발표된 시각도」 · 「일시 왼쪽에 사용자가 눌러서 아코디언 열어본 횟수도 기록」 · 꼬리표는 사진 위에(시안 5-2 B) ·
+ *   (2026-11-22) 「맨 밑에 내려와서 다 봤어요를 표출하는 곳은 오늘의 뉴스에만」 + [어제 뉴스 보기](「추천대로」) · 당겨서 새로고침(notice_hub 가 refresh 를 부른다)
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : 없음(CONFIG.API_BASE · window.Capacitor.Plugins.Browser · window.PopupStack(core/backbutton.js — 달력 닫기))
  *  - 서버 API      : GET /api/news?date=YYYY-MM-DD · POST /api/news/:date/:id/open · GET /api/news/img?u=(http 사진) — local_server/routes/news.js
  *  - 마크업        : index2.html #nhub-news(#news-dateline · #news-updated · #news-list)
- *  - 나를 쓰는 곳  : notice/hub/notice_hub.js(window.NewsTab.open · hasNew · markSeen · prefetch)
+ *  - 나를 쓰는 곳  : notice/hub/notice_hub.js(window.NewsTab.open · refresh(당겨서 새로고침) · hasNew · markSeen · prefetch)
  * [로드 순서] notice/board/promo.js·comments 다음 · notice/hub/notice_hub.js 이전 — 순서 변경 금지
  * ============================================================================
  */
@@ -169,18 +170,42 @@
             return;
         }
         cards.forEach(function (c) { host.appendChild(card(c)); });
+        host.appendChild(endMark());
+    }
+
+    /**
+     * 목록 맨 끝 「다 봤어요」 — 카드를 다 내려 본 사람에게 끝났다고 알리고, 전날 뉴스로 넘어갈 단추를 준다(보관한 날짜일 때만).
+     * 예: 오늘 목록 끝 → ✓ 다 봤어요 / 이날 실린 뉴스를 모두 봤어요. / [어제 뉴스 보기]  · 지난 날짜 끝 → [전날 뉴스 보기]
+     * @returns {HTMLElement} [연계] ← renderList / → load(전날) — 누르면 목록 맨 위(안쪽 탭 줄)로 올린다(끝에 머물러 빈 곳을 보지 않게)
+     */
+    function endMark() {
+        var box = el('div', 'news-end');
+        var ok = el('span', 'ok'); ok.appendChild(icon('fa-check')); box.appendChild(ok);
+        box.appendChild(el('div', 'big', '다 봤어요'));
+        box.appendChild(el('div', 'sub', '이날 실린 뉴스를 모두 봤어요.'));
+        var prev = shift(st.date, -1);
+        if (st.dates.indexOf(prev) >= 0) {
+            var b = el('button', 'news-dbtn', st.date === todayKst() ? '어제 뉴스 보기' : '전날 뉴스 보기'); b.type = 'button';
+            b.addEventListener('click', function () {
+                load(prev);
+                var tabs = document.getElementById('nhub-tabs');
+                if (tabs && tabs.scrollIntoView) tabs.scrollIntoView({ block: 'start' });
+            });
+            box.appendChild(b);
+        }
+        return box;
     }
 
     /**
      * 그날 뉴스를 받아 그린다.
-     * @param {string} d YYYY-MM-DD
-     * [연계] ← open · 날짜줄 · 달력 · 빈 목록의 [어제 뉴스 보기] / → GET /api/news
+     * @param {string} d YYYY-MM-DD @param {boolean} [quiet] true = 받는 동안 지금 목록을 그대로 둔다(당겨서 새로고침 — 동그라미가 돌고 있으니 「불러오는 중」으로 비우지 않는다)
+     * [연계] ← open · refresh · 날짜줄 · 달력 · 빈 목록·「다 봤어요」의 [어제 뉴스 보기] / → GET /api/news
      */
-    function load(d) {
+    function load(d, quiet) {
         st.date = d; st.openId = null; st.loading = true; st.onToday = d === todayKst();
         renderDateline();
         var list = document.getElementById('news-list');
-        if (list) list.innerHTML = '<div class="news-empty"><i class="fa-solid fa-circle-notch fa-spin"></i> 불러오는 중…</div>';
+        if (list && !quiet) list.innerHTML = '<div class="news-empty"><i class="fa-solid fa-circle-notch fa-spin"></i> 불러오는 중…</div>';
         return fetch(api('/api/news?date=' + encodeURIComponent(d)))
             .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(function (j) {
@@ -191,7 +216,7 @@
             })
             .catch(function (e) {
                 console.warn('[오늘의 뉴스] 불러오기 실패:', e && e.message);
-                if (st.date !== d || !list) return;
+                if (st.date !== d || !list || quiet) return;   // 당겨서 새로고침이 실패하면 보던 목록을 그대로 둔다
                 list.innerHTML = '';
                 var em = el('div', 'news-empty'); em.appendChild(el('div', 'big', '뉴스를 불러오지 못했어요')); em.appendChild(document.createTextNode('잠시 뒤 다시 열어 주세요.')); list.appendChild(em);
             })
@@ -255,6 +280,8 @@
                 return hasNew();
             }).catch(function () { return false; });
         },
+        /** 당겨서 새로고침 — 보던 날짜를 다시 받는다(오늘을 보고 있었으면 새 오늘). 서버가 모아 둔 것을 다시 받을 뿐 새로 수집하지 않는다. @returns {Promise} [연계] ← notice_hub(PullRefresh) */
+        refresh: function () { return load(!st.date || st.onToday ? todayKst() : st.date, true); },
         hasNew: hasNew, markSeen: markSeen,
         _st: st, _openArticle: openArticle, _label: label, _shift: shift,
     };

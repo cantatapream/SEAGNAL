@@ -12643,6 +12643,8 @@ body.mc-fullscreen-active {
 .news-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; position: absolute; inset: 0; }
 .news-thumb .def-ico { font-size: 1.5rem; }
 .news-thumb .news-cat { position: absolute; top: 4px; left: 4px; z-index: 1; background: rgba(13,21,38,0.85); }
+/* 사진 칸(78px)보다 긴 분류 이름(「바다 이용 갈등·제도」 101px · 「조업·이용 규칙」 79px — 실측)은 칸 안에서 띄어쓰기 자리로 두 줄 접는다(사용자 2026-11-22 「사진 안에 텍스트가 길어서 잘리는」) */
+.news-thumb .news-cat { max-width: calc(100% - 8px); box-sizing: border-box; white-space: normal; word-break: keep-all; line-height: 13px; padding: 1px 5px; }
 .news-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .news-title { font-weight: 700; font-size: 0.9rem; line-height: 1.35; color: #f1f5f9; margin-bottom: 3px; word-break: keep-all; overflow-wrap: anywhere; }
 .news-sum { color: #c8d2e0; font-size: 0.8rem; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; word-break: keep-all; overflow-wrap: anywhere; }
@@ -12697,3 +12699,17 @@ body.mc-fullscreen-active {
     .news-dbtn { height: 28px; min-width: 28px; padding: 0 5px; font-size: 0.74rem; }
     .news-dlabel { font-size: 0.82rem; padding: 0; }
 }
+
+/* ── 당겨서 새로고침 띠(2026-11-22 사용자 「아래로 내려서 당기는 모션」 — 보낸 그림처럼 연한 파란 띠 + 파란 동그라미).
+      높이는 shared/ui/pull_refresh.js 가 손가락을 따라 바꾼다(평소 0). .ready = 놓으면 새로고침 · .spin = 받는 중 */
+.ptr { height: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; background: rgba(56,189,248,0.10); border-radius: 0 0 12px 12px; }
+.ptr i { font-size: 1.5rem; color: #38bdf8; opacity: 0.55; }
+.ptr.ready i, .ptr.spin i { opacity: 1; }
+.ptr.spin i { animation: ptr-spin 0.8s linear infinite; }
+@keyframes ptr-spin { to { transform: rotate(360deg); } }
+
+/* ── 오늘의 뉴스 목록 끝 「다 봤어요」(2026-11-22 사용자 「맨 밑에 내려와서 다 봤어요를 표출하는 곳은 오늘의 뉴스에만」) — news.js endMark */
+.news-end { text-align: center; padding: 22px 10px 8px; color: #94a3b8; font-size: 0.82rem; }
+.news-end .ok { display: inline-flex; width: 40px; height: 40px; border-radius: 50%; align-items: center; justify-content: center; border: 2px solid var(--accent-blue, #448aff); color: var(--accent-blue, #448aff); font-size: 1.05rem; margin-bottom: 8px; }
+.news-end .big { font-size: 0.95rem; font-weight: 700; color: #e2e8f0; margin-bottom: 2px; }
+.news-end .news-dbtn { margin-top: 12px; height: 36px; padding: 0 16px; border-color: var(--accent-blue, #448aff); color: var(--accent-blue, #448aff); }

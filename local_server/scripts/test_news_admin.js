@@ -37,6 +37,7 @@ const news = NC.createNews({
     search: async (q, o) => ({ ok: true, items: (ng.results[q] || []).slice(o.start - 1, o.start + 99), total: 0 }),
     judge: async (arts, cards) => { if (ng.slowJudge) await ng.slowJudge; return { results: arts.map((a, i) => Object.assign({ i, score: 1, cat: 'none', region: '', group: '', same: '', newInfo: false, summary: a.desc, summaryFixed: false, reason: '행사', provider: 'gemma' }, ng.verdict(a.title))), failed: [], providers: { gemma: 1 }, errors: [] }; },
     meta: async (u) => ({ image: 'https://img.test/' + path.basename(u) + '.jpg', site: '테스트일보' }),
+    dedupe: async () => ({ groups: [], by: 'gemma' }),   // 같은 사건 합치기 — 진짜 AI 를 부르지 않게(이 검사는 관리자 화면·API 를 본다)
 });
 const fcDir = tmp(), fg = { html: '', clock: T0 };
 const row = (id, title, date, fileId) => `<tr><td class="subject"><a href="javascript:fnPopupPrevew('${id}')">${title}</a></td><td data-label="부서">기후환경자원과</td><td data-label="원본"><a href="/cmmnFile/fileDownloadStat.do?FILE_ID=${fileId}" title="${title}.pdf">p</a></td><td data-label="작성일" class="date">${date}</td></tr>`;
@@ -95,7 +96,7 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             const r = await call('POST', '/api/admin/news/' + D + '/publish', { index: 0, cat: 'conflict' });
             assert.equal(r.status, 200, JSON.stringify(r.json));
             const day = news.day(D), c = day.cards.find((x) => /FIRA/.test(x.title));
-            assert.ok(c && c.cat === 'conflict' && c.catName === '바다 이용 갈등·제도' && c.summary === '자율관리어업 워크숍을 열었다. 다음 문장.' && /img\.test/.test(c.image) && c.source === '테스트일보', JSON.stringify(c));
+            assert.ok(c && c.cat === 'conflict' && c.catName === '갈등·제도' && c.summary === '자율관리어업 워크숍을 열었다. 다음 문장.' && /img\.test/.test(c.image) && c.source === '테스트일보', JSON.stringify(c));
             assert.equal(news.adminDay(D).rejected.length, 0); assert.ok(news.adminDay(D).cards.find((x) => /FIRA/.test(x.title)).manual);
             assert.equal((await call('POST', '/api/admin/news/' + D + '/publish', { index: 5 })).status, 404);
             // 원문 주소로 찾는다 — 자리 번호가 밀린 낡은 화면에서도 그 기사가 실린다(검토 지적)
@@ -177,7 +178,7 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             await page.waitForFunction(() => /수집 검색어/.test(document.getElementById('host').textContent));
             const t = await page.textContent('#host');
             assert.ok(/마지막 갱신/.test(t) && /이번 회차받음/.test(t.replace(/\s/g, '').replace('이번회차', '이번 회차')) || /받음 \d+ → 판정/.test(t), t.slice(0, 300));
-            assert.ok(/gemma/.test(t) && /해루질 단속/.test(t) && /\(숨김\)/.test(t) && /관리자가 실음/.test(t) && /홍보성 행사 기사/.test(t), t.slice(0, 500));
+            assert.ok(/지금 뉴스 수집/.test(t), '수집 단추 이름(사용자 「수집버튼은 요기에」)'); assert.ok(/gemma/.test(t) && /해루질 단속/.test(t) && /\(숨김\)/.test(t) && /관리자가 실음/.test(t) && /홍보성 행사 기사/.test(t), t.slice(0, 500));
             await page.fill('input[placeholder^="새 검색어"]', '적조'); await page.click('text=+ 추가');
             await page.waitForFunction(() => /수집 검색어 \(3개\)/.test(document.getElementById('host').textContent));
             assert.equal(news.keywords().join(), 'k,해루질 단속,적조');

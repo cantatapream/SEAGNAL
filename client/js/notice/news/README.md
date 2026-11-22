@@ -22,5 +22,6 @@
 
 ## 연계
 - 서버 API: `GET /api/news?date=` · `POST /api/news/:date/:id/open` · `GET /api/news/img` — `local_server/routes/news.js`
-- 부르는 곳: `../hub/notice_hub.js`(`NewsTab.open` · `prefetch` · `hasNew` · `markSeen`)
+- 부르는 곳: `../hub/notice_hub.js`(`NewsTab.open` · `refresh`(당겨서 새로고침 — 보던 날짜를 조용히 다시 받는다, 새로 수집은 아님) · `prefetch` · `hasNew` · `markSeen`)
+- 목록 맨 끝 「다 봤어요」(2026-11-22 사용자 「다 봤어요를 표출하는 곳은 오늘의 뉴스에만」) — 전날이 보관 날짜면 [어제 뉴스 보기]/[전날 뉴스 보기](누르면 안쪽 탭 줄로 올라간다)
 - 시험: `local_server/scripts/test_news_hub_ui.js`

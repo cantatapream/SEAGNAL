@@ -1537,6 +1537,22 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-22 12:25 KST] ✅완료 — 뉴스·공지·어황: 당겨서 새로고침·다 봤어요·어황 쪽 번호
+①shared/ui/pull_refresh.js 신설 — 세 칸(오늘의 뉴스·공지사항·어황정보) 맨 위에서 당겨 60px 넘게 놓으면 파란 동그라미 돌며 그 칸만 다시 받기(뉴스 NewsTab.refresh — 조용히, 수집 아님 · 공지 loadPromoPosts · 어황 FishcondTab.refresh). 이 탭은 문서 전체가 스크롤됨(실측). 팝업 열림·화면 내려 둠·옆/위 손짓은 무시. ②오늘의 뉴스 목록 끝 「다 봤어요」+[어제/전날 뉴스 보기]. ③어황 10건씩 쪽 번호(공지와 같은 .pagination-btn). style.css 판 번호 NHub_20261122(앞선 꼬리표 CSS 도 함께 반영되게). 검사 test_news_hub_ui 27/0(새 6건). check_order 기준선 갱신(151개), ARCHITECTURE 재생성. 전체 verify_all 은 서버 켜고 진행 중.
+
+
+### [2026-11-22 12:16 KST] 🟢착수 — 뉴스·공지·어황: 당겨서 새로고침·다 봤어요·어황 쪽 번호
+사용자 확정(2026-11-22 「추천대로. 진행」): ①오늘의 뉴스·공지사항·어황정보 세 칸 맨 위에서 아래로 당기면 파란 동그라미 → 그 칸 목록 다시 받기(뉴스는 수집 아님) ②오늘의 뉴스 목록 맨 끝 「다 봤어요」+[어제 뉴스 보기] ③어황정보 목록 아래 쪽 번호 단추(공지사항과 같은 단추, 10건씩).
+
+
+### [2026-11-22 12:03 KST] ✅완료 — 오늘의 뉴스: 사진 위 분류 꼬리표 잘림 고침
+사진 칸 78px 에 꼬리표가 한 줄 고정이라 「바다 이용 갈등·제도」(101px)·「조업·이용 규칙」(79px)이 잘림(크로미움 실측). 사진 위 꼬리표만 두 줄 접기(word-break keep-all, max-width 칸-8px). test_news_hub_ui 21/0(새 항목은 고치기 전 CSS 에서 실패 확인). 다음: PR #1561 머지 대기.
+
+
+### [2026-11-22 11:38 KST] ✅완료 — 오늘의 뉴스: 같은 사건 중복 카드 합치기 (사용자 「중복내용 제외」)
+운영 2026-11-22 화면에 해수부 김장철 수산물 원산지 특별점검 한 발표가 카드 4장으로 실림(판정 20건 묶음에서 AI 가 묶음 표시를 빠뜨림). 매 수집 끝에 새 카드가 생긴 날(또는 지난 회차 묶기 실패한 날)의 카드 전체(숨긴·관리자가 실은 카드 제외)를 news_judge.groupDuplicates(AI ⑦ 순서)로 한 번 더 묶어 합침. 남는 카드 id=보도 많은 것, 머리=묶음 최신 기사, 펼친 횟수 합산, 빠진 카드는 그날 'AI 가 뺀 기사'로 옮겨 관리자가 [싣기]로 되살림. AI 실패면 합치지 않고 state.dedupeRetry 로 다음 회차 재시도 + 관리자 화면에 실패 줄. 적대검증 5건 재현→전부 처리(기계 제목 묶기 삭제 — 통영/여수 전복 0.75 등 다른 사건이 붙음). 함께: test_news_admin 이 실제 날짜 11-22 에 실패(HEAD 재현) → 라우트 기본 날짜를 수집기 시계 news_collector.today() 로. 검사: test_news_collector 69/0 · test_news_admin 11/0 · test_news_hub_ui 20/0 · test_silent_catch 22/0 · test_bulletin_ai 84/0. 다음: verify_all 확인 후 커밋·푸시(PR #1561 갱신), 배포 뒤 22일 중복은 그날 새 카드가 생기는 첫 수집에 정리.
+
+
 ### [2026-11-21 11:18 KST] ✅완료 — 뉴스·공지·어황 — 전체 점검·main 합치기·PR 생성
 전체 verify_all(playwright-core 연결) 실패는 test_silent_catch 하나(이번 작업이 io catch 서버 8·화면 10곳 늘림) → 각 자리 운영 기록 추가로 server 36·client 121 복귀. main 16커밋 합침(충돌 HANDOFF 로그 1곳 — 양쪽 12개 보존·시각순), main 새 위키로 색인 재생성 포함. 합친 상태: check_order·silent_catch 22/22·tab_structure·news_hub_ui 20·news_admin 11·promo_detail_ui·regional_sea_ui·station_briefing_ui·simulate 통과. PR https://github.com/cantatapream/SEAGNAL/pull/1560 생성(main 대비 19커밋 앞, 0 뒤). 다음: 사용자가 PR 확인·머지 → 배포 → 운영 확인(nifs 접속·네이버/AI 판정·사진·앱 안 브라우저).
 

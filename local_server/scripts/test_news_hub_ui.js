@@ -41,21 +41,22 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
 
 (async () => {
     let browser, server;
-    const hits = { open: [], view: [], img: 0 };
-    const S = { promo: [], newsToday: CARDS, lastRun: new Date().toISOString(), dates: [YDAY, TODAY], promoDelay: 0 };
+    const hits = { open: [], view: [], img: 0, req: { news: 0, promo: 0, fishcond: 0 } };
+    const S = { promo: [], newsToday: CARDS, lastRun: new Date().toISOString(), dates: [YDAY, TODAY], promoDelay: 0, fc: FC };
     try {
         const app = express();
-        app.get('/api/promo', (req, res) => setTimeout(() => res.json(S.promo), S.promoDelay));
+        app.get('/api/promo', (req, res) => { hits.req.promo++; setTimeout(() => res.json(S.promo), S.promoDelay); });
         app.get('/api/boards', (req, res) => res.json([{ id: 'notice', name: '공지사항', badgeText: '공지', badgeColor: '#ff5252' }, { id: 'patch', name: '패치노트', badgeText: '패치', badgeColor: '#ffab40' }]));
         app.get('/api/reactions/counts', (req, res) => res.json({}));
         app.get('/api/comments/counts', (req, res) => res.json({}));
         app.get('/api/news', (req, res) => {
+            hits.req.news++;
             const d = req.query.date || TODAY;
             res.json({ date: d, cards: d === TODAY ? S.newsToday : d === YDAY ? [CARDS[2]] : [], dates: S.dates, state: { lastRun: S.lastRun, ok: true } });
         });
         app.post('/api/news/:date/:id/open', (req, res) => { hits.open.push(req.params.id + (req.query.admin ? '@admin' : '')); res.json({ views: 99 }); });
         app.get('/api/news/img', (req, res) => { hits.img++; res.type('image/png').send(PNG); });
-        app.get('/api/fishcond', (req, res) => res.json({ posts: FC, state: { lastRun: new Date().toISOString(), ok: true } }));
+        app.get('/api/fishcond', (req, res) => { hits.req.fishcond++; res.json({ posts: S.fc, state: { lastRun: new Date().toISOString(), ok: true } }); });
         app.get('/api/fishcond/:id/view', (req, res) => { hits.view.push(req.params.id); res.type('html').send('<html><body style="margin:0"><div style="height:1500px;background:#eef">쪽 그림</div></body></html>'); });
         app.get('/', (req, res) => res.sendFile(path.join(root, 'client/index2.html')));
         app.use(express.static(path.join(root, 'client')));
@@ -67,7 +68,7 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
         const clean = (page) => page.evaluate(() => ['server-maintenance-popup', 'network-error-popup', 'splash-screen', 'main-notice-popup', 'zone-guide-popup', 'survey-user-popup'].forEach((id) => { const e = document.getElementById(id); if (e) e.remove(); }));
         const fresh = async (ls, opt) => {
             opt = opt || {};
-            const ctx = await browser.newContext({ viewport: { width: opt.width || 412, height: 915 }, timezoneId: opt.tz || 'Asia/Seoul', deviceScaleFactor: 2 }), page = await ctx.newPage();
+            const ctx = await browser.newContext({ viewport: { width: opt.width || 412, height: 915 }, timezoneId: opt.tz || 'Asia/Seoul', deviceScaleFactor: 2, hasTouch: !!opt.touch }), page = await ctx.newPage();
             page.on('pageerror', (e) => errors.push(e.message));
             await page.route('**/*', (r) => (r.request().url().startsWith(base) || r.request().url().startsWith('https://img.test/')) ? (r.request().url().startsWith('https://img.test/') ? r.fulfill({ contentType: 'image/png', body: PNG }) : r.continue()) : r.abort());
             await page.addInitScript((x) => { try { localStorage.setItem('seagnal_device_id', 'test-device'); for (const k of Object.keys(x || {})) localStorage.setItem(k, x[k]); } catch (e) { /* 저장소 없음 */ } window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; }, ls || {});
@@ -119,6 +120,15 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             assert.ok(rt < 2, '오른쪽 끝 정렬 ' + rt);
         });
         await page.screenshot({ path: path.join(SHOT, '1_news.png') });
+        await check('[카드] 사진 위 분류 꼬리표가 사진 칸 안에 다 들어간다 — 긴 이름(「조업·이용 규칙」 79px > 칸 78px)은 두 줄(사용자 2026-11-22 「사진 안에 텍스트가 길어서 잘리는」)', async () => {
+            const r = await page.evaluate(() => {
+                const t = document.querySelector('#news-list .news-thumb'); const names = ['돈', '처벌·의무', '조업·이용 규칙', '안전', '바다 여건', '갈등·제도'];
+                const old = t.querySelector('.news-cat'); const out = [];
+                for (const nm of names) { const sp = document.createElement('span'); sp.className = 'news-cat conflict'; sp.textContent = nm; t.appendChild(sp); const a = t.getBoundingClientRect(), c = sp.getBoundingClientRect(); out.push([nm, c.right <= a.right + 0.5 && c.bottom <= a.bottom + 0.5 && sp.scrollWidth <= sp.clientWidth + 1]); sp.remove(); }
+                return { out, oldOk: !!old };
+            });
+            assert.ok(r.oldOk && r.out.every((x) => x[1]), JSON.stringify(r));
+        });
         await check('[아코디언] 누르면 펼침 + 펼친 횟수 기록·갱신 → 다른 카드 누르면 앞 카드 접힘 → 펼친 카드를 다시 누르면 기사 열기', async () => {
             const cards = await page.$$('#news-list .news-card');
             await cards[0].click(); await page.waitForTimeout(300);
@@ -288,6 +298,89 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
                 await pg.context().close();
             }
         });
+
+        // ── 2026-11-22 사용자: 「아래로 내려서 당기는 모션이 반영되는 것은 오늘의 뉴스, 공지사항, 그리고 어항 정보」 · 「다 봤어요를 표출하는 곳은 오늘의 뉴스에만」 ·
+        //    「어항 정보는 공지사항과 마찬가지로 아래 그 버튼 1, 2, 3 … 버튼을 둠으로써 페이지를 넘길 수 있도록」(10건씩 · [어제 뉴스 보기] 「추천대로」)
+        {
+            S.promo = [{ id: 1, title: '지난주 공지', createdAt: promoAt(Date.now() - 3 * 86400000), category: 'notice', views: 6 }];
+            S.fc = Array.from({ length: 13 }, (_, i) => ({ id: '202611' + String(20 - i).padStart(2, '0') + '000000000' + String(i).padStart(3, '0'), title: '어황정보 ' + (i + 1), dept: '연근해자원과', date: '2026-11-' + String(20 - i).padStart(2, '0'), sea: '전국', pages: 1, status: 'ok', views: i, sourceUrl: 'https://www.nifs.go.kr/x' }));
+            const pg = await fresh(null, { touch: true });
+            await pg.evaluate(() => window.switchMainTab('promo-section'));
+            await pg.waitForFunction(() => document.querySelectorAll('#news-list .news-card').length === 3);
+            // 손가락으로 당기기 — 맨 위에서 dy 만큼 내렸다 놓는다. 놓기 직전 띠 높이를 돌려준다.
+            const pull = (dy) => pg.evaluate((dy) => {
+                const sec = document.getElementById('promo-section');
+                const t = (y) => new Touch({ identifier: 1, target: sec, clientX: 200, clientY: y });
+                const fire = (type, y, on) => sec.dispatchEvent(new TouchEvent(type, { touches: on ? [t(y)] : [], changedTouches: [t(y)], bubbles: true, cancelable: true }));
+                fire('touchstart', 200, true);
+                for (let y = 210; y <= 200 + dy; y += 20) fire('touchmove', y, true);
+                const h = document.getElementById('nhub-ptr').getBoundingClientRect().height;
+                fire('touchend', 200 + dy, false);
+                return h;
+            }, dy);
+            const waitIdle = () => pg.waitForFunction(() => !document.getElementById('nhub-ptr').classList.contains('spin') && document.getElementById('nhub-ptr').getBoundingClientRect().height === 0, null, { timeout: 5000 });
+            await check('[당겨서 새로고침] 오늘의 뉴스: 맨 위에서 당기면 띠가 늘고 → 놓으면 파란 동그라미가 돌며 그날 뉴스를 다시 받는다(목록을 비우지 않음)', async () => {
+                const n0 = hits.req.news;
+                const h = await pull(200);
+                assert.ok(h >= 60, '띠 높이 ' + h);
+                assert.ok(await pg.$eval('#nhub-ptr', (x) => x.classList.contains('spin')), '받는 중 동그라미');
+                assert.equal(await pg.$$eval('#news-list .news-card', (x) => x.length), 3, '받는 동안 목록이 그대로');
+                await waitIdle();
+                assert.ok(hits.req.news > n0, '다시 받음');
+                await pg.screenshot({ path: path.join(SHOT, '8_news_end.png'), fullPage: true });
+            });
+            await check('[당겨서 새로고침] 조금만 당기고 놓으면 다시 받지 않는다 · 화면을 내려 둔 상태에서는 당겨지지 않는다', async () => {
+                const h = await pull(60);   // 띠 30px — 문턱(60) 아래
+                assert.ok(h > 0 && h < 60, '띠 높이 ' + h);
+                assert.ok(!(await pg.$eval('#nhub-ptr', (x) => x.classList.contains('spin'))), '문턱 아래면 동그라미가 돌지 않는다');
+                await waitIdle();
+                await pg.evaluate(() => { document.getElementById('news-list').style.minHeight = '3000px'; window.scrollTo(0, 400); });
+                const h2 = await pull(200);
+                assert.equal(h2, 0);
+                assert.ok(!(await pg.$eval('#nhub-ptr', (x) => x.classList.contains('spin'))));
+                await pg.evaluate(() => { document.getElementById('news-list').style.minHeight = ''; window.scrollTo(0, 0); });
+            });
+            await check('[다 봤어요] 오늘의 뉴스 목록 맨 끝 ✓ 다 봤어요 + [어제 뉴스 보기] → 누르면 어제 목록', async () => {
+                const end = await pg.$eval('#news-list > :last-child', (x) => ({ cls: x.className, text: x.textContent }));
+                assert.ok(end.cls === 'news-end' && /다 봤어요/.test(end.text) && /어제 뉴스 보기/.test(end.text), JSON.stringify(end));
+                await pg.click('#news-list .news-end button');
+                await pg.waitForFunction((y) => window.NewsTab._st.date === y && document.querySelectorAll('#news-list .news-card').length === 1, YDAY);
+                assert.ok(!/어제 뉴스 보기|전날 뉴스 보기/.test(await pg.$eval('#news-list .news-end', (x) => x.textContent)), '그 전날은 보관하지 않아 단추 없음');
+            });
+            await check('[당겨서 새로고침] 공지사항: 공지 목록을 다시 받는다 · 「다 봤어요」는 없다', async () => {
+                await pg.click('#nhub-tabs .nhub-tab[data-nhub="notice"]');
+                await pg.waitForFunction(() => document.querySelectorAll('#promo-list .promo-item').length === 1);
+                const n0 = hits.req.promo;
+                assert.ok(await pull(200) >= 60);
+                await waitIdle();
+                assert.ok(hits.req.promo > n0, 'promo 요청 ' + n0 + '→' + hits.req.promo);
+                assert.equal(await pg.$$eval('#nhub-notice .news-end, #nhub-fishcond .news-end', (x) => x.length), 0);
+            });
+            await check('[어황정보] 10건씩 · 아래 쪽 번호 단추(공지와 같은 모양) → 2쪽에 나머지 3건 · 당겨서 새로고침해도 보던 쪽 그대로', async () => {
+                await pg.click('#nhub-tabs .nhub-tab[data-nhub="fishcond"]');
+                await pg.waitForFunction(() => document.querySelectorAll('#fishcond-list .promo-item').length === 10);
+                const b = await pg.$$eval('#fishcond-pagination .pagination-btn', (xs) => xs.map((x) => (x.classList.contains('active') ? '*' : '') + (x.textContent || '>')));
+                assert.deepStrictEqual(b, ['*1', '2', '>']);
+                await pg.click('#fishcond-pagination .pagination-btn:nth-child(2)');
+                await pg.waitForFunction(() => document.querySelectorAll('#fishcond-list .promo-item').length === 3);
+                assert.ok(/어황정보 11$/.test(await pg.$eval('#fishcond-list .promo-item .promo-item-title', (x) => x.textContent.replace(/N$/, '').trim())), '2쪽 첫 글 = 11번째');
+                const n0 = hits.req.fishcond;
+                assert.ok(await pull(200) >= 60);
+                await waitIdle();
+                assert.ok(hits.req.fishcond > n0, '다시 받음 ' + n0 + '→' + hits.req.fishcond);   // 앱이 N 표시를 위해 따로 받는 요청이 끼어들 수 있어 「늘었다」로 본다
+                assert.equal(await pg.$$eval('#fishcond-list .promo-item', (x) => x.length), 3, '2쪽 그대로');
+                assert.deepStrictEqual(await pg.$$eval('#fishcond-pagination .pagination-btn', (xs) => xs.map((x) => (x.classList.contains('active') ? '*' : '') + (x.textContent || '<'))), ['<', '1', '*2']);
+                await pg.screenshot({ path: path.join(SHOT, '9_fishcond_pages.png') });
+            });
+            await check('[당겨서 새로고침] 팝업이 열려 있으면 당겨지지 않는다', async () => {
+                await pg.click('#fishcond-list .promo-item');
+                await pg.waitForFunction(() => !document.getElementById('fishcond-detail-modal').classList.contains('hidden'));
+                assert.equal(await pull(200), 0);
+                await pg.evaluate(() => window.closeFishcondDetail());
+            });
+            S.fc = FC;
+            await pg.context().close();
+        }
 
         await check('페이지 오류 없음', async () => { assert.deepStrictEqual(errors, []); });
     } catch (e) {
