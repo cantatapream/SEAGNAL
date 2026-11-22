@@ -62,7 +62,7 @@
 |---|---|
 | `android/.../update/AppUpdatePlugin.java` (신설) | Capacitor 플러그인 `SeagnalAppUpdate` — `check`·`start`·`complete` + 사건 `installState` |
 | `MainActivity.java` | `registerPlugin(AppUpdatePlugin.class)` |
-| `android/app/build.gradle` | `com.google.android.play:app-update:2.1.0` · versionCode 15 · versionName 1.3.0 |
+| `android/app/build.gradle` | `com.google.android.play:app-update:2.1.0` · versionCode 16(2026-11-20 — 15 는 GPS 필수 선언이 든 채 Play 에 한 번 올려 번호가 쓰였다, §4-2) · versionName 1.3.0 |
 | `client/capacitor-plugins.js` | `tryInAppUpdate`·`showUpdateReadyBar` 신설, `checkAppUpdate` 가 앱 안 업데이트를 먼저 시도 |
 
 ### 못 쓰는 경우는 종전 방식 그대로
@@ -146,6 +146,25 @@
 - 종전부터 서버에 있던 `/api/push-custom` 의 `adminToken`(그 토큰의 구독자로만 한정)은 쓰지 않았다 — 그 길은 값이 비면 전원 발송으로 떨어진다.
 - ⚠따로 남은 문제(이번에 고치지 않았다): `/api/push-custom`·`/api/push-typhoon`·`/api/test-push`·발송 이력 삭제에는 **관리자 인증이 없다**
   (`routes/push.js` 에 인증 참조 0건 — 코드로 확인, 운영 서버에 요청을 보내 본 것은 아니다). 별도 작업으로 제안해 뒀다.
+  - ✅**2026-11-20 고쳤다**(사용자 — *「이것 반영하고자 하는데, 주의할 점이 발생하지 않도록 그 부분에 대해서는 재검토 할 수 있도록 해줘.」*):
+    `/api/push-custom`·`/api/push-typhoon`·`DELETE /api/push-history(/:id)` 앞에 문지기(`services/internal_push_auth.js requireAdminOrInternal`).
+    관리자는 로그인 열쇠(X-Admin-Token — 관리자 화면 fetch 래퍼가 이 네 주소에도 붙인다), **서버 안의 자동 특보(push_sender.js)·자동 태풍(typhoon_notifier.js)
+    푸시는 서버가 켜질 때 만든 내부 열쇠**로 통과한다(같은 프로세스 메모리에만 있음). 시험 `test_push_route_auth.js`.
+    확인: 실제 라우터로 내부 열쇠 → 통과(태풍 200, 특보는 문지기 지나 처리 단계까지) · 열쇠 없음 → 401 · 브라우저에서 로그인 전 401 / 로그인 뒤 직접 발송·기록 삭제 200.
+  - 독립 검토 2건(2026-11-20): **막히는 자동 경로·우회 길·열쇠 유출 모두 못 찾음**(우회 시도 21건 전부 401/404).
+    반영한 지적 — 「관리자 모드」로 비밀번호 없이 들어간 기기(서버 열쇠가 없음)에서는 발송·삭제가 401 로 막힌다 →
+    `promo.js` 가 서버 열쇠가 없으면 로그인 창을 띄우고, 발송 기록 삭제 3종이 거절을 「관리자 로그인이 필요합니다」로 알린다(종전에는 아무 표시 없음).
+    알아 둘 것(그대로 둠) — ① 태풍 푸시는 「알림 완료」를 먼저 기록하고 보내서, 거절되면 재시도 없이 그 알림이 빠진다(이번에 거절 로그는 남게 했다. 특보 푸시는 실패분을 저장·재시도한다).
+    ② `node weather_alerts_crawler.js` 처럼 따로 실행하면 내부 열쇠가 달라 401(운영 경로에는 없음, 실패분은 저장·재시도).
+    ③ `/api/unsubscribe` 는 FCM 구독이 하나라도 있으면 500 이 나는 기존 결함(`s.subscription.endpoint` — push.js:272, 코드로만 확인).
+  - **[임시] 자동 푸시 경로 점검 버튼**(2026-11-20, 사용자 *「직접 발송하는 것으로 자동 푸시 온다고 볼 수 있니 ?」* → 아니다 · *「자동 푸시 경로 점검 버튼 임시로 만들어보자.」*):
+    관리자 센터 「직접 발송」 → [자동 푸시 경로 점검 (임시)]. 서버가 자동 발송과 같은 내부 열쇠로 자기 자신을 부른다(`services/push_auto_path_check.js`, `POST /api/admin/push-auto-path-check`).
+    특보 길 = 이 휴대폰 한 대에만 점검 알림(push-custom 관리자 테스트 모드, 발송 기록 없음 · 주소가 없거나 20자 미만이면 부르지 않음 — 빈 adminToken 은 전체 발송이기 때문),
+    태풍 길 = 제목·본문 없이 불러 문지기만 확인(400 통과 / 401 막힘, 발송 없음). 시험 `test_push_auto_path_check.js`.
+    ✅**운영에서 확인(2026-11-20 23:2x KST, 사용자 화면)**: 특보 길 통과(200) — 「[점검] 자동 푸시 경로」 알림이 헤드업으로 옴 · 태풍 길 통과(400).
+    **버튼은 남겨 둔다**(사용자 — *「나중에 쓸 수 있도록 놔두자.」*). 배포 뒤 자동 푸시 길을 다시 보고 싶을 때 쓴다. 코드의 「임시」 표시는 처음 만든 때의 이름이다.
+  - 남은 것: `/api/test-push`(push_test.js)는 그대로 — 받는 토큰 **한 대**에만 보내고, 거기서 설정하는 `global.mockWarningData` 는 지금 아무 데서도 읽지 않는다(코드 확인).
+    조회(`GET /api/push-history`)도 그대로 열려 있다.
 
 ## 4. 검증 — 무엇을 확인했고 무엇을 못 했나
 
@@ -158,10 +177,62 @@
 | ② 빌드 | GitHub Actions 「Build Debug APK」 | run #40·#41·#42 **성공**. #41 로그를 직접 읽음: versionName 1.3.0 · versionCode 15 · 권한 12개에 마이크·음성 모델 없음 · 헤드업 meta-data·`SeagnalApplication` 있음. (#39 는 SDK 설치 단계에서 죽었다 — 워크플로 문제, 고쳤다) |
 | ②-2 빌드 안 검사 | 병합 매니페스트(최종본) 검사 단계 신설 — 마이크 권한·음성 서비스가 있으면, 헤드업 채널·푸시 수신 서비스·`capacitor.config.json` 이 없으면 빌드 실패 | #41·#42 통과 |
 | ③ 독립 검토 | 다른 에이전트 넷이 각기 다른 각도로 — A 옛 APK 호환 · B 네이티브 · C 노출 범위 · D 음성 삭제 | 넷 다 치명·높음 **코드** 결함 없음. B 의 「높음」은 이 문서 §5-3 에 `cap sync` 가 빠진 것(고쳤다). 반영·기각 내역: `location_alert.design.md` §19.8, 이 문서 §3 |
-| ④ 실기기 — 헤드업 | 시험용 APK 를 폰에 깔고 푸시를 받아 본다 | **아직 — 사용자만 할 수 있다** |
+| ④ 실기기 — 헤드업 | 시험용 APK 를 폰에 깔고 푸시를 받아 본다 | **확인됨(2026-11-20, 사용자 실기기)** — 시험용 APK(run #45 산출물)를 시험 폰에 깔고 「이 휴대폰에만 보내기 (시험)」로 보냄. 사용자 원문: *「시험 휴대폰에서 정상적으로 화면 앞 헤드업 알림이 떴어.」* · *「앱을 끈 상태에서 확인한거야.」* (이 작업 환경에서 직접 본 것은 아니다 — 사용자 보고) |
+| ④-2 스토어용 서명본 | GitHub Actions 「Build Release AAB (스토어용)」 | run #3(2026-11-20) **성공** — `SEAGNAL-1.3.0-15-release.aab`. 로그·파일로 확인: 병합 매니페스트(release) 검사 통과 · `jar verified` · 서명 인증서 SHA-1 `9C:C8:DA:CA:45:FB:63:90:80:6F:C2:55:C6:A7:04:58:24:2D:AD:2A`(키 `android/seagnal-release-key`, 소유자 표시 CN=JS_Shin). ⚠Play 에 등록된 업로드 키와 같은지는 **아직 모른다** — 내부 테스트에 올려 보면 안다 |
+| ④-3 Play 내부 테스트 → 프로덕션 제출 | 17 (1.3.0) | **2026-11-20 사용자 확인**: 내부 테스트로 스토어판 1.1.1 → 16 → 17 업데이트 정상 · 앱 열림 · 새 아이콘 · 앱을 끈 상태 헤드업 정상. 지원 기기 손실 0(전화·태블릿·TV·크롬북). 「앱 콘텐츠」 신고서 경고·빨간 띠 사라짐, 「정책 상태」 문제 없음. 프로덕션 「전체 출시」(100%)로 검토 제출 — 빠른 검사의 「android.hardware.screen.portrait 필수 기능」 경고는 1.1.1 에도 있던 세로 고정(screenOrientation=portrait) 때문이라 「무시하고 계속하기」(사용자 선택). 스토어 아이콘 변경도 함께 검토 중. **검토 결과 대기** |
 | ⑤ 실기기 — 앱 안 업데이트 | Play 「내부 테스트」에 두 버전을 차례로 올려 본다 | **아직 — 사용자만 할 수 있다** |
 
 이 작업 환경에는 휴대폰도 Play 스토어도 없다. **④⑤를 통과하기 전에는 일반 사용자에게 출시하지 않는다.**
+
+## 4-2. ★GPS 필수 선언 — 내부 테스트에 올리자마자 Play 가 잡은 것 (2026-11-20)
+
+1.3.0(versionCode 15)을 Play 「내부 테스트」에 올리니 「미리보기 및 확인」에 경고가 떴다(사용자 화면 캡처):
+
+| 폼 팩터 | 마지막 출시 | 더 이상 지원 안 됨 | 이번 출시 |
+|---|---|---|---|
+| 전화 | 12,543 | 223 (-2%) | 12,320 |
+| 태블릿 | 6,844 | 2,365 (-35%) | 4,479 |
+| TV | 4 | 3 | 1 |
+| Chromebook | 77 | 77 (-100%) | 0 |
+
+Play 가 적은 이유: **「필요한 기능을 지원하지 않습니다 — 시스템 기능」**. 경고문: *「이미 이러한 기기에 앱을 설치한 사용자에게 업데이트가 제공되지 않습니다.」*
+
+- **원인(파일로 확인)**: 번들의 최종 매니페스트에 필수 기능이 `android.hardware.location.gps` 하나 있었다.
+  `@capacitor-community/background-geolocation` 플러그인 매니페스트가 `<uses-feature android:name="android.hardware.location.gps" />` 를 끼워 넣는다(required 기본값 true).
+  우리 소스 매니페스트에는 없는 줄이라 **소스만 봐서는 안 보인다.**
+- **고침**: `AndroidManifest.xml` 에 같은 기능을 `android:required="false"` + `tools:replace="android:required"` 로 선언(병합 규칙이 "하나라도 true 면 true" 라서 덮어써야 한다).
+  GPS 가 없어도 안전한 까닭: 플러그인은 FusedLocationProvider, 우리 `LocationAlertLocator` 는 provider 마다 `isProviderEnabled`·try/catch 를 거쳐 NETWORK 로 넘어간다.
+- **다시 못 들어오게**: 두 빌드 절차(`build-apk.yml`·`build-release-aab.yml`)의 병합 매니페스트 검사에 **「필수로 선언된 기기 기능이 하나라도 있으면 실패」** 를 넣었다.
+- **버전**: 15 는 Play 에 한 번 올려 번호가 쓰였다 → **versionCode 16**(versionName 은 그대로 1.3.0). 15 는 출시하지 않았다(사용자: *「지금 이 버전으로 올리지 말고.」*).
+- **교훈**: 이 검사는 디버그 빌드에도 처음부터 넣을 수 있었다. 권한은 병합 매니페스트로 봤는데 **기능(uses-feature)은 안 봤다** — Play 의 기기 필터는 권한이 아니라 기능으로 건다.
+- **빌드로 확인한 것(2026-11-20)**: Build Release AAB run #5 · Build Debug APK run #47 **성공**(커밋 `9f55f5f1`).
+  release 병합 매니페스트에 실제 `uses-feature` 태그는 하나, `android:required="false"`. 받은 번들을 직접 열어 15 와 견줬다 —
+  **15: gps 태그에 required 속성 없음(=필수) → 16: required=false.** 서명 인증서 SHA-1 은 15 와 같다(`9C:C8:DA:CA:…:2D:AD:2A`), `jar verified`.
+  - 첫 시도(run #46·#4)는 새 검사가 **소스 매니페스트의 설명 주석 속 태그 글자**를 선언으로 세어 실패했다 → 주석을 걷어 낸 뒤 세도록 고쳤다.
+- **아직 모르는 것**: Play 의 지원 기기 수가 실제로 돌아오는지 — 16 을 내부 테스트에 올려 「지원 기기 변경사항」을 다시 봐야 안다.
+- ⚠나머지 경고 2개(가독화 파일 없음 · 네이티브 디버그 기호 없음)는 비정상 종료 분석용 부가 파일 안내다 — 출시를 막지 않는다.
+
+## 4-3. ★백그라운드 위치·위치 전경 서비스 권한을 뺐다 — versionCode 17 (2026-11-20)
+
+16 을 내부 테스트에 올린 뒤 Play 첫 화면에 빨간 띠 「변경사항에 문제가 발견되었습니다」가 떴다. 「정책 상태」는 「발견된 문제 없음」,
+원인은 「정책 및 프로그램 → 앱 콘텐츠」의 **「선언 2개에 주의 필요」** 였다(사용자 화면 캡처):
+- **포그라운드 서비스 권한** — 「선언 기한이 지났습니다」(2024-01-31). *「앱 업데이트를 계속 출시하려면 … 삭제하세요 / 이 선언을 작성하세요」*
+- **위치 정보 액세스 권한** — 「하나 이상의 App Bundle 또는 APK 의 매니페스트에 위치 정보 액세스 권한이 포함되어 있습니다」
+
+둘 다 「위치 기반 기상 정보 제공」(앱이 꺼져 있을 때 위치 확인) 하나 때문이다. 이 기능은 지금 **관리자에게만** 보여 검토자가 기능을 볼 수 없다 →
+신고서를 내도 거절될 가능성이 크고, 거절되면 헤드업·앱 안 업데이트가 든 업데이트 전체가 막힌다.
+사용자 결정: *「위치기반 빼자.(2개 기능)」*
+
+- 뺀 것: `ACCESS_BACKGROUND_LOCATION` · `FOREGROUND_SERVICE_LOCATION` · `FOREGROUND_SERVICE`(매니페스트에서 `tools:node="remove"`),
+  `@capacitor-community/background-geolocation` 플러그인(`package.json` · `capacitor.settings.gradle` · `capacitor.build.gradle`).
+  화면 코드는 이 플러그인을 이미 쓰지 않았다(이벤트 기반 전환 — `location_alert_background.js` 머리말, `test_location_alert_fresh_fix.js` 18 통과).
+- 남긴 것: 전경 위치(`ACCESS_FINE/COARSE_LOCATION`) — 앱을 켠 상태의 위치 기능용. GPS `required="false"` 선언도 남겼다.
+- 영향: 1.3.0 에서는 앱이 꺼져 있을 때 위치 기반 특보 경보가 위치를 얻지 못한다(관리자 전용 기능 — 일반 사용자 영향 없음).
+  켜려고 하면 `LocationPermPlugin.requestBackground` 가 Capacitor 의 "Missing the following permissions in AndroidManifest.xml" 로 거절되고,
+  화면(`location_alert_ui.js` `requestBackgroundLocation`)이 잡아 앱 정보 화면으로 넘긴다 — 앱이 죽지 않는다(코드 확인).
+- 다시 못 들어오게: 두 빌드 절차의 병합 매니페스트 검사에 「백그라운드 위치·전경 서비스 권한이 있으면 실패」를 넣었다.
+- **일반 공개할 때**: 권한·플러그인을 되살리고, Play 신고서 두 개(설명·시연 영상·검토자가 기능을 볼 수 있는 길)를 함께 낸다. 이 검사도 그때 고친다.
+- versionCode 16 → **17**(16 은 내부 테스트에 나갔다). 앱 콘텐츠의 경고는 16 이 남아 있는 동안 계속 보일 수 있다 — 17 로 바꿔 출시한 뒤 다시 본다.
 
 ## 4-1. ★이번이 "첫 스토어 업데이트"다 (2026-11-19 사용자 확인 + 커밋 이력)
 
@@ -223,15 +294,42 @@
      백그라운드 위치·로컬 알림·Preferences 플러그인이 빠져 있었다(지금은 넣어 커밋했다). 그래도 `assets/` 쪽 때문에 sync 는 매번 필요하다.
    - 확인: 빌드 뒤 `android/app/build/intermediates/merged_manifests/release/.../AndroidManifest.xml` 에
      `RECORD_AUDIO` 가 **없고** `default_notification_channel_id` 가 **있는지** 본다.
-3. Android Studio 에서 서명된 번들(AAB)을 만든다 — versionCode 15 · versionName 1.3.0 (이미 올려 뒀다).
+3. Android Studio 에서 서명된 번들(AAB)을 만든다 — versionCode 16 · versionName 1.3.0 (이미 올려 뒀다. 15 는 쓰지 않는다 — §4-2).
+   - ★**깃허브에서 만드는 길(2026-11-20 추가 — 사용자 요청 「깃허브에서 할 수 있도록 해줄래 ?」)**: GitHub → Actions → 「Build Release AAB (스토어용)」 → [Run workflow].
+     끝나면 Artifacts 의 `seagnal-release-aab` 안에 서명된 `.aab` 가 있다. 위 2번(`npm install` → `cap sync`)과 병합 매니페스트 검사를 그 절차가 직접 한다.
+     - 서명 키: 저장소의 **`android/seagnal-release-key`**(PKCS12 · alias `key0` · 2026-02-14 생성 — 사용자가 준 릴리즈 키와 같은 파일, 2026-11-20 지문 대조).
+       비밀번호는 깃허브 Settings → Secrets and variables → Actions 의 **`ANDROID_KEYSTORE_PASSWORD`** 에서만 읽는다(키 비밀번호를 따로 정했으면 `ANDROID_KEY_PASSWORD` 도).
+     - `apk_build/android.keystore`(2025-12-26 · alias `android`)는 **다른 옛 키**다. 처음에 확장자(.jks·.keystore)로만 찾아 이것을 릴리즈 키로 잘못 봤다
+       (등록된 비밀번호로 열리지 않아 run #2 에서 드러났다). 쓰지 않는다.
+     - ⚠**이 저장소는 공개 저장소인데 릴리즈 키 파일이 들어 있다**(전부터 있었다). 비밀번호가 유일한 방어선이다 — 저장소를 비공개로 돌리거나
+       키 파일을 빼는 것은 사용자 결정 사항. 빼기로 하면 파일을 base64 글자로 바꿔 Secrets 의 `ANDROID_KEYSTORE_BASE64` 에 등록한다(있으면 절차가 그것을 쓴다).
+     - 절차가 맨 먼저 키와 비밀번호를 확인한다 — 없거나 틀리면 빌드 전에 멈추고 까닭을 적는다.
+     - ⚠이 키가 **Play 에 등록된 업로드 키와 같은지는 저장소로는 알 수 없다.** Play 콘솔의 업로드 키 인증서 지문과 실행 로그의 「키 인증서 SHA-1」을 견준다.
+       다르면 Play 가 올리기를 거부할 뿐이다(기존 앱·사용자에게는 영향 없음).
 4. Play 콘솔 → 테스트 → **내부 테스트** 에 올리고, 테스터(본인 계정)로 등록한 폰에서 스토어를 통해 설치한다.
    - ★가능하면 **스토어판 1.1.1 이 깔린 폰을 그대로 1.3.0 으로 올려서** 본다 — 실제 사용자가 겪는 길이다
      (옛 「기타」 알림 채널이 이미 있는 상태에서 올라온다. 시험용 APK 로는 이 길을 볼 수 없다).
 5. 헤드업을 다시 확인한다(정식 서명본).
-6. 앱 안 업데이트 확인: versionCode 16 인 번들을 하나 더 만들어 내부 테스트에 올린다 → 15 가 깔린 폰에서 앱을 켠다 →
+6. 앱 안 업데이트 확인: versionCode 17 인 번들을 하나 더 만들어 내부 테스트에 올린다 → 16 이 깔린 폰에서 앱을 켠다 →
    Play 확인 창 → [업데이트] → 내려받기 → 「다시 시작」 띠 → 누르면 16 으로 바뀌는지.
    (스토어가 새 버전을 알아채는 데 시간이 걸릴 수 있다. Play 스토어 앱에서 내 앱 페이지를 한 번 열면 빨라진다.)
 
 ### 5-4. 일반 출시
 1. 내부 테스트를 통과한 번들을 프로덕션으로 승격한다(단계적 출시 권장 — 문제가 보이면 멈출 수 있다).
 2. 관리자 센터 → 버전 탭에서 `latestVersion` 을 올리면 **옛 버전(1.2.2 이하) 사용자**에게 종전 팝업이 뜬다.
+   - ★2026-11-20 안내 창을 **시안 C** 로 바꿨다(사용자 확정 — *「3안 처럼 반영 … 업데이트하러가기 버튼 내 텍스트 바로 아래 플레이스토어로 이동합니다. 라고 작게 명시」* · *「하루(24시간) 뒤 … 이대로 하자.」*):
+     새 아이콘 · 「새 버전이 나왔어요」 · v현재 → **v최신** · 바뀐 점 목록 · [업데이트하러 가기 / Play 스토어로 이동합니다] · [나중에].
+     **[나중에] 를 누르면 24시간 동안 다시 뜨지 않는다**(`seagnal_update_popup_later_at`).
+   - 바뀐 점 목록 = 버전 탭 「업데이트 메시지」. 규칙: **한 줄 = 목록 한 칸 · 줄 맨 앞 이모지 = 아이콘(없으면 •) · 「|」 뒤 = 작은 설명.**
+     버전 탭 **[이 휴대폰에서 미리 보기]** 로 입력한 그대로 창을 띄워 볼 수 있다(저장·발송 없음, 「나중에」 기록도 안 남김).
+   - 이 창은 서버에서 내려가는 화면(`client/capacitor-plugins.js`)이라 **1.1.1 앱에도 그대로 뜬다** — APK 업데이트 불필요.
+   - ★2026-11-20 **[적용]만으로 끝난다**(사용자 확정 — *「적용만으로 끝나게 고쳐놓고 진행하자. 그래야 만약에 문제있어서 1.1.1 버전 3으로 적용만 하면 바로 적용되는거잖아.」*).
+     종전에는 [적용]이 `client/app_version.json` 에 써서 **main 에 무엇이든 머지하면(자동 배포) 저장소 값으로 덮여** 조용히 사라졌다.
+     이제 `local_server/data/app_version.json`(Fly.io 볼륨 — `.dockerignore` 에 빠져 있어 배포가 건드리지 않는다)에 쓰고, `/api/app-version` 이 그것을 먼저 읽는다
+     (`services/app_version_store.js`, 시험 `test_app_version_store.js`). **되돌리기도 [적용] 한 번.**
+   - ★2026-11-20 **시작 화면 맨 아래 「Ver 1.3.0(17) · Updated 2026.11.20」도 [적용]을 따라간다**(사용자 — *「이미지 2에서 내가 버전을 바꾸면 자동으로 반영되도록 해줄래 ? 그 첫 화면 업데이트 내용에 말이야.」*).
+     `client/js/core/app_init.js fillSplashVersion` 이 `/api/app-version` 의 latestVersion·latestVersionCode·updatedAt(적용한 때 — 한국 시각 날짜)로 채운다.
+     지난 값을 휴대폰에 남겨 먼저 보여 주고(시작 화면은 몇 초뿐), 서버를 못 부르면 그 값 → 그것도 없으면 index2.html 의 글자.
+     ⚠이 줄은 **스토어 최신판** 번호다 — 휴대폰에 깔린 판이 아니다(옛 앱에서도 최신판 번호가 보인다). ⚠한 번 적용한 뒤에는 저장소의 `client/app_version.json` 을 고쳐도 반영되지 않는다.
+   - ⚠**출시가 100% 퍼지고 하루 이틀 뒤에** `latestVersion` 을 올린다 — 그 전에 올리면 스토어에 아직 업데이트가 안 보이는 사용자가 생긴다.
+     1.3.0 이후 앱은 이 창 대신 Play 의 앱 안 업데이트 창이 먼저 뜬다(관리자 센터 값과 무관).

@@ -5,6 +5,7 @@
  *         실패가 시작될 때 1번, 다시 받아지면 「복구」 1번. 같은 실패가 이어지는 동안은 다시 보내지 않는다.
  *         시정 예측(visibility)만 연속 3번 실패해야 보낸다(사용자 확정 2026-10-15, 아래 [사용자 결정]).
  *         특보(warnings)는 실패가 5분 이상 이어져야 보낸다(사용자 확정 2026-10-17, 아래 [사용자 결정]).
+ *         너울(swell)은 실패가 12시간 이상 이어져야 보내고, 문장에 발생 시각을 적는다(사용자 확정 2026-11-22, 아래 [사용자 결정]).
  * ----------------------------------------------------------------------------
  * [사용자 결정 2026-10-15 원문]
  *   「이안류, mmis는 데이터를 호출했을 때 받아올 수 없다면 그 때 알려줘 보통 천기가 그런 경우가 많아.」
@@ -15,6 +16,11 @@
  *   → 특보는 이번 연속 실패의 「처음 실패 시각」(since)부터 5분이 지난 뒤의 첫 실패 보고 때 1통.
  *     시도 횟수가 아니라 시각으로 잰다(주기가 바뀌어도 「5분」이 그대로 5분이게). 그 전에 한 번이라도 성공하면
  *     연속이 끊기고 처음부터 다시 잰다 — 실패 알림을 보내지 않았으니 「복구」도 보내지 않는다.
+ * [사용자 결정 2026-11-22 원문] (관리자 휴대폰에 너울 「수집 실패 11:32 복구 / 14:11 실패 / 14:41 복구 / 17:33 실패 / 19:33 복구」가 잇달아 온 화면을 보고)
+ *   「오류가 발생한 뒤 12시간 이상동안 복구가 안될 경우에만 오류 발생 푸시알림을 보낼 수 있도록 수정하고, 발생 시각도 적어줄 수 있도록 해줘.」
+ *   「너울 수집 관련해서만 수정하고 다른 부분은 수정하지 않도록 해줘」
+ *   → 너울은 특보와 같은 장치(minFailMs)를 12시간으로 건다. 12시간 안에 한 번이라도 받으면 실패·복구 둘 다 안 보낸다.
+ *     실패 문장은 「… 수집 실패 — 시간초과, 발생 11/22 14:11 · 12시간 넘게 복구 안 됨」(failNote). 다른 항목 문장은 그대로.
  *
  * [어떻게 「한 번만」을 지키나 — 상태(state)이지 사건(event)이 아니다 (CLAUDE.md 결정로그 ①)]
  *   항목마다 「관리자가 지금 무엇을 알고 있나」(notified)를 파일에 남긴다. 보고가 올 때마다
@@ -61,7 +67,10 @@ const ITEMS = {
     ripCurrent: {},
     warnings: { label: '해상 특보·육상 강풍특보 (기상청 MMIS)', minFailMs: 5 * 60 * 1000 },
     gale: { push: false },
-    swell: {},
+    // 너울(services/swell_smallzone — 1시간마다 확인). 사용자 확정 2026-11-22: 12시간 넘게 복구 안 될 때만 실패 1통.
+    //   1시간마다 보고하므로 처음 실패에서 12시간이 지난 뒤의 첫 실패 보고(늦어도 약 1시간 뒤) 때 보낸다.
+    //   failNote: 실패 문장을 「발생 {시각} · {failNote}」 꼴로 쓴다(이 칸이 있는 항목만 — 다른 항목 문장은 그대로).
+    swell: { minFailMs: 12 * 60 * 60 * 1000, failNote: '12시간 넘게 복구 안 됨' },
     visibility: { threshold: 3 },
     marineBuoys: {},
     marineWhBuoys: {},
@@ -213,11 +222,16 @@ function createAlerter({ file = DEFAULT_FILE, clock = Date.now, send = defaultSe
     const threshold = (id) => ITEMS[id].threshold || 1;
     const minFailMs = (id) => ITEMS[id].minFailMs || 0;
 
-    /** 보낼 푸시 문장. 예: '시정 예측 (기상청 MMIS) 수집 실패 — 빈 응답, 10/16 03:00부터' */
+    /**
+     * 보낼 푸시 문장. 예: '시정 예측 (기상청 MMIS) 수집 실패 — 빈 응답, 10/16 03:00부터'
+     *   failNote 가 있는 항목(너울): '너울 위험등급 (기상청 MMIS) 수집 실패 — 시간초과, 발생 11/22 14:11 · 12시간 넘게 복구 안 됨'
+     */
     function message(id, s, failing) {
-        const name = nameOf(id);
+        const name = nameOf(id),
+            note = ITEMS[id].failNote,
+            at = fmtKst(Date.parse(s.since));
         return failing
-            ? { title: '자료 수집 실패', body: name + ' 수집 실패 — ' + (s.reason || '기타 오류') + ', ' + fmtKst(Date.parse(s.since)) + '부터' }
+            ? { title: '자료 수집 실패', body: name + ' 수집 실패 — ' + (s.reason || '기타 오류') + ', ' + (note ? '발생 ' + at + ' · ' + note : at + '부터') }
             : { title: '자료 수집 복구', body: name + ' 수집 복구 — ' + fmtKst(Date.parse(s.okSince)) };
     }
 
@@ -319,11 +333,11 @@ function createAlerter({ file = DEFAULT_FILE, clock = Date.now, send = defaultSe
                 }
             } else {
                 s.streak = Number.isInteger(streak) && streak > 0 ? streak : s.streak + 1;
-                // 기다리는 항목(특보): 아직 안 알렸는데 지난 실패 보고가 기다림의 3배(15분)보다 오래전이면 그 사이 보고가 끊긴 것
+                // 기다리는 항목(특보·너울): 아직 안 알렸는데 지난 실패 보고가 기다림의 3배(특보 15분·너울 36시간)보다 오래전이면 그 사이 보고가 끊긴 것
                 //   (재기동·수집 일시정지) — 옛 since 로 재면 한 번의 끊김에도 바로 푸시가 나간다(독립 검토 1, 2026-10-17). 새로 잰다.
                 if (minFailMs(id) && !s.notified && s.lastFailAt && Date.parse(at) - Date.parse(s.lastFailAt) > 3 * minFailMs(id)) { s.since = null; s.streak = 1; }
                 s.since = isIso(since) ? since : s.since || at;
-                // 기다리는 항목(특보): 처음 실패 시각이 지금보다 뒤면(시계가 뒤로 감) 지금부터 다시 잰다 —
+                // 기다리는 항목(특보·너울): 처음 실패 시각이 지금보다 뒤면(시계가 뒤로 감) 지금부터 다시 잰다 —
                 //   그대로 두면 시계가 그 시각을 따라잡을 때까지 실패 알림이 묶인다. 늦어져도 최대 5분 더.
                 if (minFailMs(id) && Date.parse(s.since) > clock()) s.since = at;
                 s.reason = reasonOf(error);

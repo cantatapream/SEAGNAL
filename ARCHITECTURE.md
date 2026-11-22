@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 132개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 137개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -32,6 +32,7 @@ client/js/
 │   ├── admin_collect.js
 │   ├── admin_data_status.js
 │   ├── admin_location_status.js
+│   ├── admin_news_hub.js
 │   ├── admin_report.js
 │   ├── admin_station_briefing.js
 │   ├── admin_survey.js
@@ -67,7 +68,7 @@ client/js/
 │   │   ├── render.js
 │   │   ├── zone_avg.js
 │   ├── main-accordion/
-│   │   └── main_accordion_solo.js
+│   │   ├── main_accordion_solo.js
 │   ├── marine-chart/
 │   │   ├── marine_chart1.js
 │   │   ├── marine_chart2.js
@@ -137,12 +138,18 @@ client/js/
 │   │   ├── image_compress.js
 │   │   ├── markdown_import.js
 │   │   ├── promo.js
-│   └── comments/
-│       ├── promo_comment1.js
-│       ├── promo_comment2.js
-│       ├── promo_comment3.js
-│       ├── promo_comment4.js
-│       ├── promo_comment5.js
+│   ├── comments/
+│   │   ├── promo_comment1.js
+│   │   ├── promo_comment2.js
+│   │   ├── promo_comment3.js
+│   │   ├── promo_comment4.js
+│   │   ├── promo_comment5.js
+│   ├── fishcond/
+│   │   ├── fishcond.js
+│   ├── hub/
+│   │   ├── notice_hub.js
+│   └── news/
+│       ├── news.js
 ├── ocean-map/  ← [탭2] 해양종합정보
 │   ├── bottom-sheet/
 │   │   ├── ocean_bottom_sheet_vsby.js
@@ -191,6 +198,7 @@ client/js/
 ├── shared/  ← 공용 재료(유틸·UI·데이터)
 │   ├── ui/
 │   │   ├── locate_toast.js
+│   │   ├── pull_refresh.js
 │   │   ├── text_fit.js
 │   │   ├── ui_modal.js
 │   │   ├── wheel_date_picker.js
@@ -218,6 +226,7 @@ client/js/
 | `admin_collect.js` | 특보 수집 테스트, 결과 팝업, 방문자 통계 차트 |
 | `admin_data_status.js` | 관리자 → 점검 → 「데이터 수집현황」 화면(수집 목록·현재 원천 상태·오류·복구 이력) |
 | `admin_location_status.js` | 관리자 센터 "위치 기반" 탭 — ①설정 화면 「위치 기반 기상 정보 제공」을 누구에게 보일지 고르는 버튼 3개 |
+| `admin_news_hub.js` | 통합관리자 → 게시판 관리 → 「어황정보」·「오늘의 뉴스」 칸(2026-11-21 시안 8-2·8-3). |
 | `admin_report.js` | 관리자 제보 관리 + 차단 관리 UI |
 | `admin_station_briefing.js` | 통합관리자 → AI 탭 → 하위 탭 「AI 브리핑」(설계서 §11.6 결정 16·17 · 화면 정리 §11.10.50) — 연 |
 | `admin_survey.js` | 통합 관리자 센터 - 설문조사 탭 UI (생성/현황/결과분석/이력관리) |
@@ -418,6 +427,24 @@ client/js/
 | `promo_comment4.js` | 게시글 댓글 시스템 - 답글 입력 및 관리자 전용 기능 (원문 보기) |
 | `promo_comment5.js` | 게시글 댓글 시스템 - 댓글 섹션 초기화 진입점 및 새로고침 |
 
+### `client/js/notice/fishcond/`
+
+| 파일 | 역할 |
+|------|------|
+| `fishcond.js` | 「뉴스·공지·어황」 탭의 어황정보 화면 — 국립수산과학원 어황정보 글 목록(공지사항과 같은 모양, 시안 7-1 A)과 |
+
+### `client/js/notice/hub/`
+
+| 파일 | 역할 |
+|------|------|
+| `notice_hub.js` | 「뉴스·공지·어황」 탭의 안쪽 탭 3칸(오늘의 뉴스 · 공지사항 · 어황정보)을 바꾸고, 하단 탭을 누를 때 어느 칸부터 보일 |
+
+### `client/js/notice/news/`
+
+| 파일 | 역할 |
+|------|------|
+| `news.js` | 「뉴스·공지·어황」 탭의 오늘의 뉴스 화면 — 날짜줄(◀ 날짜 ▶ [오늘] … [달력]), 「최종 업데이트」, 뉴스 카드 목록 |
+
 ### `client/js/ocean-map/bottom-sheet/`
 
 | 파일 | 역할 |
@@ -505,6 +532,7 @@ client/js/
 | 파일 | 역할 |
 |------|------|
 | `locate_toast.js` | 「내 위치」(GPS) 버튼을 눌렀을 때 화면 하단에 진행 토스트를 띄우고 현재 위치를 가져온다. |
+| `pull_refresh.js` | 「당겨서 새로고침」 — 화면 맨 위에서 손가락으로 아래로 당겼다 놓으면 파란 동그라미가 돌며 목록을 다시 받는다. |
 | `text_fit.js` | 긴 안내 글을 읽기 좋게 줄을 맞춘다(여러 화면이 함께 쓰는 도구). |
 | `ui_modal.js` | 공통 UI 모달 (기상청 iframe, SEAGNAL 시스템 모달) |
 | `wheel_date_picker.js` | 앱의 모든 날짜칸(<input type="date">)·날짜시각칸(<input type="datetime-local">)을 누 |

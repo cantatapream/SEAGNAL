@@ -9,11 +9,11 @@
  * - GET /api/vapid-public-key → VAPID 공개키 제공 (클라이언트 구독용)
  * - POST /api/subscribe → 알림 구독 추가/갱신 (Web Push + FCM 이중 지원)
  * - POST /api/unsubscribe → 알림 구독 취소
- * - POST /api/push-custom → 커스텀/개인화 푸시 발송 (Broadcast + Personalized)
+ * - POST /api/push-custom → 커스텀/개인화 푸시 발송 (Broadcast + Personalized) — 관리자 또는 서버 내부만(2026-11-20)
  * - POST /api/admin/push-test-device → [관리자] 이 휴대폰 한 대에만 시험 발송(services/push_device_test.js)
  * - GET /api/push-history → 발송 이력 조회
- * - DELETE /api/push-history/:id → 개별 이력 삭제
- * - DELETE /api/push-history → 전체/선택 이력 삭제
+ * - DELETE /api/push-history/:id → 개별 이력 삭제 — 관리자만(2026-11-20)
+ * - DELETE /api/push-history → 전체/선택 이력 삭제 — 관리자만(2026-11-20)
  *
  * [연계 파일]
  * - services/push_helpers.js → 구역 매칭, 메시지 생성 로직
@@ -288,7 +288,9 @@ router.post('/api/unsubscribe', (req, res) => {
 // ============================================================================
 // 커스텀 푸시 발송 API (Broadcast + Personalized)
 // ============================================================================
-router.post('/api/push-custom', async (req, res) => {
+// ★2026-11-20 관리자 또는 서버 자신(자동 특보·태풍 푸시)만 — services/internal_push_auth.js. 종전에는 누구나 부를 수 있었다.
+const { requireAdminOrInternal } = require('../services/internal_push_auth');
+router.post('/api/push-custom', requireAdminOrInternal, async (req, res) => {
     const { title, content, targetZones, isManualGroupSend, payload, sendToAllSubscribers, adminToken } = req.body;
 
     // 수동 그룹 발송 모드 (개인화 필터링 적용)
@@ -647,6 +649,30 @@ router.post('/api/admin/push-test-device',
     });
 
 // ============================================================================
+// [임시] 자동 푸시 경로 점검 — POST /api/admin/push-auto-path-check (2026-11-20, 사용자 「자동 푸시 경로 점검 버튼 임시로 만들어보자.」)
+// ============================================================================
+//   자동 특보·태풍 푸시가 쓰는 길(내부 열쇠)이 운영 서버에서 열리는지 본다(services/push_auto_path_check.js).
+//   - 특보 길: 이 휴대폰 한 대에만 실제로 보낸다(push-custom 관리자 테스트 모드 — 발송 기록 없음).
+//   - 태풍 길: 제목·본문 없이 불러 문지기만 본다(400 = 통과, 401 = 막힘) — 발송 없음.
+//   - 관리자 열쇠가 있어야 부를 수 있다. 확인이 끝나면 이 라우트·서비스·버튼을 지워도 된다.
+router.post('/api/admin/push-auto-path-check',
+    (req, res, next) => require('../services/admin_auth').requireAdminToken(req, res, next),
+    async (req, res) => {
+        res.setHeader('Cache-Control', 'no-store');
+        try {
+            const check = require('../services/push_auto_path_check');
+            const v = check.validate(req.body && req.body.token);
+            if (!v.ok) return res.status(400).json({ ok: false, error: v.error });
+            const out = await check.run(v.token, { fetchImpl: fetch, headers: require('../services/internal_push_auth').internalHeaders });
+            console.log(`[Push/auto-path-check] tok=${_maskTok(v.token)} 특보길=${out.custom && out.custom.status} 태풍길=${out.typhoon && out.typhoon.status}`);
+            return res.json(out);
+        } catch (e) {
+            console.error('[Push/auto-path-check] 오류:', e && e.message);
+            return res.status(500).json({ ok: false, error: e.message });
+        }
+    });
+
+// ============================================================================
 // 태풍 발생/소멸 푸시 발송 API (전국 단위 브로드캐스트)
 // ============================================================================
 //   - services/typhoon_notifier.js 가 호출. 특보(zone 기반 개인화)와 달리
@@ -656,7 +682,7 @@ router.post('/api/admin/push-test-device',
 //       nightCohort 'on'  → 야간수신 ON 사용자만 (야간 즉시 발송)
 //       nightCohort 'off' → 야간수신 OFF 사용자만 (아침 보류분 발송)
 //       (없음)            → 전원(옵트인) (주간 발송)
-router.post('/api/push-typhoon', async (req, res) => {
+router.post('/api/push-typhoon', requireAdminOrInternal, async (req, res) => {
     const { title, body, url, nightCohort } = req.body || {};
     if (!title || !body) return res.status(400).json({ error: 'title/body required' });
     const linkUrl = url || '/?assistant=ocean&layer=typhoon';
@@ -798,7 +824,7 @@ router.get('/api/push-history', (req, res) => {
 });
 
 // 이력 삭제 (개별)
-router.delete('/api/push-history/:id', (req, res) => {
+router.delete('/api/push-history/:id', requireAdminOrInternal, (req, res) => {
     try {
         const id = parseInt(req.params.id);
         if (!fs.existsSync(HISTORY_FILE)) return res.json({ success: true });
@@ -813,7 +839,7 @@ router.delete('/api/push-history/:id', (req, res) => {
 });
 
 // 이력 삭제 (전체 또는 선택)
-router.delete('/api/push-history', (req, res) => {
+router.delete('/api/push-history', requireAdminOrInternal, (req, res) => {
     try {
         const { ids } = req.body;
 

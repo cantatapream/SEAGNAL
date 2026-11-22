@@ -1339,9 +1339,11 @@ router.post('/api/admin/maintenance', (req, res) => {
 // 앱 버전 관리
 // ============================================================================
 
-const APP_VERSION_FILE = path.join(__dirname, '..', '..', 'client', 'app_version.json'); // STEP 7: 브라우저 fetch 대상이므로 client/
+// ★2026-11-20 저장 위치를 local_server/data 로 옮겼다(services/app_version_store.js) — 종전 client/app_version.json 은
+//   배포 때마다 저장소 값으로 덮여 [적용]한 값이 사라졌다. 사용자 확정: 「적용만으로 끝나게 고쳐놓고 진행하자」.
+const appVersionStore = require('../services/app_version_store');
 
-/** 앱 버전 정보 수정 */
+/** 앱 버전 정보 수정 — 관리자 센터 버전 탭 [적용]. 저장 즉시 /api/app-version 이 새 값을 준다. */
 router.post('/api/admin/app-version', (req, res) => {
     try {
         const { latestVersion, latestVersionCode, updateMessage } = req.body;
@@ -1350,18 +1352,11 @@ router.post('/api/admin/app-version', (req, res) => {
             return res.status(400).json({ error: 'latestVersion과 latestVersionCode는 필수입니다.' });
         }
 
-        // 기존 파일 읽기
-        let config = {};
-        if (fs.existsSync(APP_VERSION_FILE)) {
-            try { config = JSON.parse(fs.readFileSync(APP_VERSION_FILE, 'utf8')); } catch (_) { /* 앱 버전 파일이 없거나 깨졌으면 던진다 — 빈 설정으로 본다(강제 업데이트 안 검) */ }
-        }
-
-        // 값 업데이트
-        config.latestVersion = latestVersion;
-        config.latestVersionCode = parseInt(latestVersionCode, 10);
-        if (typeof updateMessage === 'string') config.updateMessage = updateMessage;
-
-        fs.writeFileSync(APP_VERSION_FILE, JSON.stringify(config, null, 2), 'utf8');
+        const config = appVersionStore.write({
+            latestVersion,
+            latestVersionCode: parseInt(latestVersionCode, 10),
+            updateMessage,
+        });
         console.log(`[Admin] 앱 버전 업데이트: v${latestVersion} (code: ${latestVersionCode})`);
         res.json({ success: true, config });
     } catch (e) {

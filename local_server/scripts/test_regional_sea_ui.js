@@ -66,15 +66,6 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
 (async () => {
     let browser, server;
     try {
-        // 기온 칸 「오늘 판인가」 — 한국 시간 기기의 KST 00~09시(시각과 무관하게 늘 본다: 기기 시간대를 Asia/Seoul 로, 지금을 11-23 01:40 KST 로 고정해 함수만 돌린다)
-        //   2026-11-23 01:3x 이 시험이 실제 화면에서 떨어져 찾았다 — getUTC* 로 읽어 어제 날짜와 견주던 버그.
-        await check('기온 칸: 한국 시간 기기 00~09시에도 오늘 판을 오늘로 본다(어제 판은 아니다)', async () => {
-            const src = fs.readFileSync(path.join(__dirname, '..', '..', 'client/js/forecast/outlook/marine_forecast.js'), 'utf8');
-            const fn = src.slice(src.indexOf('function isPdfTemperatureForToday'), src.indexOf('\n}\n', src.indexOf('function isPdfTemperatureForToday')) + 2);
-            const code = `const RealDate = Date; const FIX = RealDate.parse('2026-11-22T16:40:00Z'); global.Date = class extends RealDate { constructor(...a) { super(...(a.length ? a : [FIX])); } static now() { return FIX; } };\n${fn}\nprocess.stdout.write(JSON.stringify([isPdfTemperatureForToday('11.23. 05:00'), isPdfTemperatureForToday('11.22. 17:00')]));`;
-            const out = require('child_process').execFileSync(process.execPath, ['-e', code], { env: Object.assign({}, process.env, { TZ: 'Asia/Seoul' }) }).toString();
-            if (out !== '[true,false]') throw new Error('오늘 판·어제 판 판정: ' + out);
-        });
         const app = express();
         app.get('/api/regional-forecast', (req, res) => res.json(REGIONAL));
         app.get('/api/marine-forecast', (req, res) => res.json({ ultraShort: null, shortTerm: null }));
@@ -286,6 +277,15 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
         await check('요약 칸이 배열이 아니면 상자만 안 그리고 카드는 그린다', async () => {
             assert.equal(await odd.$('.regional-forecast-sea'), null);
             assert.ok(await odd.$('.regional-forecast-summary .regional-forecast-line'));
+        });
+        await check('기온 상자 「오늘」 판정은 한국 시간 기기에서 자정~09시에도 한국 날짜로 본다(2026-11-21 버그 — 시각 고정해 매일 확인)', async () => {
+            const r = await jeju.evaluate(() => {
+                const Real = Date, fixed = Real.UTC(2026, 10, 20, 15, 30);   // 2026-11-21 00:30 KST (UTC 로는 아직 20일)
+                class Fake extends Real { constructor(...a) { if (a.length) super(...a); else super(fixed); } static now() { return fixed; } }
+                window.Date = Fake;
+                try { return [isPdfTemperatureForToday('11.21. 05:00'), isPdfTemperatureForToday('11.20. 05:00'), new Real().getTimezoneOffset()]; } finally { window.Date = Real; }
+            });
+            assert.deepStrictEqual(r, [true, false, -540]);
         });
         await check('페이지 오류가 없다', async () => { assert.deepStrictEqual(errors, []); });
         console.log('스크린샷:', SHOT);

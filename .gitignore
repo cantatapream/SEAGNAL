@@ -262,3 +262,6 @@ local_server/data/bulletin_escalation.json
 local_server/data/bulletin_escalation.json.tmp
 local_server/data/bulletin_escalation_ai.json
 local_server/data/bulletin_escalation_ai.json.tmp
+
+# 앱 최신 버전 정보 — 관리자 센터 [적용]이 서버 볼륨에 쓴다(services/app_version_store.js). 처음 값은 client/app_version.json
+local_server/data/app_version.json

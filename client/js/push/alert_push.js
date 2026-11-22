@@ -504,6 +504,8 @@ window.renderCustomPushTab = async function (container) {
     container.innerHTML = '<div style="background:rgba(255,255,255,0.03);border-radius:12px;padding:16px;margin-bottom:20px;border:1px solid rgba(255,255,255,0.08);"><div style="font-weight:600;color:#fff;margin-bottom:15px;font-size:1rem;display:flex;align-items:center;gap:8px;"><i class="fa-solid fa-envelope"></i> 커스텀 알림 발송</div><div style="margin-bottom:15px;padding:12px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:10px;"><div style="display:flex;align-items:center;gap:10px;"><input type="checkbox" id="check-send-all-subscribers" onchange="window.toggleSendAllSubscribers(this.checked)" style="width:18px;height:18px;cursor:pointer;accent-color:#ef4444;"><label for="check-send-all-subscribers" style="cursor:pointer;font-size:0.95rem;color:#fca5a5;font-weight:700;"><i class="fa-solid fa-users" style="margin-right:6px;"></i>구독자 전원에게 발송</label><span style="font-size:0.75rem;color:#94a3b8;margin-left:auto;">(푸시 알림 허용 사용자 전체)</span></div></div>' +
         // [시험 발송 2026-11-20] 이 화면을 연 휴대폰 한 대에만 보낸다 — 새 앱의 헤드업 알림 확인용. 켜면 해역·전원 선택은 잠근다.
         '<div style="margin-bottom:15px;padding:12px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);border-radius:10px;"><div style="display:flex;align-items:center;gap:10px;"><input type="checkbox" id="check-send-this-device" onchange="window.toggleSendThisDevice(this.checked)" style="width:18px;height:18px;cursor:pointer;accent-color:#3b82f6;"><label for="check-send-this-device" style="cursor:pointer;font-size:0.95rem;color:#93c5fd;font-weight:700;"><i class="fa-solid fa-mobile-screen" style="margin-right:6px;"></i>이 휴대폰에만 보내기 (시험)</label></div><div id="this-device-options" style="display:none;margin-top:10px;padding-left:28px;"><div style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="check-this-device-delay" checked style="width:16px;height:16px;cursor:pointer;"><label for="check-this-device-delay" style="cursor:pointer;font-size:0.85rem;color:#cbd5e1;">10초 뒤에 보내기 — 그 사이 앱을 끄면 꺼진 상태를 시험할 수 있어요</label></div><div style="font-size:0.75rem;color:#94a3b8;margin-top:6px;line-height:1.5;">지금 이 화면을 연 휴대폰 한 대에만 갑니다. 다른 구독자에게는 가지 않고, 발송 이력에도 남지 않습니다.</div></div></div>' +
+        // [임시] 자동 푸시 경로 점검(2026-11-20) — 자동 특보·태풍 푸시가 쓰는 서버 내부 길을 이 휴대폰 한 대로 확인한다. 확인이 끝나면 지워도 된다.
+        '<div style="margin-bottom:15px;padding:12px;background:rgba(16,185,129,0.07);border:1px dashed rgba(16,185,129,0.4);border-radius:10px;"><button type="button" id="btn-auto-push-path-check" onclick="window.runAutoPushPathCheck(this)" style="padding:9px 14px;background:rgba(16,185,129,0.15);color:#6ee7b7;border:1px solid rgba(16,185,129,0.45);border-radius:8px;cursor:pointer;font-size:0.88rem;font-weight:700;"><i class="fa-solid fa-route" style="margin-right:6px;"></i>자동 푸시 경로 점검 (임시)</button><div style="font-size:0.75rem;color:#94a3b8;margin-top:6px;line-height:1.5;">자동 특보·태풍 푸시가 쓰는 길이 열려 있는지 봅니다. 특보 길은 <b>이 휴대폰 한 대에만</b> 점검 알림을 보내고, 태풍 길은 보내지 않고 통과 여부만 확인합니다.</div></div>' +
         '<div id="zone-selection-area" style="margin-bottom:15px;"><label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:10px;">발송 대상 해역 선택 (Hierarchy)</label><div style="background:rgba(0,0,0,0.3);padding:15px;border-radius:12px;max-height:350px;overflow-y:auto;border:1px solid rgba(255,255,255,0.05);"><div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;gap:10px;"><input type="checkbox" id="check-all-zones" onchange="window.toggleAllZones(this.checked)" style="width:18px;height:18px;cursor:pointer;"><label for="check-all-zones" style="cursor:pointer;font-size:0.9rem;color:#fff;font-weight:700;">전체 해역 선택</label></div>' + accordionHtml + '</div></div><div style="margin-bottom:15px;"><label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:6px;">알림 제목</label><input type="text" id="custom-push-title" placeholder="예: 🌊 긴급 해양 안전 안내" oninput="window.updateCustomPushPreview()" style="width:100%;padding:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;box-sizing:border-box;outline:none;"></div><div style="margin-bottom:15px;"><label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:6px;">알림 내용</label><textarea id="custom-push-content" placeholder="직접 작성하실 알림 내용을 입력해주세요." oninput="window.updateCustomPushPreview()" style="width:100%;height:100px;padding:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;resize:none;box-sizing:border-box;outline:none;line-height:1.4;"></textarea><div style="text-align:right;font-size:0.75rem;color:#64748b;margin-top:4px;" id="custom-push-char-count">0 / 500자</div></div><div style="background:rgba(0,0,0,0.3);padding:20px;border-radius:16px;margin-bottom:20px;border:1px solid rgba(255,255,255,0.05);"><div style="font-size:0.8rem;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Smartphone Preview</div><div style="background:#fff;border-radius:20px;padding:16px;box-shadow:0 10px 25px rgba(0,0,0,0.3);position:relative;"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="width:28px;height:28px;background:#1e293b;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.75rem;">🌊</div><div style="font-weight:800;color:#1e293b;font-size:0.95rem;flex:1;">SEA:GNAL</div><div style="font-size:0.75rem;color:#94a3b8;">지금</div></div><div id="preview-title" style="font-weight:800;margin-bottom:4px;color:#000;font-size:1.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">(제목 미리보기)</div><div id="preview-content" style="color:#475569;font-size:1rem;line-height:1.4;white-space:pre-line;display:-webkit-box;-webkit-line-clamp:10;-webkit-box-orient:vertical;overflow:hidden;">(내용 미리보기)</div></div></div><div style="display:flex;justify-content:space-between;align-items:center;"><div style="font-size:0.95rem;color:#cbd5e1;">발송 대상: <span style="font-weight:800;color:#3b82f6;" id="target-zone-count">0</span>개 구역 <span id="target-recipient-count" style="color:#818cf8;font-size:0.85rem;"></span></div><div style="display:flex;gap:12px;"><button onclick="window.switchAlertAdminTab(\'custom\')" style="padding:12px 20px;background:rgba(255,255,255,0.08);border:none;border-radius:10px;color:#cbd5e1;cursor:pointer;font-weight:600;">초기화</button><button onclick="window.confirmCustomPush()" style="padding:12px 28px;background:linear-gradient(135deg,#ef4444,#b91c1c);border:none;border-radius:10px;color:#fff;font-weight:700;cursor:pointer;box-shadow:0 10px 20px rgba(239,68,68,0.3);">푸시 발송하기</button></div></div><div id="custom-push-confirm-overlay" style="display:none;position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:100;border-radius:16px;backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:20px;"><div style="background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:30px;width:100%;max-width:320px;text-align:center;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);"><div style="font-size:3rem;margin-bottom:20px;">📢</div><div style="color:#fff;font-size:1.2rem;font-weight:700;margin-bottom:12px;">푸시 발송 최종 확인</div><div style="color:#94a3b8;font-size:0.9rem;line-height:1.6;margin-bottom:25px;">정말 <span id="confirm-target-text" style="color:#3b82f6;font-weight:700;"></span>으로<br>알림을 발송하시겠습니까?</div><div style="display:flex;gap:10px;"><button onclick="document.getElementById(\'custom-push-confirm-overlay\').style.display=\'none\'" style="flex:1;padding:12px;background:rgba(255,255,255,0.05);border:none;border-radius:10px;color:#cbd5e1;cursor:pointer;font-weight:600;">취소</button><button id="final-send-btn" onclick="window.executeCustomPush()" style="flex:1;padding:12px;background:#ef4444;border:none;border-radius:10px;color:#fff;cursor:pointer;font-weight:700;">지금 발송</button></div></div></div></div>';
 };
 
@@ -729,6 +731,49 @@ window.toggleAllHistoryChecks = function (checked) {
     document.querySelectorAll('.hist-item-check').forEach(function(cb) { cb.checked = checked; });
 };
 
+/**
+ * 발송 기록 삭제가 서버에서 거절됐을 때 알린다 — 종전에는 res.ok 가 아니면 아무 표시 없이 화면만 그대로였다.
+ * 2026-11-20 삭제가 관리자 확인을 받게 되어(routes/push.js) 401 이 날 수 있다(독립 검토 A).
+ * @param {Response} res [연계] ← deleteSingleHistory · deleteSelectedHistory · clearAllHistory
+ */
+function _alertHistoryDeleteFailed(res) {
+    if (res && res.status === 401) alert('관리자 로그인이 필요합니다. 관리자 센터에서 다시 로그인한 뒤 삭제해 주세요.');
+    else alert('삭제 실패' + (res ? ' (' + res.status + ')' : ''));
+}
+
+/**
+ * [임시] 자동 푸시 경로 점검 — 서버 POST /api/admin/push-auto-path-check(2026-11-20, 사용자 「자동 푸시 경로 점검 버튼 임시로 만들어보자.」)
+ * 예: 버튼 → 서버가 자동 발송과 같은 내부 열쇠로 자기 자신을 부른다 → 「특보 길: 통과(이 휴대폰으로 1건)」「태풍 길: 통과」 안내
+ * ★이 휴대폰 푸시 주소가 없으면 서버에 요청하지 않는다(서버도 한 번 더 막는다 — 빈 주소로 전체 발송이 되지 않게).
+ * @param {HTMLElement} btn [연계] → local_server/services/push_auto_path_check.js · routes/push.js
+ */
+window.runAutoPushPathCheck = async function (btn) {
+    var token = thisDevicePushToken();
+    if (!token) { alert('이 휴대폰의 푸시 주소가 없습니다.\n앱에서 알림을 허용한 휴대폰에서 눌러 주세요.'); return; }
+    if (btn) { btn.disabled = true; btn.dataset.label = btn.innerHTML; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i>점검 중…'; }
+    try {
+        var res = await fetch('/api/admin/push-auto-path-check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token }) });
+        var j = await res.json().catch(function () { return {}; });
+        if (res.status === 401) { alert('관리자 로그인이 필요합니다. 관리자 센터에서 다시 로그인한 뒤 눌러 주세요.'); return; }
+        if (!res.ok || !j.ok) { alert('점검을 하지 못했습니다: ' + (j.error || res.status)); return; }
+        var c = j.custom || {}, t = j.typhoon || {};
+        var lines = [];
+        lines.push('■ 자동 특보 푸시 길: ' + (c.passed ? '통과' : '막힘') + ' (응답 ' + c.status + ')');
+        if (c.passed) {
+            if (c.successCount > 0) lines.push('  → 이 휴대폰으로 점검 알림 ' + c.successCount + '건을 보냈습니다. 알림이 왔는지 확인해 주세요.');
+            else if (c.failCount > 0) lines.push('  → 길은 열렸지만 이 휴대폰으로 보내기에 실패했습니다(' + c.failCount + '건).');
+            else lines.push('  → 길은 열렸지만 보낸 알림이 없습니다 — ' + (c.message || '이 휴대폰이 구독자 목록에 없거나 전체 알림을 꺼 두었을 수 있습니다') + '.');
+        }
+        else if (c.message) lines.push('  → ' + c.message);
+        lines.push('■ 자동 태풍 푸시 길: ' + (t.passed ? '통과' : '막힘') + ' (응답 ' + t.status + ', 발송 없이 확인)');
+        alert(lines.join('\n'));
+    } catch (e) {
+        alert('점검 요청 실패: ' + (e && e.message));
+    } finally {
+        if (btn) { btn.disabled = false; if (btn.dataset.label) btn.innerHTML = btn.dataset.label; }
+    }
+};
+
 window.deleteSingleHistory = async function (id) {
     if (!confirm('해당 이력을 삭제하시겠습니까?')) return;
     try {
@@ -738,6 +783,8 @@ window.deleteSingleHistory = async function (id) {
             _invalidateHistoryCache();
             var container = document.getElementById('alert-admin-inner-content') || document.getElementById('alert-management-content');
             if (container) window.renderHistoryTab(container);
+        } else {
+            _alertHistoryDeleteFailed(res);
         }
     } catch (e) { alert('삭제 실패: ' + e.message); }
 };
@@ -752,6 +799,8 @@ window.deleteSelectedHistory = async function () {
             _invalidateHistoryCache();
             var container = document.getElementById('alert-admin-inner-content') || document.getElementById('alert-management-content');
             if (container) window.renderHistoryTab(container);
+        } else {
+            _alertHistoryDeleteFailed(res);
         }
     } catch (e) { alert('삭제 실패: ' + e.message); }
 };
@@ -764,6 +813,8 @@ window.clearAllHistory = async function () {
             _invalidateHistoryCache();
             var container = document.getElementById('alert-admin-inner-content') || document.getElementById('alert-management-content');
             if (container) window.renderHistoryTab(container);
+        } else {
+            _alertHistoryDeleteFailed(res);
         }
     } catch (e) { alert('삭제 실패: ' + e.message); }
 };

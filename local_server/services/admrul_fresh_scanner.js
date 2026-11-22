@@ -38,6 +38,9 @@
  *  ⑥ 거꾸로 **대기 중인 카드라도 이번 점검에서 우리 사본이 현행으로 확인되면 자동으로 닫는다**
  *     (2026-11-03 사장님 결정 · 3-97, `closeNowFresh()`). 원문을 다시 받아도 사람이 누를 때까지
  *     카드가 남아 있어, 화면 숫자가 「아직 낡은 것」이 아니라 「아무도 안 닫은 카드」가 됐었다.
+ *  ⑦ **고친 원문이 배포되면 서버가 스스로 한 번 다시 점검한다**(2026-11-20 사장님 요청, `rescanIfFixesDeployed()`).
+ *     서버가 켜질 때(배포 직후) 대기 카드의 raw 파일에 카드가 기다리는 새 판 번호가 들어 있으면 전수 점검을 돌려
+ *     ⑥으로 카드를 닫고, 닫힌 수·남은 수를 관리자 푸시로 알린다. 종전에는 3일 뒤 차례나 「지금 점검」을 기다렸다.
  *
  * [저장 위치 — 재배포해도 안 지워지는 곳에 쓴다]
  *  결과·큐를 `local_server/data/` 밑에 둔다. 이 디렉토리만 fly.io 볼륨으로 마운트돼 있어
@@ -46,6 +49,7 @@
  *  통째로 사라진다.
  *
  * [연계]
+ *  - server.js → app.listen 뒤 `rescanIfFixesDeployed()`(배포 직후 고친 원문이 보이면 점검 1회 · 2026-11-20)
  *  - server.js → runNariyaNightly 새벽 03:00 KST, **3일에 한 번**(개정감지 → 원문결손 → 원문신선도 하루 하나씩) `runFreshnessScan()`
  *    (2026-11-16 사용자 확정 — 종전 매주 일요일 03:00. 셋 다 law.go.kr 을 두드려 한 밤에 하나만 돌린다.
  *     실측 2026-11-15 수동 점검: 1,504건 대조에 약 12분)
@@ -94,6 +98,7 @@ const STATUS_FILE = path.join(DATA, 'admrul_fresh_status.json');
 const SCAN_TIMEOUT_MS = 60 * 60 * 1000;
 
 let _scanning = false; // 중복 실행 락(cron·수동스캔 동시 발동 시 결과 파일 경합 방지)
+let _running = null;   // 지금 도는 점검의 약속(waitIdle 이 기다린다 · 2026-11-20)
 
 // ★「지금 점검」 진행 상황(2026-11-03 사장님 요청 — 「점검이 되었는지 안 되었는지, 지금 진행되고 있는지 모르겠다」).
 //   메모리에만 둔다(서버가 다시 시작되면 사라진다 — 결과는 STATUS_FILE 에 따로 남는다).
@@ -509,6 +514,138 @@ function closeNowFresh(rows, file = QUEUE_FILE) {
   return closed;
 }
 
+/**
+ * 카드에 적힌 raw 경로(법령은 `raw/*\/수산업법/법률.txt` 처럼 `*` 칸이 있다)를 실제 파일 경로로 펼친다.
+ * 예: expandRel('raw/*\/수산업법/법률.txt', LEGAL) → ['/…/raw/05_수산어업/수산업법/법률.txt']
+ * @param {string} rel 지식 폴더(knowledge/legal) 기준 경로. `*` 는 한 칸 전체만 뜻한다.
+ * @param {string} root 지식 폴더 경로
+ * @returns {string[]} 있는 파일 경로들(없으면 빈 배열)
+ * [연계] ← fixedOnDisk
+ */
+function expandRel(rel, root) {
+  let cur = [root];
+  for (const seg of String(rel).split(/[\\/]/).filter(Boolean)) {
+    const next = [];
+    for (const dir of cur) {
+      if (seg !== '*') { next.push(path.join(dir, seg)); continue; }
+      try { for (const d of fs.readdirSync(dir)) next.push(path.join(dir, d)); } catch (_) { /* 폴더가 없으면 그 갈래는 끝 */ }
+    }
+    cur = next;
+  }
+  return cur.filter((p) => { try { return fs.statSync(p).isFile(); } catch (_) { return false; } });
+}
+
+/**
+ * 대기 중인 카드 가운데 **고친 원문이 이미 이 서버에 올라와 있는 것**을 고른다.
+ * 예: 카드가 새 판 2100000288232 를 기다리는데 그 카드의 raw 파일(또는 같은 폴더 `_admrul.json`·`_meta.json`)에
+ *     '2100000288232' 가 적혀 있으면 → 그 카드 id 를 돌려준다
+ * @param {string} [file] 큐 파일(기본은 볼륨의 원문신선도 큐 — 시험이 임시 파일을 준다)
+ * @param {string} [root] 지식 폴더(기본 knowledge/legal — 시험이 임시 폴더를 준다)
+ * @returns {string[]} 고친 원문이 올라온 대기 카드 id
+ * [왜 있나 — 2026-11-20 사장님 요청 「지금점검도 자동으로 하는 로직을 만들면 좋겠는데?」]
+ *   자동 반영 PR 이 머지·배포돼도 카드는 다음 원문신선도 차례(3일 뒤)나 사람이 「지금 점검」을 눌러야 닫혔다.
+ *   배포는 곧 서버 재시작이고 raw 는 배포로만 바뀌므로, **켜질 때 파일을 보면** 고친 것이 올라왔는지 알 수 있다.
+ * [판정 — 숫자 문자열이 들어 있나만 본다]
+ *   기다리는 번호 = 카드의 현행 번호(current.serial) 또는 이름바뀜 후보 번호. 번호가 없는 카드·파일이 없는 카드는 고르지 않는다.
+ *   카드의 파일 **전부**에서(파일 본문·같은 폴더 `_admrul.json`·`_meta.json` 중 하나에) 그 번호가 보여야 고른다.
+ *   기다리는 번호가 카드의 보유 번호(held_ids)에 이미 있으면 고르지 않는다 — 법령 「번호는 같고 시행일만 뒤진」 카드는
+ *   처음부터 그 번호가 `_meta.json` 에 있다(독립 검토 M4). 이런 카드는 정기 점검이 닫는다.
+ *   잘못 골라도 점검이 한 번 더 돌 뿐이고 카드를 닫는 것은 여전히 점검의 판정(closeNowFresh)이다 — 여기서 카드를 닫지 않는다.
+ *   못 골라도(번호를 다른 꼴로 적은 파일) 다음 정기 점검이 닫는다.
+ * [연계] ← rescanIfFixesDeployed · 시험 test_fresh_rescan_on_deploy.js
+ */
+function fixedOnDisk(file = QUEUE_FILE, root = LEGAL) {
+  const read = (p) => { try { return fs.readFileSync(p, 'utf8'); } catch (_) { return ''; } };
+  const out = [];
+  const seen = new Set();
+  for (const e of adminQueues.readJsonl(file)) {
+    if (!e || !e.id || seen.has(e.id) || (e.status || 'pending') !== 'pending') continue;
+    seen.add(e.id);
+    const want = [String((e.current || {}).serial || '')]
+      .concat((e.rename_candidates || []).map((c) => String((c || {}).serial || '')))
+      .filter(Boolean);
+    const rels = e.files || [];
+    // 카드를 만들 때 이미 갖고 있던 번호는 「고쳤다」는 증거가 아니다 — 법령은 번호가 같고 시행일만 뒤져도
+    //   구버전으로 판정한다(law_fresh.py judge · same_mst_diff_eff). 그런 카드는 고르지 않는다(2026-11-20 독립 검토 M4).
+    const held = new Set((e.held_ids || []).map(String));
+    if (!want.length || !rels.length || want.some((w) => held.has(w))) continue;
+    const ok = rels.every((rel) => {
+      const paths = expandRel(rel, root);
+      return paths.length > 0 && paths.every((p) => {
+        const dir = path.dirname(p);
+        const text = read(p) + '\n' + read(path.join(dir, '_admrul.json')) + '\n' + read(path.join(dir, '_meta.json'));
+        return want.some((w) => text.includes(w));
+      });
+    });
+    if (ok) out.push(e.id);
+  }
+  return out;
+}
+
+/** 배포 뒤 다시 점검을 이미 돌린 카드 id 기록(카드마다 한 번만 — 볼륨에 둬 재배포해도 남는다). */
+const RESCAN_FILE = path.join(DATA, 'admrul_fresh_rescan.json');
+
+/**
+ * 서버가 켜질 때(= 배포 직후) 부른다 — 고친 원문이 올라온 대기 카드가 있으면 **원문신선도 점검을 스스로 한 번 돌리고**
+ * 결과(닫힌 수·남은 수)를 관리자 푸시로 알린다. 사람이 「지금 점검」을 누르는 것과 같은 점검이다.
+ * 예: await rescanIfFixesDeployed() → {started:false, why:'고친 원문 없음'} 또는 {started:true, ok:true, ids:[…], closed:1, left:0}
+ * @param {object} [o] 시험용으로 바꿔 끼우는 것들(평소엔 비워 둔다)
+ * @param {string} [o.queueFile] @param {string} [o.root] @param {string} [o.stateFile]
+ * @param {boolean} [o.prod] 운영 서버인가(기본: FLY_APP_NAME === 'seagnal-server')
+ * @param {Function} [o.scan] 점검 함수(기본 runFreshnessScan) @param {Function} [o.push] 푸시 함수(기본 admin_push.sendAdminPush)
+ * @param {{setHold:Function}} [o.autorun] 세션 깨우기 보류(기본 nariya_autorun)
+ * @returns {Promise<object>}
+ * [언제 기록하나] 점검이 **돌아오면**(성공이든 실패든) 그 카드 id 를 적는다. 점검 도중 또 배포돼 서버가 꺼지면
+ *   적지 않아, 다음에 켜질 때 다시 돈다. 실패했거나 카드가 안 닫혔으면 같은 카드로는 다시 돌리지 않는다 —
+ *   배포가 잦거나 law.go.kr 이 막힌 날 전수 점검·실패 푸시가 되풀이되지 않게(독립 검토 M3). 그 카드는 정기 점검이 다시 본다.
+ *   ⚠배포가 30분 안에 잇달면 점검이 매번 잘려 처음부터 다시 돈다(검토 M2) — 그동안 카드는 그대로이고 결국 정기 점검이 닫는다.
+ * [세션 깨우기 보류] 점검 동안 nariya_autorun.setHold(true) — 새벽 점검처럼 세션의 law.go.kr 수집과 겹치지 않게(검토 L2).
+ *   새벽 점검은 waitIdle() 로 이 점검이 끝나기를 먼저 기다린 뒤 자기 보류를 건다(setHold 는 켬/끔 하나다).
+ * [운영에서만] 스테이징·개발 서버는 law.go.kr 을 두드리지도, 푸시를 보내지도 않는다(nariya_autorun 과 같은 기준).
+ * [연계] ← server.js app.listen 뒤 setImmediate · → fixedOnDisk · runFreshnessScan · admin_push.sendAdminPush
+ */
+async function rescanIfFixesDeployed(o = {}) {
+  const queueFile = o.queueFile || QUEUE_FILE;
+  const stateFile = o.stateFile || RESCAN_FILE;
+  const prod = o.prod !== undefined ? o.prod : process.env.FLY_APP_NAME === 'seagnal-server';
+  if (!prod) return { started: false, why: '운영 아님' };
+  let done = {};
+  try { done = JSON.parse(fs.readFileSync(stateFile, 'utf8')).ids || {}; } catch (_) { done = {}; }
+  const ids = fixedOnDisk(queueFile, o.root || LEGAL).filter((id) => !done[id]);
+  if (!ids.length) return { started: false, why: '고친 원문 없음' };
+  console.log(`[AdmrulFresh] 고친 원문이 올라온 카드 ${ids.length}건 — 원문신선도 점검을 스스로 한 번 돌립니다.`);
+  // 점검 동안 자동 반영 세션 깨우기를 붙든다 — 새벽 점검과 같은 까닭(세션의 law.go.kr 수집과 겹치지 않게 · 검토 L2)
+  const ar = o.autorun || require('./nariya_autorun');
+  try { ar.setHold(true); } catch (e) { console.error('[AdmrulFresh] 세션 깨우기 보류 실패(점검은 계속):', e && e.message); }
+  let st;
+  try { st = await (o.scan || runFreshnessScan)(); }
+  finally { try { ar.setHold(false); } catch (e) { console.error('[AdmrulFresh] 세션 깨우기 보류 풀기 실패(6시간 뒤 저절로 풀림):', e && e.message); } }
+  // 점검이 **돌아오기만 하면**(실패여도) 기록한다 — law.go.kr 이 막힌 날 배포할 때마다 전수 점검과 실패 푸시가
+  //   되풀이되지 않게(검토 M3). 실패는 점검기가 이미 따로 푸시하고, 그 카드는 정기 점검이 다시 본다.
+  //   기록되지 않는 것은 점검 도중 서버가 꺼진 경우뿐이다(다음 시작 때 다시 돈다).
+  const at = new Date().toISOString();
+  for (const id of ids) done[id] = at;
+  try {
+    fs.mkdirSync(path.dirname(stateFile), { recursive: true });
+    fs.writeFileSync(stateFile, JSON.stringify({ ids: done }, null, 1));
+  } catch (e) { console.error('[AdmrulFresh] 배포 뒤 점검 기록 실패:', e && e.message); }
+  if (!st || !st.ok) return { started: true, ok: false, ids, error: (st && st.error) || '점검 결과 없음' };
+  const q = adminQueues.readJsonl(queueFile);
+  const isPending = (id) => q.some((e) => e && e.id === id && (e.status || 'pending') === 'pending');
+  const left = ids.filter(isPending).length;
+  const closed = ids.length - left;
+  const allPending = adminQueues.countPending(queueFile);
+  const body = `고친 원문 ${ids.length}건이 서버에 올라와 다시 대조했습니다 — 닫힘 ${closed}건`
+    + (left ? ` · 아직 대기 ${left}건(다음 원문신선도 점검에서 다시 봅니다)` : '')
+    + ` · 지금 원문신선도 대기 ${allPending}건.`
+    + (st.partialError ? ` ⚠일부 점검은 확인하지 못했습니다: ${String(st.partialError).slice(0, 120)}` : '');
+  try {
+    await (o.push || require('./admin_push').sendAdminPush)('AI 챗봇 원문신선도 — 배포 뒤 다시 점검 끝', body,
+      { type: 'admrul_fresh_rescan', closed: String(closed), left: String(left) });
+  } catch (e) { console.error('[AdmrulFresh] 관리자 푸시 실패:', e && e.message); }
+  return { started: true, ok: true, ids, closed, left };
+}
+
 /** 마지막 점검 결과를 기록한다 — 화면 위에 "언제 검사했고 어떻게 끝났나"를 보여주기 위해. */
 function writeStatus(obj) {
   try {
@@ -528,7 +665,27 @@ function readStatus() {
  * @returns {Promise<{ok:boolean, checked:number, stale:number, added:number, error?:string}>}
  * [연계] server.js runNariyaNightly(03:00 · 3일에 한 번 · 2026-11-16 종전 매주 일요일 03:00) · routes/legal.js scan-now
  */
-async function runFreshnessScan() {
+function runFreshnessScan() {
+  if (_scanning) return Promise.resolve({ ok: false, checked: 0, stale: 0, added: 0, error: '점검이 이미 진행 중입니다.' });
+  _running = scanOnce().finally(() => { _running = null; });
+  return _running;
+}
+
+/**
+ * 지금 도는 원문신선도 점검이 있으면 그것이 끝날 때까지 기다린다(없으면 곧바로 끝난다). 결과는 돌려주지 않는다.
+ * 예: await waitIdle() — 배포 뒤 다시 점검이 도는 중이면 그 점검이 끝난 뒤에 돌아온다
+ * @returns {Promise<void>}
+ * [왜 있나 — 2026-11-20 독립 검토 M1] 배포 뒤 다시 점검(rescanIfFixesDeployed)이 도는 중에 새벽 03:00 점검이 시작하면
+ *   ①원문신선도 차례는 「이미 진행 중」을 실패로 받아 「⚠확인 필요」 요약이 가고 ②개정감지·원문결손 차례는
+ *   law.go.kr 점검 둘이 겹친다(2026-09-20 겹쳐 돌렸다가 45/200 에서 멈춘 실측). 새벽 점검이 먼저 이것을 기다린다.
+ * [연계] ← server.js runNariyaNightly(세션 막기 setHold 를 걸기 **전에** 기다린다 — setHold 는 켬/끔 하나라 서로 풀어 버리지 않게)
+ */
+function waitIdle() {
+  return _running ? _running.then(() => {}, () => {}) : Promise.resolve();
+}
+
+/** runFreshnessScan 의 몸통(점검 1회). 바깥에서는 runFreshnessScan 을 부른다 — waitIdle 이 기다릴 약속을 거기서 잡는다. */
+async function scanOnce() {
   if (_scanning) return { ok: false, checked: 0, stale: 0, added: 0, error: '점검이 이미 진행 중입니다.' };
   _scanning = true;
   const startedAt = new Date().toISOString();
@@ -671,4 +828,4 @@ function startFreshnessScan() {
 
 module.exports = { runFreshnessScan, startFreshnessScan, readStatus, QUEUE_FILE, REPORT_FILE, reopenStillStale,
   closeNowFresh, toQueueEntry, ORDIN_SCRIPT, ORDIN_REPORT_FILE, partFailure,
-  getScanProgress, parseProgressLine };
+  getScanProgress, parseProgressLine, fixedOnDisk, rescanIfFixesDeployed, RESCAN_FILE, waitIdle };

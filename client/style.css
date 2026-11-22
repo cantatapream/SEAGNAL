@@ -12603,3 +12603,147 @@ body.mc-fullscreen-active {
 
 /* 통계 기간 선택 칩 */
 
+
+/* ===========================================================================
+   뉴스·공지·어황 탭(2026-11-21) — notice/hub · notice/news · notice/fishcond
+   설계 js/notice/news_hub.design.md · 시안 4-B(밑줄+아이콘) · 5-1 B(날짜 가운데) · 5-2 B(꼬리표를 사진 위에) · 7-1 A
+   =========================================================================== */
+.nhub-tabs { display: flex; border-bottom: 1px solid rgba(255,255,255,0.08); margin: -0.4rem 0 12px; }
+.nhub-tab { flex: 1; min-width: 0; background: none; border: 0; border-bottom: 2px solid transparent; color: #94a3b8; font: inherit; font-size: clamp(0.78rem, 3.4vw, 0.9rem); font-weight: 600;
+    padding: 9px 2px 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; }
+.nhub-tab i { font-size: 0.85em; }
+.nhub-tab.active { color: #fff; border-bottom-color: var(--accent-blue, #448aff); }
+.nhub-tab:focus-visible { outline: 2px solid var(--accent-blue, #448aff); outline-offset: -2px; }
+.nhub-tab .new-badge { margin-left: 1px; }
+.nhub-panel { display: none; }
+.nhub-panel.active { display: block; }
+
+/* 날짜줄 — 「◀ 11월 21일(토) ▶」 화면 가운데, [오늘]은 ▶ 바로 오른쪽, 달력은 맨 오른쪽(사용자 검토 의견) */
+.news-dateline { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 6px; margin-bottom: 6px; }
+.news-dateline .mid { display: flex; align-items: center; gap: 6px; }
+.news-dateline .rt { display: flex; align-items: center; gap: 6px; }
+.news-dateline .rt .sp { flex: 1; }
+.news-dbtn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #e2e8f0; border-radius: 8px; height: 32px; min-width: 32px; padding: 0 10px;
+    font: inherit; font-size: 0.82rem; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.news-dbtn[disabled] { opacity: 0.3; cursor: default; }
+.news-dbtn.on { border-color: var(--accent-blue, #448aff); color: var(--accent-blue, #448aff); }
+.news-dlabel { font-weight: 700; font-size: 1rem; color: #e2e8f0; white-space: nowrap; padding: 0 2px; }
+.news-updated { font-size: 0.75rem; color: #64748b; text-align: right; margin: 0 2px 8px; }
+.news-updated b { color: #94a3b8; font-weight: 600; }
+.news-updated.late, .news-updated.late b { color: #fbbf24; }
+
+/* 뉴스 카드 — 대표사진 + 제목 + 요약 3줄, 누르면 펼침(아코디언) */
+.news-list { display: flex; flex-direction: column; gap: 8px; }
+.news-card { display: flex; gap: 10px; background: rgba(30,41,59,0.45); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 9px; cursor: pointer; transition: border-color .15s; }
+.news-card:focus-visible { outline: 2px solid var(--accent-blue, #448aff); outline-offset: 2px; }
+.news-card.open { border-color: var(--accent-blue, #448aff); background: rgba(68,138,255,0.07); }
+.news-thumb { flex: 0 0 78px; width: 78px; height: 78px; border-radius: 8px; overflow: hidden; position: relative; background: rgba(255,255,255,0.05);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 0.68rem; }
+.news-card.open .news-thumb { height: auto; min-height: 78px; align-self: stretch; }
+.news-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; position: absolute; inset: 0; }
+.news-thumb .def-ico { font-size: 1.5rem; }
+.news-thumb .news-cat { position: absolute; top: 4px; left: 4px; z-index: 1; background: rgba(13,21,38,0.85); }
+/* 사진 칸(78px)보다 긴 분류 이름(「바다 이용 갈등·제도」 101px · 「조업·이용 규칙」 79px — 실측)은 칸 안에서 띄어쓰기 자리로 두 줄 접는다(사용자 2026-11-22 「사진 안에 텍스트가 길어서 잘리는」) */
+.news-thumb .news-cat { max-width: calc(100% - 8px); box-sizing: border-box; white-space: normal; word-break: keep-all; line-height: 13px; padding: 1px 5px; }
+.news-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.news-title { font-weight: 700; font-size: 0.9rem; line-height: 1.35; color: #f1f5f9; margin-bottom: 3px; word-break: keep-all; overflow-wrap: anywhere; }
+.news-sum { color: #c8d2e0; font-size: 0.8rem; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; word-break: keep-all; overflow-wrap: anywhere; }
+.news-card.open .news-sum { display: block; }
+.news-hint { display: none; margin-top: 6px; font-size: 0.75rem; color: var(--accent-blue, #448aff); font-weight: 600; }
+.news-card.open .news-hint { display: block; }
+.news-foot { display: flex; align-items: flex-end; gap: 6px; margin-top: 5px; font-size: 0.7rem; color: #64748b; }
+.news-foot .src { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.news-foot .rt { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.news-cat, .news-reg { font-size: 0.62rem; font-weight: 700; padding: 0 6px; border-radius: 8px; border: 1px solid currentColor; line-height: 15px; white-space: nowrap; }
+.news-reg { color: #94a3b8; border-color: rgba(148,163,184,0.4); }
+.news-cat.money { color: #69f0ae; } .news-cat.duty { color: #ff5252; } .news-cat.rule { color: #ffab40; }
+.news-cat.safety { color: #448aff; } .news-cat.sea { color: #4dd0e1; } .news-cat.conflict { color: #b388ff; }
+.news-thumb.money { color: #69f0ae; } .news-thumb.duty { color: #ff5252; } .news-thumb.rule { color: #ffab40; }
+.news-thumb.safety { color: #448aff; } .news-thumb.sea { color: #4dd0e1; } .news-thumb.conflict { color: #b388ff; }
+.news-empty { text-align: center; padding: 34px 10px 26px; color: #94a3b8; font-size: 0.85rem; }
+.news-empty .big { font-size: 0.95rem; font-weight: 700; color: #e2e8f0; margin-bottom: 4px; }
+.news-empty .news-dbtn { margin-top: 12px; height: 36px; padding: 0 16px; border-color: var(--accent-blue, #448aff); color: var(--accent-blue, #448aff); }
+
+/* 달력 — 보관 중인 날짜만 고를 수 있다(사용자 「날짜는 보유하고있는 뉴스 기간까지만」) */
+.news-cal-wrap { position: fixed; inset: 0; z-index: 3000; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.news-cal { background: #0f1a2e; border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 12px; width: 100%; max-width: 320px; color: #e2e8f0; }
+.news-cal-h { display: flex; justify-content: space-between; align-items: center; font-weight: 700; margin-bottom: 8px; }
+.news-cal-g { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; text-align: center; font-size: 0.82rem; }
+.news-cal-g .w { color: #64748b; font-size: 0.7rem; padding-bottom: 2px; }
+.news-cal-g button { background: none; border: 0; color: #3a4558; padding: 7px 0; border-radius: 6px; font: inherit; cursor: default; }
+.news-cal-g button.have { color: #e2e8f0; background: rgba(255,255,255,0.05); cursor: pointer; }
+.news-cal-g button.sel { background: var(--accent-blue, #448aff); color: #fff; font-weight: 700; }
+.news-cal-g button.today { outline: 1px solid var(--accent-blue, #448aff); }
+.news-cal-n { font-size: 0.72rem; color: #64748b; margin-top: 8px; }
+
+/* 공지·어황 목록 줄 — 조회(눈)·날짜를 맨 오른쪽에(사용자 「조회 날짜 위치 상호변경」·「날짜 주관부서 맨 오른쪽, 날짜 왼쪽에 조회 눈」) */
+.promo-item-meta.nhub-right { justify-content: flex-end; width: 100%; flex-wrap: wrap; gap: 8px; }
+.fishcond-sea { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: 700; margin-right: 8px; vertical-align: middle; border: 1px solid currentColor; }
+.fishcond-sea.west { color: #448aff; } .fishcond-sea.south { color: #69f0ae; } .fishcond-sea.east { color: #4dd0e1; }
+.fishcond-sea.all { color: #cbd5e1; border-color: rgba(148,163,184,0.4); }
+.fishcond-detail-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.fishcond-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: #e2e8f0; border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 0.82rem; cursor: pointer; }
+.fishcond-btn.primary { border-color: var(--accent-blue, #448aff); color: var(--accent-blue, #448aff); }
+.fishcond-detail-body { padding: 0 !important; background: #fff; }
+.fishcond-detail-body iframe { display: block; width: 100%; height: 70vh; border: 0; }
+.fishcond-detail-body .fishcond-nopreview { background: #0f1a2e; color: #94a3b8; text-align: center; padding: 34px 12px; font-size: 0.85rem; }
+
+/* 날짜줄 — 좁은 폰(405px 미만)에서 「오늘」이 두 줄로 깨지고 날짜가 가운데에서 밀리던 것(별도 에이전트 검토 2026-11-21, 320·360·393px 재현) */
+.news-dbtn { white-space: nowrap; flex-shrink: 0; }
+@media (max-width: 404px) {
+    .news-dateline, .news-dateline .mid, .news-dateline .rt { gap: 4px; }
+    .news-dbtn { height: 30px; min-width: 30px; padding: 0 7px; font-size: 0.78rem; }
+    .news-dlabel { font-size: 0.9rem; }
+}
+@media (max-width: 350px) {
+    .news-dbtn { height: 28px; min-width: 28px; padding: 0 5px; font-size: 0.74rem; }
+    .news-dlabel { font-size: 0.82rem; padding: 0; }
+}
+
+/* ── 당겨서 새로고침(2026-11-22 사용자 「아래로 내려서 당기는 모션」 — 파란 동그라미만, 띠 배경은 뺐다).
+      높이는 shared/ui/pull_refresh.js 가 손가락을 따라 바꾼다(평소 0). .ready = 놓으면 새로고침 · .spin = 받는 중 */
+.ptr { height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 6px; align-items: center; justify-content: center; }   /* 띠 배경 없음 — 동그라미만(사용자 2026-11-22 「로딩 스피너만 나오면 될 것 같은데 파란색 영역도 같이 나오고 있거든」) */
+.ptr i { font-size: 1.5rem; color: #38bdf8; opacity: 0.55; }
+.ptr.ready i, .ptr.spin i { opacity: 1; }
+.ptr.spin i { animation: ptr-spin 0.8s linear infinite; }
+/* 스피너 밑 「새로고침 중입니다」 — 손을 떼고 실제로 다시 받는 동안만(사용자 2026-11-22 「내렸을 때 새로고침 중입니다라고 나오는 것도 좋을 것 같아요. 로딩 스피너 밑에」) */
+.ptr .ptr-txt { display: none; font-size: 0.78rem; color: #94a3b8; }
+.ptr.spin .ptr-txt { display: block; }
+@keyframes ptr-spin { to { transform: rotate(360deg); } }
+
+/* ── 오늘의 뉴스 목록 끝 「다 봤어요」(2026-11-22 사용자 「맨 밑에 내려와서 다 봤어요를 표출하는 곳은 오늘의 뉴스에만」) — news.js endMark */
+.news-end { text-align: center; padding: 22px 10px 8px; color: #94a3b8; font-size: 0.82rem; }
+.news-end .ok { display: inline-flex; width: 40px; height: 40px; border-radius: 50%; align-items: center; justify-content: center; border: 2px solid var(--accent-blue, #448aff); color: var(--accent-blue, #448aff); font-size: 1.05rem; margin-bottom: 8px; }
+.news-end .big { font-size: 0.95rem; font-weight: 700; color: #e2e8f0; margin-bottom: 2px; }
+.news-end .news-dbtn { margin-top: 12px; height: 36px; padding: 0 16px; border-color: var(--accent-blue, #448aff); color: var(--accent-blue, #448aff); }
+
+/* ── 「뉴스·공지·어황」 제목 + 안쪽 탭 줄 고정(2026-11-22 사용자 「공지사항, 뉴스, 어황탭이 상단 상태표시줄을 침범하는데? 헤더 고정이되는게 아니라.」 · 「스크롤을 내렸을때 말이야」)
+      이 탭은 문서 전체가 스크롤된다. 휴대폰 폭(≤480px)에서는 .content-area 에 overflow-y:auto 가 걸려 있어 그 안의 sticky 가 붙지 않으므로
+      이 탭에서만 풀어 준다(.content-area 는 늘어나기만 하고 스스로 스크롤하지 않는다 — 실측 scrollHeight = clientHeight).
+      붙었을 때 상태표시줄 자리(safe-area)까지 덮도록 위 여백을 머리 안으로 옮기고, 좌우 여백(1rem)까지 넓혀 그 아래로 지나가는 카드를 가린다. */
+body[data-active-tab="promo-section"] .content-area { overflow: visible !important; }
+.nhub-head {
+    position: sticky; top: 0; z-index: 30;
+    margin: calc(-6px - env(safe-area-inset-top, 0px)) -1rem 0; padding: calc(6px + env(safe-area-inset-top, 0px)) 1rem 0;   /* 6px = 붙었을 때 제목이 상태표시줄에 딱 붙지 않게(안 붙었을 때 자리는 그대로) */
+}
+/* 맨 위에 붙었을 때만(notice_hub.js 가 .stuck) 배경을 깐다 — 짙은 단색이면 띠처럼 보여 「헤더부분 배경색이 기존 스타일과 다른데?」(사용자 2026-11-22).
+   페이지 배경(body::before — 화면에 고정된 무늬)과 같은 무늬를 화면 크기(100vw×100vh)로, 화면 왼쪽 위에 맞춰 깐다 → 붙었을 때(머리 top 0) 이음매 없이 같아 보인다.
+   왼쪽 위치 = 앱 칸(.app-container, 최대 600px 가운데 정렬)의 왼쪽 끝만큼 당김. 안 붙었을 때는 투명(아래 페이지 무늬가 그대로 보인다).
+   ⚠body::before 무늬를 바꾸면 여기도 같이 바꾼다. */
+.nhub-head.stuck {
+    background-color: #0a101f;
+    background-image:
+        radial-gradient(circle at 0% 0%, rgba(14, 165, 233, 0.15) 0%, transparent 50%),
+        radial-gradient(circle at 100% 100%, rgba(68, 138, 255, 0.15) 0%, transparent 50%),
+        repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.05) 0px, rgba(255, 255, 255, 0.05) 1px, transparent 1px, transparent 20px),
+        linear-gradient(180deg, #0a101f 0%, #111827 100%);
+    background-size: 100vw 100vh;
+    background-repeat: no-repeat;
+    background-position: calc(-1 * max(0px, (100vw - 600px) / 2)) 0;
+}
+.nhub-head .nhub-tabs { margin-bottom: 0; }
+.nhub-head + .ptr { margin-top: 12px; }
+/* 뉴스 날짜줄도 머리와 함께 고정(사용자 2026-11-22 「뉴스에서 날짜 부분도 고정되었으면 좋겠는데」) — 오늘의 뉴스 칸일 때만(notice_hub.js on-news) */
+.nhub-head .news-dateline { display: none; margin: 10px 0 0; padding-bottom: 8px; }
+.nhub-head.on-news .news-dateline { display: grid; }
+.nhub-head.on-news + .ptr { margin-top: 6px; }

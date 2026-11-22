@@ -1,4 +1,9 @@
 
+// [이 파일의 업데이트 관련 부분 — 2026-11-20]
+//   · 업데이트 안내 창(시안 C): showUpdatePopup — 옛 앱(1.1.1 이하)에서 서버 latestVersion 이 더 높을 때. 「나중에」 24시간.
+//     바뀐 점 목록은 관리자 센터 버전 탭 「업데이트 메시지」(서버 local_server/data/app_version.json — services/app_version_store.js). 관리자 미리 보기 = window.SeagnalUpdatePopup.
+//   · 앱 안 업데이트(유연형): tryInAppUpdate — 1.3.0 이후 앱. 설계·검증: 00_docs/operations/app-release-headsup-inapp-update.md
+//   · 시험: local_server/scripts/test_inapp_update_flow.js
 // Capacitor 전역 객체 확보
 import { Geolocation } from '@capacitor/geolocation';
 import { App } from '@capacitor/app';
@@ -540,12 +545,72 @@ function isVersionLower(a, b) {
     return false;
 }
 
+// [업데이트 안내 창 — 시안 C] (2026-11-20, 사용자 확정)
+//   사용자 원문: 「3안 처럼 반영하고자 하는데, 업데이트하러가기 버튼 내 텍스트 바로 아래 플레이스토어로 이동합니다. 라고 작게 명시」
+//              「하루(24시간) 뒤 … 이대로 하자.」
+//   - 새 아이콘 · 「새 버전이 나왔어요」 · v현재 → v최신 · 바뀐 점 목록 · [업데이트하러 가기(Play 스토어로 이동합니다)] · [나중에]
+//   - 바뀐 점 목록은 관리자 센터 버전 탭의 「업데이트 메시지」에서 온다(/api/app-version 의 updateMessage — 서버 services/app_version_store.js).
+//     입력 규칙: 한 줄 = 목록 한 칸, 줄 맨 앞 이모지 = 왼쪽 아이콘(없으면 •), 「|」 뒤 = 작은 설명.
+//   - [나중에] → 창을 닫고 24시간 동안 다시 띄우지 않는다(UPDATE_POPUP_LATER_KEY). 앱 안 업데이트(IN_APP_UPDATE_ASK_GAP_MS)와 같은 간격.
+//   - 이 창은 서버에서 내려가는 화면이라 1.1.1 앱에도 그대로 뜬다(APK 업데이트 불필요).
+const UPDATE_POPUP_LATER_KEY = 'seagnal_update_popup_later_at';
+const UPDATE_POPUP_LATER_MS = 24 * 60 * 60 * 1000;
+
+/** HTML 특수문자를 막는다 — 업데이트 메시지는 관리자 입력이지만 화면에 그대로 끼우므로 막아 둔다. */
+function escapeUpdateText(t) {
+    return String(t == null ? '' : t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// 줄 맨 앞 이모지를 찾는 정규식. ★문자 속성(\p{…})을 모르는 오래된 WebView 에서 정규식을 "글자"로 적으면
+//   이 파일 전체가 문법 오류로 안 돌아 푸시 초기화까지 멈춘다 → new RegExp 로 만들고, 실패하면 이모지 없이(•) 보인다.
+let _leadingEmojiRe;
+function getLeadingEmojiRe() {
+    if (_leadingEmojiRe !== undefined) return _leadingEmojiRe;
+    try {
+        _leadingEmojiRe = new RegExp('^((?:\\p{Extended_Pictographic}|\\p{Regional_Indicator})(?:\\uFE0F|\\u20E3|\\u200D(?:\\p{Extended_Pictographic}|\\uFE0F)|\\p{Emoji_Modifier}|\\p{Regional_Indicator})*)\\s*', 'u');
+    } catch (_) {
+        _leadingEmojiRe = null; // 문자 속성을 모르는 WebView — 아이콘은 기본 점(•)으로 보인다
+    }
+    return _leadingEmojiRe;
+}
+
 /**
- * 업데이트 팝업 HTML을 생성하고 body에 삽입
+ * 업데이트 메시지를 목록 칸으로 나눈다.
+ * 예: '🔔 알림이 위에 떠요 | 놓치지 않게\n그냥 한 줄' → [{icon:'🔔', title:'알림이 위에 떠요', sub:'놓치지 않게'}, {icon:'•', title:'그냥 한 줄', sub:''}]
+ * @param {string} message - 관리자 센터 「업데이트 메시지」
+ * @returns {{icon:string, title:string, sub:string}[]}
+ * [연계] ← showUpdatePopup · 관리자 센터 미리 보기(window.SeagnalUpdatePopup.parse)
  */
-function showUpdatePopup(currentVersion, latestVersion, updateMessage, playStoreUrl) {
+function parseUpdateItems(message) {
+    return String(message || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
+        let icon = '•';
+        let rest = line;
+        // 줄 맨 앞 이모지(이어 붙는 변형 문자·ZWJ 조합 포함) 하나를 아이콘으로 쓴다.
+        const re = getLeadingEmojiRe();
+        const m = re ? line.match(re) : null;
+        if (m) { icon = m[1]; rest = line.slice(m[0].length); }
+        const bar = rest.indexOf('|');
+        const title = (bar >= 0 ? rest.slice(0, bar) : rest).trim();
+        const sub = bar >= 0 ? rest.slice(bar + 1).trim() : '';
+        return { icon, title, sub };
+    }).filter((it) => it.title || it.sub);
+}
+
+/**
+ * 업데이트 안내 창(시안 C)을 띄운다.
+ * 예: showUpdatePopup('1.1.1', '1.3.0', '🔔 알림이 위에 떠요 | 놓치지 않게', 'https://play.google.com/…')
+ * @param {string} currentVersion @param {string} latestVersion @param {string} updateMessage @param {string} playStoreUrl
+ * @param {{preview?:boolean}} [opts] - preview: 관리자 센터 미리 보기(「나중에」 기록을 남기지 않는다)
+ * [연계] ← checkAppUpdate(서버 버전이 더 높을 때) · admin.js 버전 탭 미리 보기 / → Browser.open(Play 스토어)
+ */
+function showUpdatePopup(currentVersion, latestVersion, updateMessage, playStoreUrl, opts) {
     // 이미 팝업이 있으면 중복 생성 방지
     if (document.getElementById('app-update-overlay')) return;
+    const preview = !!(opts && opts.preview);
+    const items = parseUpdateItems(updateMessage);
+    const listHTML = items.length ? `<div class="update-list">${items.map((it) => `
+                <div class="update-item"><span class="update-item-icon">${escapeUpdateText(it.icon)}</span><span class="update-item-text">${escapeUpdateText(it.title)}${it.sub ? `<small>${escapeUpdateText(it.sub)}</small>` : ''}</span></div>`).join('')}
+            </div>` : '';
 
     const overlay = document.createElement('div');
     overlay.id = 'app-update-overlay';
@@ -563,86 +628,73 @@ function showUpdatePopup(currentVersion, latestVersion, updateMessage, playStore
                 backdrop-filter: blur(4px);
                 -webkit-backdrop-filter: blur(4px);
             }
-            .update-popup {
+            #app-update-overlay .update-popup {
                 background: linear-gradient(135deg, #161b2d 0%, #1a2238 100%);
                 border: 1px solid rgba(255, 255, 255, 0.1);
                 border-radius: 20px;
-                padding: 36px 28px 28px;
-                max-width: 320px;
+                padding: 32px 24px 22px;
+                max-width: 330px;
                 width: 100%;
+                max-height: calc(100vh - 48px);
+                overflow-y: auto;
                 text-align: center;
                 box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-            }
-            .update-icon {
-                width: 64px;
-                height: 64px;
-                margin: 0 auto 20px;
-                border-radius: 50%;
-                background: rgba(68, 138, 255, 0.12);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-            }
-            .update-icon svg {
-                width: 32px;
-                height: 32px;
-                stroke: #448aff;
-                fill: none;
-                stroke-width: 2;
-                stroke-linecap: round;
-                stroke-linejoin: round;
-            }
-            .update-title {
                 font-family: 'Inter', 'Noto Sans KR', sans-serif;
-                font-size: 1.2rem;
-                font-weight: 700;
-                color: #ffffff;
-                margin-bottom: 8px;
             }
-            .update-version {
-                font-family: 'Inter', 'Noto Sans KR', sans-serif;
-                font-size: 0.85rem;
-                color: #94a3b8;
-                margin-bottom: 16px;
-            }
-            .update-message {
-                font-family: 'Inter', 'Noto Sans KR', sans-serif;
-                font-size: 0.95rem;
-                color: #94a3b8;
-                line-height: 1.6;
-                margin-bottom: 28px;
-            }
-            .update-button {
+            #app-update-overlay .update-appicon {
+                width: 68px; height: 68px;
+                border-radius: 16px;
+                margin: 0 auto 16px;
                 display: block;
-                width: 100%;
-                padding: 15px;
-                background: #448aff;
-                color: #ffffff;
-                border: none;
-                border-radius: 12px;
-                font-family: 'Inter', 'Noto Sans KR', sans-serif;
-                font-size: 1rem;
-                font-weight: 600;
+                box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+            }
+            #app-update-overlay .update-title { font-size: 1.2rem; font-weight: 700; color: #ffffff; margin-bottom: 8px; }
+            #app-update-overlay .update-version { font-size: 0.85rem; color: #94a3b8; margin-bottom: 16px; }
+            #app-update-overlay .update-version b { color: #60a5fa; font-weight: 700; }
+            #app-update-overlay .update-list {
+                text-align: left;
+                background: rgba(255, 255, 255, 0.04);
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                border-radius: 14px;
+                padding: 14px 14px 2px;
+                margin-bottom: 22px;
+            }
+            #app-update-overlay .update-item { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 12px; font-size: 0.9rem; color: #cbd5e1; line-height: 1.45; }
+            #app-update-overlay .update-item-icon {
+                flex: none; width: 26px; height: 26px; border-radius: 8px;
+                background: rgba(68, 138, 255, 0.14);
+                display: flex; align-items: center; justify-content: center;
+                font-size: 0.85rem; color: #60a5fa;
+            }
+            #app-update-overlay .update-item-text { word-break: keep-all; overflow-wrap: anywhere; }
+            #app-update-overlay .update-item-text small { display: block; color: #7c8aa0; font-size: 0.78rem; margin-top: 2px; }
+            #app-update-overlay .update-button {
+                display: block; width: 100%;
+                padding: 12px 15px;
+                background: #448aff; color: #ffffff;
+                border: none; border-radius: 12px;
+                font-family: inherit; font-size: 1rem; font-weight: 600;
                 cursor: pointer;
-                transition: background 0.2s;
                 -webkit-tap-highlight-color: transparent;
             }
-            .update-button:active {
-                background: #2962ff;
+            #app-update-overlay .update-button:active { background: #2962ff; }
+            #app-update-overlay .update-button small { display: block; font-size: 0.72rem; font-weight: 500; opacity: 0.85; margin-top: 3px; }
+            #app-update-overlay .update-later {
+                display: block; width: 100%;
+                margin-top: 8px; padding: 10px;
+                background: none; border: none;
+                color: #94a3b8; font-family: inherit; font-size: 0.9rem;
+                cursor: pointer;
+                -webkit-tap-highlight-color: transparent;
             }
         </style>
         <div class="update-popup">
-            <div class="update-icon">
-                <svg viewBox="0 0 24 24">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-            </div>
-            <div class="update-title">업데이트가 필요합니다</div>
-            <div class="update-version">v${currentVersion} → v${latestVersion}</div>
-            <p class="update-message">${updateMessage}</p>
-            <button class="update-button" id="app-update-btn">업데이트</button>
+            <img class="update-appicon" src="assets/app_update_icon.png" alt="">
+            <div class="update-title">새 버전이 나왔어요</div>
+            <div class="update-version">v${escapeUpdateText(currentVersion)} → <b>v${escapeUpdateText(latestVersion)}</b></div>
+            ${listHTML}
+            <button class="update-button" id="app-update-btn">업데이트하러 가기<small>Play 스토어로 이동합니다</small></button>
+            <button class="update-later" id="app-update-later-btn">나중에</button>
         </div>
     `;
 
@@ -658,6 +710,30 @@ function showUpdatePopup(currentVersion, latestVersion, updateMessage, playStore
             window.open(playStoreUrl, '_blank');
         }
     });
+
+    // 나중에 → 창을 닫고, 24시간 동안 다시 띄우지 않는다(미리 보기는 기록하지 않는다).
+    document.getElementById('app-update-later-btn').addEventListener('click', () => {
+        if (!preview) {
+            try { localStorage.setItem(UPDATE_POPUP_LATER_KEY, String(Date.now())); } catch (_) { /* 저장소를 못 쓰면 다음 실행 때 다시 뜰 뿐이다 */ }
+        }
+        if (typeof overlay.remove === 'function') overlay.remove();
+        else if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    });
+}
+
+/** 「나중에」를 누른 지 24시간이 안 됐는가. 예: 1시간 전에 눌렀으면 true. [연계] ← checkAppUpdate */
+function isUpdatePopupSnoozed() {
+    let at = 0;
+    try { at = Number(localStorage.getItem(UPDATE_POPUP_LATER_KEY)) || 0; } catch (_) { at = 0; }
+    return !!at && Date.now() - at < UPDATE_POPUP_LATER_MS;
+}
+
+// 관리자 센터 버전 탭의 미리 보기가 같은 창을 띄우도록 내보낸다(이 파일은 module 이라 전역이 아니다).
+if (typeof window !== 'undefined') {
+    window.SeagnalUpdatePopup = {
+        parse: parseUpdateItems,
+        preview: (current, latest, message, url) => showUpdatePopup(current, latest, message, url, { preview: true }),
+    };
 }
 
 // ----------------------------------------------------------------------------
@@ -841,6 +917,8 @@ const checkAppUpdate = async () => {
         // 버전 비교: 현재 버전이 최신 버전보다 낮으면 업데이트 팝업 표시
         if (isVersionLower(currentVersion, latestVersion)) {
             console.log(`[AppUpdate] 업데이트 필요: ${currentVersion} → ${latestVersion}`);
+            // 「나중에」를 누른 지 24시간이 안 됐으면 이번에는 띄우지 않는다(시안 C, 2026-11-20 사용자 확정).
+            if (isUpdatePopupSnoozed()) { console.log('[AppUpdate] 「나중에」 24시간 안 — 이번에는 안내 창을 띄우지 않는다'); return; }
             // DOM이 준비된 후 팝업 표시
             if (document.readyState === 'complete' || document.readyState === 'interactive') {
                 showUpdatePopup(currentVersion, latestVersion, updateMessage, playStoreUrl);

@@ -1537,8 +1537,171 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-23 02:04 KST] ✅완료 — 해상 기상 요약 — 「바람·물결」 종류 추가
+숫자 없는 바다 글(제주 11-22 등, 조사 3,282편 중 108편에서 줄이 생김 — 30편은 종전엔 어떤 답도 통과 못 함)은 서버가 원문 문장을 잘라 「바람·물결」 한 줄로 붙인다(calmNote). AI 가 쓰게 했더니 독립 검토에서 넓히기·뒤집기가 통과해 바꿈. 숫자가 있는 글은 종전대로. 「매우」를 부풀리는 말 목록에. test_regional_sea_summary 95 · ui 22 · verify_all 통과(합치기 전). 기온 칸 날짜 버그는 다른 세션이 11-21 에 이미 고침(46525ed2) — 본선 고침을 씀. 다음: 배포 뒤 관리자 ⑥ 「시험 요약」(제주).
+
+
 ### [2026-11-23 01:26 KST] 🟢착수 — 해상 기상 요약 — 「바람·물결」 종류 추가
 숫자 없이 '바람이 강하게 불고 물결이 높게'만 적힌 바다 글(8개월 3,282편 중 28편 0.9%, 11-22 제주)은 어떤 AI 답도 검사를 통과 못 해 원문 그대로 나갔다. 사용자 '추천대로 진행'. KINDS·PROMPT·화면 딱지·시험·문서.
+
+### [2026-11-22 22:28 KST] ✅완료 — 너울 수집 실패 푸시 12시간 대기
+사용자 요청(2026-11-22): 너울 위험등급 수집 오류→복구 푸시가 잦음 → collect_fail_alert.js ITEMS.swell 에 minFailMs 12시간·failNote 추가. 처음 실패에서 12시간 넘게 복구 안 될 때만 실패 1통, 문장에 「발생 MM/DD HH:mm · 12시간 넘게 복구 안 됨」. 12시간 안에 풀리면 실패·복구 모두 0통. 다른 항목은 그대로. 검사 test_collect_fail_alert S1~S5 추가(C1·C6 은 첫 실패 항목으로 옮김) 131 PASS. 문서 00_docs/operations/collect-fail-alert.md §4-3. 다음 할 일 없음(운영 배포 시 반영).
+
+
+### [2026-11-22 18:36 KST] ✅완료 — 뉴스·공지·어황: 고정 머리 배경을 페이지 무늬와 같게
+사용자 「헤더부분 배경색이 기존 스타일과 다른데?」 → 단색 대신 붙었을 때만 body::before 와 같은 무늬(100vw×100vh, 화면 왼쪽 위 기준), 평소 투명. test_news_hub_ui 28/0(붙음=줄무늬·맨 위=투명 확인). 로컬 캡처로 이음매 없음 확인. PR #1564 머지됨 → 새 PR.
+
+
+### [2026-11-22 15:15 KST] ✅완료 — 오늘의 뉴스: 날짜줄도 머리와 함께 고정
+사용자 「뉴스에서 날짜 부분도 고정되었으면」 → #news-dateline 을 .nhub-head 안으로, 뉴스 칸일 때만 표시(on-news). test_news_hub_ui 28/0(머리 고정 항목에 날짜줄·공지 칸 숨김 확인 추가) · test_tab_structure 42/0. PR #1563 머지됨 → 새 PR.
+
+
+### [2026-11-22 14:34 KST] ✅완료 — 뉴스·공지·어황: 제목·탭 줄 고정(스크롤 시 상태표시줄 침범)
+이 탭은 문서 전체 스크롤 + 휴대폰 폭에서 .content-area overflow-y:auto 라 sticky 가 안 붙었다. .nhub-head(제목+탭) sticky + 이 탭에서만 content-area overflow visible + safe-area 까지 덮는 배경. test_news_hub_ui 28/0(새 항목은 고치기 전 실패 확인) · test_tab_structure 42/0. PR #1562 는 04:07Z 머지됨 → 새 PR.
+
+
+### [2026-11-22 12:49 KST] ✅완료 — 당겨서 새로고침: 파란 띠 빼고 동그라미만 + 「새로고침 중입니다」
+사용자 요청 2건 반영(띠 배경 제거 · 받는 동안 스피너 밑 문구). PR #1561 은 12:25 KST 머지됨 → 그 뒤 수정은 브랜치에 main 을 합쳐(강제 푸시는 막힘) 새 PR #1562 로. test_news_hub_ui 27/0 · verify_all 은 V4 시뮬레이션 포함 통과, 서버 스모크는 실행 중 내가 시험 서버를 꺼 실패 → 서버 켜고 22곳 재확인 정상. 다음: PR #1562 머지 대기.
+
+
+### [2026-11-22 12:25 KST] ✅완료 — 뉴스·공지·어황: 당겨서 새로고침·다 봤어요·어황 쪽 번호
+①shared/ui/pull_refresh.js 신설 — 세 칸(오늘의 뉴스·공지사항·어황정보) 맨 위에서 당겨 60px 넘게 놓으면 파란 동그라미 돌며 그 칸만 다시 받기(뉴스 NewsTab.refresh — 조용히, 수집 아님 · 공지 loadPromoPosts · 어황 FishcondTab.refresh). 이 탭은 문서 전체가 스크롤됨(실측). 팝업 열림·화면 내려 둠·옆/위 손짓은 무시. ②오늘의 뉴스 목록 끝 「다 봤어요」+[어제/전날 뉴스 보기]. ③어황 10건씩 쪽 번호(공지와 같은 .pagination-btn). style.css 판 번호 NHub_20261122(앞선 꼬리표 CSS 도 함께 반영되게). 검사 test_news_hub_ui 27/0(새 6건). check_order 기준선 갱신(151개), ARCHITECTURE 재생성. 전체 verify_all 은 서버 켜고 진행 중.
+
+
+### [2026-11-22 12:16 KST] 🟢착수 — 뉴스·공지·어황: 당겨서 새로고침·다 봤어요·어황 쪽 번호
+사용자 확정(2026-11-22 「추천대로. 진행」): ①오늘의 뉴스·공지사항·어황정보 세 칸 맨 위에서 아래로 당기면 파란 동그라미 → 그 칸 목록 다시 받기(뉴스는 수집 아님) ②오늘의 뉴스 목록 맨 끝 「다 봤어요」+[어제 뉴스 보기] ③어황정보 목록 아래 쪽 번호 단추(공지사항과 같은 단추, 10건씩).
+
+
+### [2026-11-22 12:03 KST] ✅완료 — 오늘의 뉴스: 사진 위 분류 꼬리표 잘림 고침
+사진 칸 78px 에 꼬리표가 한 줄 고정이라 「바다 이용 갈등·제도」(101px)·「조업·이용 규칙」(79px)이 잘림(크로미움 실측). 사진 위 꼬리표만 두 줄 접기(word-break keep-all, max-width 칸-8px). test_news_hub_ui 21/0(새 항목은 고치기 전 CSS 에서 실패 확인). 다음: PR #1561 머지 대기.
+
+
+### [2026-11-22 11:38 KST] ✅완료 — 오늘의 뉴스: 같은 사건 중복 카드 합치기 (사용자 「중복내용 제외」)
+운영 2026-11-22 화면에 해수부 김장철 수산물 원산지 특별점검 한 발표가 카드 4장으로 실림(판정 20건 묶음에서 AI 가 묶음 표시를 빠뜨림). 매 수집 끝에 새 카드가 생긴 날(또는 지난 회차 묶기 실패한 날)의 카드 전체(숨긴·관리자가 실은 카드 제외)를 news_judge.groupDuplicates(AI ⑦ 순서)로 한 번 더 묶어 합침. 남는 카드 id=보도 많은 것, 머리=묶음 최신 기사, 펼친 횟수 합산, 빠진 카드는 그날 'AI 가 뺀 기사'로 옮겨 관리자가 [싣기]로 되살림. AI 실패면 합치지 않고 state.dedupeRetry 로 다음 회차 재시도 + 관리자 화면에 실패 줄. 적대검증 5건 재현→전부 처리(기계 제목 묶기 삭제 — 통영/여수 전복 0.75 등 다른 사건이 붙음). 함께: test_news_admin 이 실제 날짜 11-22 에 실패(HEAD 재현) → 라우트 기본 날짜를 수집기 시계 news_collector.today() 로. 검사: test_news_collector 69/0 · test_news_admin 11/0 · test_news_hub_ui 20/0 · test_silent_catch 22/0 · test_bulletin_ai 84/0. 다음: verify_all 확인 후 커밋·푸시(PR #1561 갱신), 배포 뒤 22일 중복은 그날 새 카드가 생기는 첫 수집에 정리.
+
+
+### [2026-11-21 11:18 KST] ✅완료 — 뉴스·공지·어황 — 전체 점검·main 합치기·PR 생성
+전체 verify_all(playwright-core 연결) 실패는 test_silent_catch 하나(이번 작업이 io catch 서버 8·화면 10곳 늘림) → 각 자리 운영 기록 추가로 server 36·client 121 복귀. main 16커밋 합침(충돌 HANDOFF 로그 1곳 — 양쪽 12개 보존·시각순), main 새 위키로 색인 재생성 포함. 합친 상태: check_order·silent_catch 22/22·tab_structure·news_hub_ui 20·news_admin 11·promo_detail_ui·regional_sea_ui·station_briefing_ui·simulate 통과. PR https://github.com/cantatapream/SEAGNAL/pull/1560 생성(main 대비 19커밋 앞, 0 뒤). 다음: 사용자가 PR 확인·머지 → 배포 → 운영 확인(nifs 접속·네이버/AI 판정·사진·앱 안 브라우저).
+
+
+### [2026-11-21 10:44 KST] ✅완료 — 뉴스·공지·어황 적대검증 2건 반영 완료
+별도 에이전트 2개(서버·화면) 독립 검토 → 지적을 검토자 재현 스크립트·직접 실행으로 확인한 뒤 고침. 서버(커밋 0ddb4d88): 다시 변환 중 숨기기·삭제 되돌아감(exclusive 한 줄 세우기), 요약 숫자 부분 문자열 비교(덩이 비교), 검색어 일부 실패 시 기사 영영 놓침(kwstate.json), 사진 전달 부하·내부 주소·리다이렉트·크기, 보관 30일, 싣기 원문 주소로. 화면: 기기 시간대가 한국이 아니면 처음 칸·N 틀림(promoKstMs), 다시 열 때 낡은 판정, 늦은 판정이 사용자 고른 칸 덮음·빈 화면, 좁은 폰 「오늘」 두 줄, 자정 넘어 어제에 갇힘, 게시글로 이동 시 공지 칸(NoticeHub.pick), 관리자 늦은 그리기, aria·방향키, N 30분마다. 사용자 확정: 숨긴 카드에 같은 사건 흡수 「이대로 두기」. 검사: test_news_hub_ui 20/20, test_news_admin 11/11, test_news_collector 48/48, test_fishcond_collector 45/45, promo_detail_ui 12/12, promo_detail_keyboard 16/16, tab_structure 42/42, life_safety_tab_keep 25/25, notice_markdown 9/9, simulate 회귀 없음. 남은 일: 배포 후 운영 확인(nifs·네이버·AI·사진·앱 안 브라우저) — 배포는 사용자 결정.
+
+
+### [2026-11-21 10:22 KST] ✅완료 — 뉴스·공지·어황 관리자 화면 완료 (4단계)
+관리자 → 게시판 관리: 위 3칸 [공지사항|어황정보|오늘의 뉴스](admin_collect.js switchNhubAdminTab), [게시판 관리|게시글 관리]는 공지사항 칸에만. 새 client/js/admin/admin_news_hub.js — 어황: 마지막 확인·결과·보관 건수·[지금 확인]·[원문]·[숨기기/다시 보이기]·[다시 변환]·[삭제]; 뉴스: 날짜·마지막 갱신·결과·받음→판정→실음·판정한 AI·받지 못한 검색어·[지금 갱신]·검색어 칩 추가/삭제·실린 기사 [원문]/[숨기기]·뺀 기사 [원문]/[싣기](분류 고름). 서버: routes/news.js·fishcond.js 에 /api/admin/*(services/admin_auth.requireAdminToken), news_collector adminDay·setHidden·publish·runNow(뺀 기사에 desc 저장), fishcond_collector adminList·setHidden·remove(removed.json — 다시 받지 않음)·reconvert·runNow, 둘 다 afterRun(수집 도는 중 변경은 끝난 뒤 적용). 앱 목록은 숨긴 것 제외. 검사 test_news_admin 10/10(인증 401·숨기기·싣기·삭제 후 재수집 안 함·도는 중 숨기기 덮이지 않음·관리자 화면 Chromium), news 45/45, fishcond 42/42. 남은 일: 별도 에이전트 적대검증(진행), 배포 후 운영 확인(nifs·네이버·AI·사진·앱 안 브라우저).
+
+
+### [2026-11-21 09:59 KST] ✅완료 — 뉴스·공지·어황 앱 화면 완료 (3단계)
+index2.html: 하단 탭·제목 「뉴스·공지·어황」, 안쪽 탭 3칸(밑줄+아이콘 4-B), 공지 알약 필터 삭제, 어황 팝업 마크업. 새 파일: client/js/notice/hub/notice_hub.js(처음 칸 = 24시간 안 공지 있으면 공지·없으면 뉴스 — body[data-active-tab] 변화를 봄, 칸별·하단 N), news/news.js(날짜줄 ◀날짜▶ 가운데·[오늘] ▶ 오른쪽·달력 맨 오른쪽, 보관 날짜만 달력, 카드 꼬리표 사진 위·오른쪽 아래 펼친 횟수+시각, 아코디언→다시 누르면 @capacitor/browser·웹은 새 탭, 최종 업데이트 3시간 넘으면 주황, 빈 날 [어제 뉴스 보기], http 사진 /api/news/img), fishcond/fishcond.js(목록 바다 꼬리표·쪽수 없음·조회/날짜/부서 오른쪽, 팝업 iframe /api/fishcond/:id/view·PDF 받기 downloadKmaFile·원문 보기·PopupStack). promo.js: 줄 메타 반응·조회·날짜 오른쪽 정렬, updateNewBadges → NoticeHub.setNoticeNew. style.css 끝에 nhub 스타일. 검사: test_news_hub_ui 14/14(신규, verify_all 등록), test_tab_structure 42/42(기대 라벨 갱신), promo_detail_ui 12/12, promo_detail_keyboard 16/16, youtube_shorts 33/33, notice_markdown 9/9, text_fit 28/28, life_safety_tab_keep 25/25, simulate 회귀 없음. ARCHITECTURE.md 재생성(기존 도면이 이미 낡아 있어 무관한 ├/└ 줄도 바뀜 — HEAD 깨끗한 사본에서도 72줄 차이 확인). 다음: 관리자 화면(8-1 A: 공지사항·어황정보·오늘의 뉴스 3칸, 숨기기/살리기/싣기/[원문], 검색어, 마지막 갱신 상태) — 서버 관리자 API 도 함께.
+
+
+### [2026-11-21 09:02 KST] ✅완료 — 자동 반영 ar-202611210850-97c3 — 결정 필요 답 2건
+PR #1557 결정 필요 답 2건 처리: 수산과학조사선 관리운영지침(chg_20261121_cbd062, 관련 법 8)·환경성적표지 작성지침(chg_20261121_06ee90, 관련 법 2) — 사장님 답 「받지 마세요」대로 원문·위키 손대지 않고 amend_applied --ids 2건으로 장부에 닫음(note 에 받지 않음 사유). collect_approved --dry: 승인분 5건 전부 보류 — 나머지 3건(군산청 공유수면 면제·재활용가능자원 분리수거 지침 2027-01-01, 석면해체작업감리인 기준 2027-02-20)은 시행 전이라 그날 뒤 다시. 원문신선도 0·원문결손 0·충돌 0. 검사: test_amend_applied 22 PASS(local_server npm ci 뒤) · verify_all 위키 게이트 악화 0(V5-7 나빠진 문항 0), 남은 실패 = V4 + 화면 스위트(playwright-core 없음)·test_silent_catch(acorn 없음) 환경 탓. 다음: 시행일 지난 뒤 시행 전 3건 처리.
+
+
+### [2026-11-21 08:51 KST] 🟢착수 — 자동 반영 ar-202611210850-97c3 — 결정 필요 답 2건
+PR #1557 결정 필요 답 2건(수산과학조사선 관리운영지침·환경성적표지 작성지침 — 사장님 답 「받지 마세요」) 처리. collect_approved --dry: 승인분 5건 전부 보류(시행 전 3 · 관련 법 둘 이상 2) — 받을 것 0. 답대로 2건은 받지 않고 장부에 닫는다.
+
+
+### [2026-11-21 08:47 KST] ✅완료 — 오늘의 뉴스 서버 + 관리자 AI ⑦ 완료 (뉴스·공지·어황 탭 2단계)
+만든 것: services/news_collector.js(매시 2분 KST, 검색어 46개 기본·data/news_config.json, 최신순 최대 3쪽, 창=지난 정상 확인 15분 전/처음 26시간, 겹침·seen 3일·마트 할인만 기계 제외, 20건씩 AI 판정·앞 묶음 카드를 다음 묶음에 줌, 3점 이상 카드, 같은 날 같은 사건 한 장(새 소식이면 머리 갱신)·다른 날 새 소식만 새 카드, 판정 실패 pending 26시간, og:image·og:site_name, 30일 정리, state.json), services/news_judge.js(지시문·답 검사·원문에 없는 숫자/주소 요약 막기), routes/news.js(GET /api/news?date · POST /api/news/:date/:id/open · GET /api/news/img 우리 카드 http 사진만), naver_search.searchNews, bulletin_ai ⑦ news(먼저 Gemma 26b→Gemini, 관리자 화면 칸). 검사 test_news_collector 45/45, test_bulletin_ai 81/81, test_bulletin_ai_ui 11/11. 실제 키 시험(GitHub Actions, 검색어 12개, 운영과 무관한 /tmp): 1차 52건 판정→11장(해광호 3장 갈라짐·유튜브 주소 요약·태안=전국) → 고침 → 3차 53건→8장(해광호 1장 외 20건·평택 1장·지역 충남/경북), Gemma 3묶음 154초, 뺀 기사 21건 판정 적절. 남은 것: AI 판정 흔들림(홍도 관광 기사 1차 2점→3차 3점 — 지시문 보강했으나 재시험 안 함, 관리자 숨기기로 처리 가능), 운영(Fly)에서 nifs·네이버·AI 실제 동작은 배포 뒤 확인. 다음: 앱 화면(탭 머리 B·날짜줄 B·카드 꼬리표 B·어황 목록 A·공지 정렬) → 관리자 화면(A).
+
+
+### [2026-11-21 03:42 KST] ✅완료 — 자동 반영 ar-202611210311-1d35 — 개정 승인분 10건 (이식승인 기준 새 판 반영)
+반영: 수산자원의 이식승인 기준 일부개정 국립수산과학원고시 제2026-2호(2026-11-18 발령·시행, ID 2100000259134→2100000288398) — collect_approved 로 본문(PDF 전사본→API 본문)·별표(별지0) 수집. 새 판 별지0↔옛 판 별표1 정규화 대조로 달라진 행만 위키 반영: 큰가리비(종전 참가리비, 각장 0.2~3.5cm)·참굴(Magallana gigas, 의견수렴, 육상수조식 50마리·각고 6cm·4배체 행 신설)·새꼬막·돌비늘백합(축제식·살포식, 3cm 이하, 지자체 의견수렴)·학명 Penaeus/Eriocheir japonica·돌기해삼·바다낚시터(동갈돗돔·참돔 빠짐, 벵에돔·흑점줄전갱이·잿방어 신설 7.1~9.30, 남방먹조기·점성어 이름 변경)·증명서류/증명자료·국외반출 뱀장어 비고. 본문 제6·7조(전문가위원회) 신설로 처리기간·관리가 제8·9조로 옮겨짐 → annex·회복명령 근거 조문 표. 위키 2쪽, 다른 눈 읽기 PASS(rar1121-1-1 2쪽 · rar1121-2-1 annex 재읽기, C 지적 고치지 않음). 새 고시 수집 2건(수열에너지 범위 고시→물환경보전법, 전통식품 KS 인증 요령→농수산물품질관리법) — 위키 인용 0(grep)이라 위키 손대지 않음. 이미 현행 2건(낙동강 공공폐수·평택 유도선, 11-20 run 반영분) 장부만. amend_applied 5건. 보류: 시행 전 3건(군산청 공유수면 면제·재활용가능자원 분리수거 지침 2027-01-01, 석면해체작업감리인 기준 2027-02-20) · 결정 필요 2건(수산과학조사선 관리운영지침 관련 법 8 · 환경성적표지 작성지침 관련 법 2). 검사: V5-55 덮임 하락(72→66%, 원문 경로가 문서 전체) → annex 원문 경로를 별지0 으로 바로잡아 97%(기준선 안 건드림) · V5-23 새 본문 그림 171672801 받음(dl_byl_images.sh 는 인자가 목록 파일) · V5-8c sync_notice_index --apply · test_admrul_review 972→974. 재실행 verify_all 위키 게이트 실패 0(V5-57·V5-33 통과), 남은 실패 23 = V4 + 화면 스위트 22(playwright-core 없음, 스위트별로 열어 보지는 않음). collect_pending_law --verify ❌2 는 기존 대기본. ⚠옛 판 별표 파일 수산자원의이식승인기준_별표1.txt(ID 2100000259134)가 새 판 별지0 옆에 남아 있음 — 도구 규칙대로 지우지 않음(PR 참고에 적음). raw 본문 3행 머리말 시행일 20250513 도 낡은 채(도구가 쓴 줄).
+
+
+### [2026-11-21 03:13 KST] 🟢착수 — 자동 반영 ar-202611210311-1d35 — 개정 승인분 10건
+collect_approved --dry: 받을 것 3(수산자원의 이식승인 기준 개정·수열에너지 범위 고시 신규·전통식품 KS 인증 요령 신규), 이미 현행 2(낙동강 공공폐수·평택 유도선 — main 반영 확인, 장부만), 보류 5(시행 전 3·관련 법 둘 이상 2). 받은 뒤 위키 대조·다른 눈 읽기·검사·PR.
+
+
+### [2026-11-21 00:50 KST] ✅완료 — 어황정보 서버 수집기 완료 (뉴스·공지·어황 탭 1단계)
+사용자 답: 어황 글 별도 저장(추천대로)·댓글/반응 없음·법개정은 뉴스 보도분만·뉴스 카드에 펼친 횟수(시각 왼쪽). 만든 것: services/fishcond_collector.js(NIFS actionBoard0014 목록 첫 쪽 매시 7분 KST·최근 7일 새 글만 추가·PDF 받기·bulletin_docs.convertPdf 로 130dpi PNG·30일 지난 글 삭제·목록 못 읽으면 안 지움·state.json 에 결과), routes/fishcond.js(GET /api/fishcond · /:id/view · /:id/page/:n · /:id/pdf), server.js 연결(운영 FLY_ALLOC_ID 에서만 start), bulletin_docs 에 convertPdf 내보내기 1줄, 검사 test_fishcond_collector.js 33/33(verify_all SUITES 등록), 설계 기록 client/js/notice/news_hub.design.md. 실측: 실제 게시판 7건 받아 PNG 생성·재실행 0.8초·HTTP 경로 4개 정상·나쁜 ID 404. 미확인: Fly(도쿄)에서 nifs.go.kr 접속 가능 여부. 설계안 artifact 에 검토 기능(이 안으로·의견 32칸·자동 저장 db review/main·내보내기) 추가 — 사용자 작성 중: 탭머리 B·날짜줄 B(◀날짜▶ 가운데, [오늘]은 ▶ 바로 오른쪽, 달력 맨 오른쪽)·카드 꼬리표 B·어황 목록 A, 관리자 8-1 미선택. 다음: 사용자 '다 적었어' 후 반영 → 오늘의 뉴스 서버.
+
+
+### [2026-11-21 00:36 KST] ✅완료 — 뉴스·공지·어황 탭 — 설계안·화면 시안 발행 (코드 미착수, 사용자 선택 대기)
+공지사항 탭을 「뉴스·공지·어황」으로 바꾸는 설계안을 artifact 로 발행: https://claude.ai/artifact/6Wpmf7NFYcVj5Dgtkseq3B . 확정 사항(사용자 원문 인용 포함): 하단 탭·제목 이름 「뉴스·공지·어황」, 안쪽 밑줄 탭 3칸(오늘의 뉴스·공지사항·어황정보), 처음 탭 = 최근 24시간 공지 글(패치노트 등 포함, 어황 자동글 제외) 있으면 공지 아니면 뉴스, 뉴스는 1시간마다 갱신·날짜 하나=그날 0~24시 KST, [◀][오늘][▶][달력] 달력은 보관 날짜만, 카드=대표사진(og:image)+제목+요약 3줄+오른쪽 아래 발행 시각, 아코디언(누르면 펼침→다시 누르면 앱 안 브라우저 @capacitor/browser, 다른 카드 누르면 접힘), 최신순·상한 없음, 푸시 없음, 공지사항은 알약 필터만 삭제, 어황정보=국립수산과학원 actionBoard0014 전부·1시간마다·PDF→PNG(bulletin_docs 방식, 130dpi)·PDF 받기·바다 꼬리표·최근 1주 채움, 보관 뉴스·어황 각 30일. 뉴스 선정 기준(대상자 비중, 6개 영향 묶음 — 돈에 정부·지자체 보조금 명시, 3단계 판정·3점 이상)도 artifact 9절. 실측: NIFS 첨부 10건 PDF 9.1MB+PNG 41장 15.3MB, 한 달 약 80MB 어림. 사용자 답 대기 항목(artifact 11절): ①어황 글 저장 위치(공지 게시판 분류 vs 별도 — 추천 별도) ②어황 댓글·반응 필요 여부 ③시안 A/B 5곳(추천 전부 A) ④법령 개정 감지 결과를 뉴스 카드로 넣을지. 답을 받으면 작업 순서(12절): 어황 서버 → 뉴스 서버(며칠 돌려 결과 보고) → 앱 화면 → 관리자 → 시험·적대검증.
+
+
+### [2026-11-20 23:49 KST] ✅완료 — 해양 뉴스 아침 브리핑 — 사전 조사·네이버 뉴스 API 시험 (앱 코드 미착수)
+사용자 요청: 매일 09:00 KST 지난 24시간 어업·수산·해양법·해경·사고·레저 뉴스 중 해양종사자에게 직접 영향 있는 것만(홍보·인사·MOU·행사 제외) 모아 주는 기능. 이번 세션은 설계 전 조사만 했다. ①구글 뉴스 RSS 견본(11/19 23:39~11/20 23:39 KST, 키워드 40개): 180건 수집 → 제외어 필터는 14건만 걸러 166건 남음(대부분 무관) → 수동 AI 판정으로 16개 사건. 교훈: 제외어 '수상'이 '수상레저' 법안 기사를 잘못 버림, 같은 사건 34건 중복(해광호), 법 개정 뉴스는 거의 없어 legal_amendment_scanner·입법예고 별도 연결 필요, RSS 1회 429. ②사용자가 NAVER API HUB(console.ncloud.com) SEAGNAL 앱에 '뉴스' API를 추가함(이미지도 체크됨). ③임시 GitHub Actions(naver-news-probe.yml, 확인 후 삭제)로 저장소 Secrets 의 NAVER_CLIENT_ID/SECRET 으로 GET /search/v1/news 4개 키워드 호출 → 전부 HTTP 200, 필드 title/description/link/originallink/pubDate, sort=date·display=100. 100건이 덮는 기간: '어선 사고' 약 29시간, '금어기' 3주 이상 → 많은 키워드는 start=101 두 번째 쪽 필요할 수 있음. 검색이 낱말을 떼어 맞춤('어선 사고'에 '이념적인 사고' 섞임) → AI 판정 필수. title·description 의 <b> 태그·&quot; 정리 필요. Fly 운영 서버 키가 저장소 Secrets 와 같은 값인지는 확인 안 함. 다음: 사용자 결정 대기 — 분량(전체 vs 핵심 5건), 가격·CPTPP류 포함 여부, 받는 사람(본인 vs 전체), 받는 곳(푸시 vs 앱 화면).
+
+
+### [2026-11-20 23:27 KST] ✅완료 — 자동 푸시 경로 점검 — 운영에서 통과, 버튼은 남김
+사용자가 운영(배포 #2362 뒤)에서 [자동 푸시 경로 점검 (임시)]를 눌러 확인: 자동 특보 푸시 길 통과(200) — 점검 알림이 헤드업으로 옴, 자동 태풍 푸시 길 통과(400, 발송 없이). → PR #1553 의 관리자 확인이 자동 푸시를 막지 않음이 운영에서 확인됨. 사용자 결정: '나중에 쓸 수 있도록 놔두자.' → 버튼·라우트·서비스·시험 유지(운영 문서에 기록). 참고: PR #1552 배포(#2360)는 Fly 이미지 저장소 TLS access denied 로 실패했고 #2361 에서 반영됨.
+
+
+
+
+### [2026-11-20 23:17 KST] ✅완료 — [임시] 자동 푸시 경로 점검 버튼
+사용자: '직접 발송하는 것으로 자동 푸시 온다고 볼 수 있니 ?'(아니다 — 관리자 열쇠 길 vs 내부 열쇠 길) → '자동 푸시 경로 점검 버튼 임시로 만들어보자.' 참고: 시작 화면 버전 줄이 안 뜬 까닭 = PR #1552 배포(Deploy #2360)가 Fly 이미지 저장소 TLS access denied 로 실패, PR #1553 배포(#2361)로 반영됨(사용자 '어 뜬다' 확인). 구현: services/push_auto_path_check.js(validate: 주소 20자 미만이면 거절 — 빈 adminToken=전체 발송 방지 / run: push_sender 와 같은 localhost:3001/api/push-custom 에 내부 열쇠 + adminToken=이 휴대폰 → 한 대만·기록 없음, push-typhoon 은 빈 본문으로 문지기만 400/401 확인), routes/push.js POST /api/admin/push-auto-path-check(requireAdminToken), alert_push.js 직접 발송 탭 버튼 + runAutoPushPathCheck(주소 없으면 서버 요청 안 함), index2.html 캐시 번호 AutoPathCheck_20261120. 시험 test_push_auto_path_check 23 PASS(verify_all 등록), test_push_route_auth 30 PASS(서버 내부 호출처 목록에 점검 서비스 추가). 실제 서버 e2e: 로그인 전 → 로그인 필요 안내, 주소 없음 → 안내, 정상 → 특보 길 200·태풍 길 400(구독자 1명 매칭, 이 환경엔 Firebase 없어 0건). 확인이 끝나면 지운다.
+
+
+### [2026-11-20 22:49 KST] ✅완료 — 시작 화면 버전 줄을 관리자 센터 [적용]에 맞춰 자동으로
+사용자: '이미지 2에서 내가 버전을 바꾸면 자동으로 반영되도록 해줄래 ? 그 첫 화면 업데이트 내용에 말이야.' + 'PR #1553 과 묶어서 머지'. 다른 세션 PR #1552(시작 화면 맨 아래 'Ver 1.3.0(17) · Updated 2026.11.20' 고정 글자, 이미 main 병합)를 이 가지에 합친 뒤: app_version_store.write 가 updatedAt 기록, read 는 updatedAt 없으면 파일 mtime 으로 채움(이미 적용한 1.3.0/17 도 날짜가 나옴). client/js/core/app_init.js fillSplashVersion — 휴대폰에 남긴 지난 값을 먼저 보여 주고 /api/app-version 답으로 'Ver x(y) · Updated YYYY.MM.DD'(KST) 갱신, 실패 시 지난 값 → HTML 글자. index2.html app_init.js 캐시 번호 SplashVer_20261120, 관리자 화면 안내 한 줄. 시험 test_app_version_store 32 PASS([8] 11건). 브라우저: 1.3.1/18/2026-11-21 로 띄워 시작 화면 글자 확인(스크린샷). 주의: 이 줄은 스토어 최신판 번호(휴대폰에 깔린 판 아님). 진행 중이던 verify_all 은 main 을 합치면서 파일이 바뀌어 중단 → 다시 돌린다.
+
+
+### [2026-11-20 22:40 KST] ✅완료 — 푸시 관리자 확인 — 독립 검토 2건 반영
+검토 A(막히는 경로)·B(우회·유출) 모두 '막을 사유 못 찾음'. B: 대소문자·끝 슬래시·인코딩·메서드 우회·열쇠 위조 21건 전부 401/404, 내부 열쇠 유출 경로 없음, 같은 프로세스 확인. A 발견1(중간, 확인함): promo.js 관리자 모드 10회 클릭은 비밀번호·토큰 없이 들어가 발송·삭제가 401 → promo.js 가 getStoredAdminToken() 없으면 로그인 창, alert_push.js 삭제 3종이 401 을 '관리자 로그인이 필요합니다'로 알림(종전 무표시). 분기 로직은 vm 으로 3경우 확인(헤더 클릭 e2e 는 이 환경에서 fetchAllData 가 끝나지 않아 못 봄), 삭제 안내는 브라우저로 확인. 캐시 번호 promo.js·alert_push.js PushAuth_20261120. test_push_route_auth 30 PASS. 그대로 둔 것(문서화): 태풍 '알림 완료' 선기록 → 거절 시 재시도 없음(로그는 남김), 크롤러 단독 실행 시 401, /api/unsubscribe 의 FCM 500 기존 결함, /api/test-push 무방비(한 대에만, mockWarningData 미사용), GET 조회 공개. 다음: verify_all → PR → 사용자 확인 후 병합.
+
+
+### [2026-11-20 22:33 KST] ✅완료 — 푸시 발송·발송 기록 삭제 주소에 관리자 확인 — 자동 특보·태풍 푸시는 내부 열쇠로 통과
+다른 세션 지적(사용자 전달): /api/push-custom·/api/push-typhoon·DELETE /api/push-history(/:id) 에 관리자 확인 없음 — 코드로 확인함. 사용자: '이것 반영하고자 하는데, 주의할 점이 발생하지 않도록 그 부분에 대해서는 재검토 할 수 있도록 해줘.' 주의할 점 실재: push_sender.js(자동 특보, localhost:3001/api/push-custom)·services/typhoon_notifier.js(자동 태풍, /api/push-typhoon)가 서버 안에서 HTTP 로 부른다(scheduler 경유 같은 프로세스). 구현: services/internal_push_auth.js(프로세스 시작 때 32바이트 내부 열쇠, X-Seagnal-Internal, timingSafeEqual, requireAdminOrInternal = 내부 열쇠 또는 admin_auth.requireAdminToken). push.js 네 주소에 붙임. push_sender·typhoon_notifier 가 internalHeaders() 를 붙임(typhoon 은 거절을 '성공 0'으로 삼키지 않게 res.ok 검사 추가). admin.js fetch 래퍼가 push-custom·push-typhoon·push-history 에도 X-Admin-Token 을 붙임, index2.html admin.js 캐시 번호 PushAuth_20261120. 시험 test_push_route_auth.js 27 PASS(verify_all 등록, _RULES 재생성). 관련 시험 6종 통과. 실제 라우터 e2e: 내부 열쇠 → 태풍 200 · 특보 문지기 통과 / 열쇠 없음 → 401. 브라우저 e2e: 로그인 전 401, 로그인 뒤 직접 발송 200·기록 삭제 200, 열쇠 자동 첨부. 남은 것: /api/test-push(한 대에만 발송, mockWarningData 는 아무도 안 읽음)·GET push-history 는 그대로. 다음: 독립 검토 2건 → 반영 → verify_all → PR(병합 전 사용자 확인).
+
+
+### [2026-11-20 21:22 KST] ✅완료 — 앱 버전 정보를 관리자 [적용]만으로 끝나게 — 서버 볼륨에 저장
+사용자 요청(2026-11-20): '적용만으로 끝나게 고쳐놓고 진행하자. 그래야 만약에 문제있어서 1.1.1 버전 3으로 적용만 하면 바로 적용되는거잖아.' 원인: 관리자 [적용]이 client/app_version.json 에 써서 main 머지(자동 배포)마다 저장소 값으로 덮였다. 고침: services/app_version_store.js 신설 — local_server/data/app_version.json(볼륨, .dockerignore 제외)에 tmp+rename 으로 쓰고, 읽을 때 그것이 없으면 client/app_version.json(처음 값). routes/version.js GET 이 store.read(Cache-Control no-store), routes/admin.js POST 가 store.write(다른 칸 유지). .gitignore 에 data/app_version.json. 시험 test_app_version_store.js 21 PASS(처음 값·적용 즉시·배포 뒤 유지·되돌리기·깨진 파일 경고·둘 다 없음 404·연결) — verify_all SUITES 등록, _RULES.md 재생성. 관리자 화면 안내에 '[적용]하면 바로 반영, 배포해도 유지' 추가. 다음: PR → 검사 → 머지 → 사용자가 관리자 센터에서 1.3.0/17/메시지 [적용].
+
+
+### [2026-11-20 17:58 KST] ✅완료 — 업데이트 안내 창 시안 C + 관리자 미리 보기 + 프로덕션 출시 확인
+Play 제출 활동(사용자 화면, 2026-11-20): 제출 14 '프로덕션, 비공개 테스트 - Alpha, 스토어 등록정보' 17:24 KST 제출 → 상태 '출시됨'. 1.3.0(17) 전체 출시. 사용자가 안내 창 시안 C 선택(버튼 안 'Play 스토어로 이동합니다', 나중에=24시간). 구현: client/capacitor-plugins.js showUpdatePopup 교체(새 아이콘 client/assets/app_update_icon.png, 바뀐 점 목록 = updateMessage 한 줄=한 칸·이모지=아이콘·'|' 뒤=설명, HTML 이스케이프, 나중에 키 seagnal_update_popup_later_at 24h, 이모지 정규식은 new RegExp+try 로 옛 WebView 문법 오류 방지), checkAppUpdate 에 24시간 건너뛰기, window.SeagnalUpdatePopup(preview). admin.js 버전 탭: 입력 안내 + [이 휴대폰에서 미리 보기]. index2.html 캐시 번호 UpdatePopupC_20261120. test_inapp_update_flow 104 PASS(새 [9] 22건). 다음: 이 변경을 main 에 합친 뒤에 관리자 센터 latestVersion 을 1.3.0 으로(출시 100% 후 하루 이틀). 합치기 전에 올리면 옛 창이 뜬다.
+
+
+### [2026-11-20 17:34 KST] ✅완료 — 앱 1.3.0(17) — 내부 테스트 통과, 프로덕션 검토 제출
+사용자 확인(2026-11-20): Play 내부 테스트에서 스토어판 1.1.1 → 1.3.0(16→17) 업데이트 정상, 앱 열림, 새 아이콘, 앱을 끈 상태 헤드업 정상. 16 은 GPS 필수 제거로 지원 기기 손실 0 확인. 16 뒤 '앱 콘텐츠' 신고서 2건(포그라운드 서비스·위치 정보 액세스) → 사용자 결정으로 백그라운드 위치·전경 서비스 권한 제거한 17(PR #1549, 사용자가 직접 병합) → 신고서 경고·빨간 띠 사라짐, 정책 상태 문제 없음. 프로덕션 '전체 출시'(100%)로 검토 제출 — 빠른 검사의 screen.portrait 필수 기능 경고는 세로 고정 때문(1.1.1 에도 있음)이라 무시. 스토어 아이콘 변경도 검토 중. 다음: ①검토 결과 대기 ②출시가 퍼지고 하루 이틀 뒤 관리자 센터 버전 값을 1.3.0 으로(그 전에 올리면 닫기 없는 안내 창에 갇힘) ③다음 버전 후보: 알림 채널 이름 'SEA:GNAL 알림'→'바다:그 날 알림'(앱 이름과 맞추기), screen.portrait 경고 정리, 위치 기반 일반 공개 시 권한 2개 되살리고 Play 신고서 제출. 참고: 1.1.1 은 2026-03-19 출시(Play 화면).
+
+
+### [2026-11-20 17:02 KST] 🟢착수 — 백그라운드 위치·위치 전경 서비스 권한 제거 + versionCode 17 (Play 신고서 2건 회피)
+16 을 내부 테스트에 올린 뒤(사용자 확인: 1.1.1→1.3.0 업데이트 정상, 새 아이콘, 앱 끈 상태 헤드업 정상) Play 앱 콘텐츠에 '선언 2개에 주의 필요'(포그라운드 서비스 권한·위치 정보 액세스 권한)가 떴다. 신고서 없이는 정식 출시 불가. 위치 기반 기능은 관리자 전용이라 검토 통과가 어렵다고 보고 선택지를 드렸고 사용자가 '위치기반 빼자.(2개 기능)' 로 결정. 할 일: ACCESS_BACKGROUND_LOCATION·FOREGROUND_SERVICE_LOCATION·FOREGROUND_SERVICE 를 tools:node=remove, background-geolocation 플러그인 제거(npm uninstall + cap update), versionCode 17, 빌드 절차 검사 추가, 운영 문서 §4-3, 가지에서 서명 AAB(17) 빌드 → 사용자 전달 → PR.
+
+
+### [2026-11-20 15:38 KST] ✅완료 — 연안 브리핑 관리자 푸시 — 정시 판만
+사용자 「정기판만 보내줄 수 있도록 푸시알림 로직을 수정해줘」. station_briefing.tick 이 특보 변경 판(warning) 실행 뒤 결과 푸시·실패 푸시를 보내지 않음(실패는 failures.warning 백오프·누적 오류·관리자 탭에 기록). 정시 판 푸시 그대로. 설계서 §11.10.60. 시험 test_station_briefing 254/0 · test_silent_catch 22/0.
+
+
+### [2026-11-20 13:49 KST] ✅완료 — 원문신선도 — 고친 원문이 배포되면 서버가 스스로 다시 점검
+완료(브랜치 claude/wonderful-fermi-9qv0d8 · PR 은 사용자 지시 대기). admrul_fresh_scanner.js fixedOnDisk()·rescanIfFixesDeployed()·waitIdle() + server.js 시작부 호출 · 새벽 점검이 setHold 전에 waitIdle. 설계 nariya_autorun.design.md §8.11. 확인: test_fresh_rescan_on_deploy 23/0 · test_stale_reopen 41/0 · test_fresh_progress 21/0 · test_nariya_autorun 49/0 · verify_all.sh 전체 「✅ 전체 검증 통과」(로컬 서버를 먼저 띄우고 NODE_PATH=/opt/node-tools/node_modules 로 playwright-core 를 찾게 해서 돌림 — 첫 실행은 서버 미기동·playwright-core 부재로 스모크 21·화면 스위트 22 실패였고 재실행으로 이번 변경과 무관함을 확인). 총정리의 ❌ 줄은 분류 표시이고 같은 날 PR #1540 CI 로그와 같은 수치. 운영 카드 76장 재판정 73장 고름 · 낙동강 카드 main 안 고름/PR #1543 파일 고름. 독립 검토 반영(M1·M3·M4·L1·L2), M2·L3 남김(사유 설계 메모). 점검용 로컬 서버가 바꾼 data 파일 3개·새 파일 1개는 파일 단위로 되돌림. 다음: 사용자가 PR 을 지시하면 올림 → 머지·배포 뒤부터 작동. ARCHITECTURE.md 는 생성기 출력이 이번 변경과 무관한 트리 기호 35줄 차이를 내 손대지 않음(별건).
+
+
+### [2026-11-20 13:13 KST] 🟢착수 — 원문신선도 — 고친 원문이 배포되면 서버가 스스로 다시 점검
+사용자 요청(2026-11-20 13:2x KST): 「지금점검도 자동으로 하는 로직을 만들면 좋겠는데?」. 지금은 자동 반영 PR 이 머지·배포돼도 카드는 다음 원문신선도 차례(3일 뒤)나 사람이 「지금 점검」을 눌러야 닫힌다. 계획: 서버가 켜질 때(=배포 직후) 대기 카드의 raw 파일·같은 폴더 _admrul.json/_meta.json 에 카드가 기다리는 새 판 번호가 들어 있으면 「고친 원문이 올라왔다」로 보고 전수 점검 1회를 돌린다(카드 id 마다 한 번만 · 점검이 끝까지 돈 뒤에 기록). 끝나면 관리자 푸시로 닫힌 수·남은 수를 알린다. 운영 서버(seagnal-server)에서만. 파일: services/admrul_fresh_scanner.js · server.js · client/js/ai-chat/ai_chat.js(방 설명) · 새 시험 + verify_all SUITES 등록.
+
+
+### [2026-11-20 12:32 KST] ✅완료 — GPS 필수 선언 제거 + versionCode 16 — 서명 AAB(16) 사용자에게 전달
+한 것: AndroidManifest.xml 에 gps uses-feature 를 required=false + tools:replace 로 선언, versionCode 16(versionName 1.3.0 그대로), build-apk.yml·build-release-aab.yml 의 병합 매니페스트 검사에 '필수 기기 기능이 있으면 실패' 추가(주석을 걷어 낸 뒤 센다). 확인: Build Release AAB run #5 · Build Debug APK run #47 성공(커밋 9f55f5f1). 받은 번들을 직접 열어 15 와 견줌 — 15 는 gps 태그에 required 속성 없음(필수), 16 은 required=false. 서명 SHA-1 동일(9C:C8:DA:CA:…:2D:AD:2A), jar verified. SEAGNAL-1.3.0-16-release.aab 를 채팅으로 전달. 첫 시도(run #46·#4)는 새 검사가 소스 매니페스트 주석 속 태그 글자를 선언으로 세어 실패 → 고침. 15 는 Play 에 올리기만 하고 출시하지 않았다(사용자 지시). 남은 것(사용자): 16 을 Play 내부 테스트에 올려 ①지원 기기 수가 돌아왔는지 ②스토어판 1.1.1 → 1.3.0 업데이트 ③헤드업을 확인. 그 뒤 정식 출시. 관리자 센터의 버전 값은 정식 출시가 다 퍼진 뒤에 올린다(그 전에 올리면 닫기 버튼 없는 안내 창에 사용자가 갇힌다). 참고(사용자와 확인한 것): 저장소를 비공개로 돌리면 Actions 무료 할인이 사라진다 — 이번 달 20일까지 gross 49달러(전부 Actions Linux, 분당 0.006달러), 예산은 Actions 25달러. 공개 유지가 현재 결론. PR #1544 에 전부 들어 있다(검증 게이트 통과하면 병합 — 사용자 '진행').
+
+
+### [2026-11-20 12:22 KST] 🟢착수 — GPS 필수 선언 제거 + versionCode 16 — Play 내부 테스트 경고(태블릿 35% 지원 제외) 대응
+사용자가 1.3.0(15)을 Play 내부 테스트 화면에 올리자 '지원 기기 변경사항' 경고가 떴다: 전화 -223, 태블릿 -2,365(-35%), 크롬북 -77(-100%), 이유 '필요한 기능을 지원하지 않습니다(시스템 기능)'. 원인: 백그라운드 위치 플러그인 매니페스트의 uses-feature gps(필수). 사용자 지시: '고친 다음 버전을 만든 다음 내부 테스트에 올려보자. 지금 이 버전으로 올리지 말고. 그냥 진행.' 할 일: AndroidManifest 에 gps required=false(tools:replace), versionCode 16, 두 빌드 절차의 병합 매니페스트 검사에 '필수 기능 있으면 실패' 추가, 가지에서 디버그·릴리스 빌드로 병합 결과 확인, 서명 AAB(16)를 사용자에게 전달. PR #1544 에 함께 넣는다.
+
+
+### [2026-11-20 11:53 KST] ✅완료 — 스토어용 서명 AAB 를 깃허브에서 만드는 빌드 절차(Build Release AAB) — 가지에서 실제 서명본까지 확인
+한 것: .github/workflows/build-release-aab.yml 신설(workflow_dispatch). 준비(npm install → cap sync) → bundleRelease → 병합 매니페스트(release) 검사 → jarsigner 서명 → 서명 검증·지문 대조 → Artifacts(seagnal-release-aab). 서명 키는 저장소의 android/seagnal-release-key(PKCS12, alias key0, 2026-02-14 생성 — 사용자가 채팅으로 준 릴리즈 키와 sha256 일치), 비밀번호는 깃허브 Secrets 의 ANDROID_KEYSTORE_PASSWORD(사용자가 등록함). 실행 기록: run #1(push, 서명 없이) 빌드·매니페스트 검사 통과 / run #2 실패 — 내가 apk_build/android.keystore 를 릴리즈 키로 잘못 봤다(확장자로만 찾아 android/seagnal-release-key 를 놓침, 비밀번호 불일치로 드러남) / run #3(workflow_dispatch, 가지 d333dedb) 성공 — SEAGNAL-1.3.0-15-release.aab, jar verified, 서명 인증서 SHA-1 9C:C8:DA:CA:45:FB:63:90:80:6F:C2:55:C6:A7:04:58:24:2D:AD:2A. 파일을 사용자에게 채팅으로 전달함. 사용자 보고(2026-11-20): 시험 폰에서 앱을 끈 상태로 헤드업 알림 확인됨 → 운영 문서 §4 ④ 갱신. 남은 것: ①이 절차를 main 에 넣는 PR(사용자가 Actions 화면에서 직접 누르려면 필요) ②사용자가 Play 내부 테스트에 AAB 올리기 — 이 키가 Play 에 등록된 업로드 키와 같은지는 거기서 드러난다 ③앱 안 업데이트 확인은 versionCode 16 을 한 번 더 올려야 한다. 알릴 것(사용자 결정 사항): 이 저장소는 공개 저장소인데 릴리즈 키 파일(android/seagnal-release-key)과 옛 키(apk_build/android.keystore)가 들어 있다 — 비밀번호가 유일한 방어선. 이 작업 환경: 산출물 내려받기 때문에 SEAGNAL 이라는 개인 환경을 만들어 깃허브 빌드 저장 서버 주소 두 개를 허용했다(productionresultssa30·sa16.blob.core.windows.net).
+
+
+### [2026-11-20 11:35 KST] 🟢착수 — 스토어용 서명 AAB 를 깃허브에서 만드는 빌드 절차 추가(Build Release AAB)
+사용자 요청(2026-11-20): 시험 폰에서 앱을 끈 상태 헤드업 확인됨 → 스토어용 파일을 깃허브에서 만들게 해 달라. 할 일: .github/workflows/build-release-aab.yml 신설(workflow_dispatch). 디버그 빌드 절차(build-apk.yml)와 같은 준비(npm install → cap sync) 뒤 bundleRelease → 병합 매니페스트 검사(release) → 저장소의 apk_build/android.keystore(alias android, PKCS12)로 jarsigner 서명 → 서명 검증·지문 대조 → Artifacts 로 올림. 비밀번호는 깃허브 Secrets 의 ANDROID_KEYSTORE_PASSWORD(선택: ANDROID_KEY_PASSWORD)에서만 읽는다. build.gradle 은 안 건드린다. 병합 전 브랜치에서 임시 push 트리거로 release 빌드가 되는지 먼저 본다.
+### [2026-11-20 12:32 KST] ✅완료 — AI 브리핑 오류 자동 처리 세션(가) + 누적 오류 E20261120-110944(나) — PR #1545 머지
+(나) 오류 27건: G01 지명 오판 고침(관형 어미 꼴·바깥쪽 해구·잔잔하더라도·보여도·동해 쪽 먼바다 — 사용자 허용), 장소 수 범위 8~9곳 허용(사용자 (가)), 검사 v24. 처리 완료 기록 G01. 나머지는 AI 어김·코드 밖 → 관리자 버튼. (가) 서버 automation/error-export·autofix-done, 머지 담당 briefing 종류(조건부 자동 머지 — 허용 파일 5개·내용 검사·표식 한 줄·결정 필요 0·그 세션 첫 PR), 관리자 AI 브리핑 탭 「오류 자동 처리」 칸. 독립 검토 3건 반영. 예약 작업 「연안 브리핑 오류 자동 처리」(trig_01Wd7dtxim4BFpuJbTM4Ecgj, 매일 05:48 KST, shin 환경, 새 세션) 생성 — 첫 실행 11-21 05:48. 다음: 첫 실행 결과(앱 「오류 자동 처리」 칸·Claude 앱 알림) 확인.
+
+
+### [2026-11-20 12:09 KST] ✅완료 — 자동 반영 ar-202611201148-c960 — 낙동강유역환경청 공공폐수처리시설 기본계획 통합 고시 새 판 반영(원문신선도 1건) · 개정 2건 시행 전 보류
+반영: (낙동강유역환경청) 공공폐수처리시설 기본계획 통합 고시 — 일부개정 제2026-65호(발령·시행 2026-11-20, ID 2100000264530→2100000288232). 새 판 첨부 HWPX(flSeq=171568367)와 종전 첨부 HWPX(flSeq=156502861)를 hwpx_table.py 로 읽어 견주니 달라진 곳은 머리글 3줄과 「33. 밀양 나노융합 국가산업단지」 절뿐 → raw 파일의 그 줄들만 새 판 글자로(면적 1,531,685→1,530,246㎡ · 배출량 2,997.4→3,128.6㎥/일 · 처리능력 3,000(1단계 700)→3,200㎥/일 · COD 3.6/3.9→2.8/3.0 · T-N 사업 후 3.345→3.362 · 총사업비 31,940→60,383백만원 표 교체), [부칙] 한 줄 추가, _admrul.json ID. 검산: 고친 파일↔새 HWPX 남은 차이 37줄이 종전 파일↔옛 HWPX 차이 37줄과 같은 줄(다른 것 둘 = 새 부칙 줄, 33절 ※ 줄 위치). 첨부 PDF 로 33절 숫자 교차 확인. 위키는 고치지 않음 — 이 고시 본문을 인용하는 쪽이 없다(wiki 에서 고시 이름은 statutes/물환경보전법 변경 이력 한 줄뿐, 「밀양 나노」·「31,940」 0건) → 다른 눈 읽기 대상 없음. 되돌리기 기록 autorun_ar-202611201148_nakdong_wwtp_20261120-114611-272.json(2파일). 보류: 개정 승인분 2건(chg_20261118_829ef9·chg_20261118_bceaf2, 시행 2027-01-01) — collect_approved --dry 「보류(시행 전)」, 앞선 두 run 과 같음. 검사: lint_stage_markers 깨진 마커 없음 · lint_index/lint_build 뒤 바뀐 파일 없음 · verify_all 실패를 세운 검사 23 = V4 시뮬레이션 + 앱 화면 스위트 22(로그에 playwright-core 없음이 찍힌 것 확인: V4·test_risk_map_layer·test_notice_markdown, 나머지는 「결과줄 없음」 크로뮴 화면 스위트 — 하나씩 열어 보지는 않음, 이번 변경은 앱 코드 0). 위키 게이트(V5-*)는 실패 모음에 없음 — V5-33 고쳐진 원문 2·기록 1건·기록 없는 것 0, V5-15 사본 ID 갈림 0. collect_pending_law --verify ❌2 는 이번 run 이 건드리지 않은 기존 대기본. ⚠검사용 로컬 서버가 local_server/data 6파일을 바꿈(자동 푸시 기록 3건, 받은 기기 수 0) — 파일 단위로 되돌리고 커밋하지 않음.
+
+
+### [2026-11-20 11:49 KST] 🟢착수 — 자동 반영 ar-202611201148-c960 — 원문신선도 1건(낙동강유역환경청 공공폐수처리시설 기본계획 통합 고시) · 개정 승인분 2건
+원문신선도: (낙동강유역환경청) 공공폐수처리시설 기본계획 통합 고시 — 가진 판 ID 2100000264530(제2025-37호, 2025-09-24), 서버 카드가 말하는 현행 2100000288232(제2026-65호, 발령 2026-11-20). admrul_fresh 로 낡음 확인 → 새 판 첨부 HWPX 를 hwpx_table.py 로 읽어 같은 파일을 현행화(종전도 첨부 HWPX 전사본) → 위키 인용 쪽 확인 → 검사 → PR. 개정 승인분 2건(군산청 공유수면 면제대상·재활용가능자원 분리수거 지침, 시행 2027-01-01)은 collect_approved --dry 로 받는지 다시 확인(앞선 두 run 은 「시행 전 보류」).
 
 
 ### [2026-11-20 11:28 KST] ✅완료 — 해상 기상 요약 지시문 — 기간이 다른 해역은 줄을 나누라는 규칙·예시 추가
@@ -1547,6 +1710,8 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 
 ### [2026-11-20 11:02 KST] 🟢착수 — 해상 기상 요약 지시문 — 해역마다 기간이 다르면 줄을 나누라는 예시 추가
 운영 「시험 요약」(수도권 11-20) 두 번 연속 Gemma 가 「A는 내일 오전까지, B는 오늘 오후까지 바람이 …」를 한 줄(zone 「A · B」, period 「내일 오전까지 · 오늘 오후까지」)로 묶어 검사에 걸림 → 업스테이지가 답함(59초). 사용자 「진행해보자」. PROMPT 의 zones 규칙에 이 꼴의 예시를 한 줄 넣는다(검사는 그대로). 효과는 배포 뒤 「시험 요약」으로만 확인 가능(작업 환경에 키 없음).
+### [2026-11-20 11:13 KST] 🟢착수 — AI 브리핑 오류 자동 처리 세션(가) + 누적 오류 E20261120-110944 27건(나)
+사용자 「가, 나 진행」. (가) 서버 automation/error-export 경로 + 예약 작업 지침(briefing_autofix.routine.md, 매일 08:43 KST, 열린 자동 PR 있으면 건너뜀) — 예약 작업은 배포 뒤 생성. (나) 별도 에이전트(worktree)가 유형 8개 재현·판정·수정 중.
 
 
 ### [2026-11-20 10:39 KST] ✅완료 — 해상 기상 요약 — 배경 절 해역 오판 고침 · 날짜에 기대던 화면 시험 고침

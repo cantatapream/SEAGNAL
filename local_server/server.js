@@ -300,6 +300,8 @@ app.use(require('./routes/hazard_rocks'));  // 간출암 잠김경고 API (3시�
 app.use(require('./routes/navigational_warning'));  // 항행경보 현황 API (국립해양조사원)
 app.use(require('./routes/assistant'));     // AI 음성/텍스트 비서 (자연어 질문 → 실데이터 답변)
 app.use(require('./routes/legal'));          // 해양법령 챗봇 — 관리자 리뷰 검증 API + 현 DB 답변
+app.use(require('./routes/fishcond'));      // 뉴스·공지·어황 탭 — 국립수산과학원 어황정보 목록·PDF·쪽 그림 (services/fishcond_collector 가 받아 둠)
+app.use(require('./routes/news'));          // 뉴스·공지·어황 탭 — 오늘의 뉴스 카드·보관 날짜·펼친 횟수 (services/news_collector 가 매시 모음)
 
 // ============================================================================
 // 4. 정기 작업 (Daily Cloud Backup)
@@ -396,6 +398,9 @@ async function runNariyaNightly() {
     const which = ar.nightlyScanFor(Date.now());
     // 처리 결과 요약 푸시(2026-11-17 사용자 「각 매일마다 모든 사이클이 완료되면 완료되었다는 푸시알림」·「처리결과에 관한 알림」)를 위해 결과를 모은다.
     let scan = null, scanError = null, approved = 0, sweep = null, sweepError = null;
+    // 배포 뒤 다시 점검(원문신선도)이 도는 중이면 끝나기를 먼저 기다린다 — law.go.kr 점검 둘이 겹치지 않고,
+    //   원문신선도 차례가 「이미 진행 중」을 실패로 받지 않게. setHold 보다 **먼저** 기다린다(켬/끔 하나라 서로 풀지 않게 · 2026-11-20 검토 M1).
+    try { await require('./services/admrul_fresh_scanner').waitIdle(); } catch (e) { console.error('AI 챗봇 새벽 점검 — 앞선 점검 기다리기 실패(점검은 계속):', e.message); }
     try { ar.setHold(true); } catch (e) { console.error('AI 챗봇 새벽 점검 — 세션 깨우기 보류 실패(점검은 계속):', e.message); }
     try {
         if (which === 'amend') {
@@ -515,6 +520,14 @@ app.listen(PORT, '0.0.0.0', () => {
         } catch (e) {
             console.error('[startup] 승인 이력 다시 맞추기 실패:', e && e.message);
         }
+        // 원문신선도 — 배포로 고친 원문이 올라왔으면 점검을 스스로 한 번 돌려 카드를 닫는다(services/admrul_fresh_scanner.js · 2026-11-20)
+        //   사장님 「지금점검도 자동으로 하는 로직을 만들면 좋겠는데?」. 운영 서버에서만 돈다. 실패해도 서버는 그대로.
+        try {
+            require('./services/admrul_fresh_scanner').rescanIfFixesDeployed()
+                .catch((e) => console.error('[startup] 원문신선도 배포 뒤 점검 오류:', e && e.message));
+        } catch (e) {
+            console.error('[startup] 원문신선도 배포 뒤 점검 시작 실패:', e && e.message);
+        }
         // VM 대신 이 서버 안에서 Codex(ChatGPT) 작업자 띄우기 — 시크릿 CODEX_AUTH_JSON 이 있을 때만 (services/codex_inproc.js)
         try {
             require('./services/codex_inproc').start(PORT);
@@ -547,6 +560,12 @@ app.listen(PORT, '0.0.0.0', () => {
         // 기상청 해수욕장 단기예보·수온 — 운영에서만 발표 15분 뒤(02:15·05:15·…·23:15 KST) 419곳(설계서 §18, 2026-10-18)
         try { require('./services/beach_weather_collector').start(); }
         catch (_) { console.error('[startup] 해수욕장 날씨 수집기 시작 실패'); }
+        // 국립수산과학원 어황정보 — 운영에서만 시작 직후 한 번·매시 7분(KST) 확인, 새 글 PDF 를 받아 쪽 그림으로(services/fishcond_collector.js, 2026-11-21)
+        try { require('./services/fishcond_collector').start(); }
+        catch (_) { console.error('[startup] 어황정보 수집기 시작 실패'); }
+        // 오늘의 뉴스 — 운영에서만 시작 2분 뒤 한 번·매시 2분(KST) 네이버 뉴스 수집 + AI 판정(관리자 「AI 모델 설정 ⑦」 순서) — services/news_collector.js(2026-11-21)
+        try { require('./services/news_collector').start(); }
+        catch (_) { console.error('[startup] 오늘의 뉴스 수집기 시작 실패'); }
         // 활동지점 안전 브리핑 — 운영에서만 1분 점검(08:00·17:30·23:00 KST + 특보 변경). 시작 때 계산·외부 호출은 없다(첫 점검 1분 뒤).
         try { require('./services/station_briefing').start(); }
         catch (_) { console.error('[startup] 활동지점 안전 브리핑 시작 실패'); }
@@ -560,6 +579,9 @@ app.listen(PORT, '0.0.0.0', () => {
         // 자동 반영 PR 의 조건부 자동 머지 — 검사를 기다리던 PR 의 확인 타이머를 되살린다(services/nariya_pr_merge.js, 2026-11-16 C).
         try { require('./services/nariya_pr_merge').start(); }
         catch (e) { console.error('[startup] AI 챗봇 PR 자동 머지 복원 실패:', e && e.message); }
+        // 브리핑 누적 오류 자동 처리 PR 도 같은 머지 담당(종류 briefing — 설계서 §11.10.59) — 검사를 기다리던 PR 의 확인 타이머를 되살린다.
+        try { require('./services/nariya_pr_merge').forBriefing().start(); }
+        catch (e) { console.error('[startup] 브리핑 오류 자동 처리 PR 자동 머지 복원 실패:', e && e.message); }
 
         // 해구별예측(소해구) 시정 캐시: 디스크 로드 + 런 변경 시에만 수집(자동 갱신).
         try {

@@ -13,7 +13,7 @@
  *                    GET /api/station-briefing/now(「지금 밀집」만 — 화면이 1분마다, since 가 같으면 unchanged, §11.10.24)
  *                    GET·PUT /api/admin/station-briefing/config · GET /api/admin/station-briefing/status(?only=progress — 진행 게이지용 가벼운 응답) · POST /api/admin/station-briefing/run
  *                    GET /api/admin/station-briefing/stations · GET /api/admin/station-briefing/preview(관리자 미리보기 — 노출 범위와 무관)
- *                    GET /api/station-briefing/automation/job · POST …/automation/job-result · GET …/automation/jobs(세션 정시 판 — 관리자 또는 자동화 열쇠, §11.10.56) · …/automation/trial-*(세션 시험, §11.10.53)
+ *                    GET /api/station-briefing/automation/job · POST …/automation/job-result · GET …/automation/jobs(세션 정시 판 — 관리자 또는 자동화 열쇠, §11.10.56) · POST …/automation/error-export·autofix-done(누적 오류 자동 처리 세션 — §11.10.59) · GET /api/admin/station-briefing/autofix · POST …/autofix/prs/:n/merge·dismiss(관리자) · …/automation/trial-*(세션 시험, §11.10.53)
  *                    POST /api/admin/station-briefing/error-log/export(처리 안 된 오류 전부 + 유형 번호 — 누적 md, 내보내기 기록을 남김 · §11.10.48)
  *                    POST /api/admin/station-briefing/error-log/exports/:id/resolve(관리자 버튼 — 그 내보내기의 남은 유형을 처리 완료)
  *                    POST /api/admin/station-briefing/download(오류 md 를 잠깐 맡기고 한 번 쓰는 열쇠를 받음) · GET /api/station-briefing/download/:token(그 열쇠로 파일 한 번 받기 — 앱 안 WebView 는
@@ -45,11 +45,14 @@ function createRouter({
     // 세션 시험 경로(2026-11-17 §11.10.53) — 관리자 토큰 또는 자동 반영 열쇠(X-Automation-Token). 시험은 가짜를 넣는다.
     authorizeTrial = (req, res, next) => require('../services/nariya_autorun').requireAdminOrAutomation(req, res, next),
     nowLine = null,
+    // 누적 오류 자동 처리 기록·머지(§11.10.59) — 시험은 가짜를 넣는다. 기본 services/station_briefing_autofix.forDefault()(지연 require).
+    autofix = null,
     clock = () => Date.now(),
     beachLines = (ids, date) => require('../services/beach_weather').forDefault().linesForSpots(ids, date),
 } = {}) {
     const router = express.Router(), SB = require('../services/station_briefing'), downloads = new Map();   // token → {name, text, exp}
     const svc = () => service || SB.forDefault();
+    const af = () => autofix || require('../services/station_briefing_autofix').forDefault();
     /** 요청에서 기기 식별(관리자 기기 판정용)·관리자 토큰을 꺼낸다 — 이름은 adminToken·endpoint 쿼리, X-Admin-Device·X-Admin-Token 헤더(옛 특보 예측과 같은 규약). */
     const who = (req) => ({ deviceId: (req.query && (req.query.adminToken || req.query.endpoint)) || req.get('X-Admin-Device') || '', adminToken: req.get('X-Admin-Token') || (req.query && req.query.adminAuthToken) || '' });
     const gate = (req) => SB.decideExposure(svc().readConfig().exposure, who(req), { isAdminDevice, verifyToken });
@@ -160,6 +163,19 @@ function createRouter({
             res.status(202).json({ ok: true, started: true });
         } catch (e) { fail(res, e); }
     });
+    // 「오류 자동 처리」 칸(§11.10.59 — 관리자만): 마지막 세션 검사·최근 기록·PR(머지 버튼). 열 때마다 열린 PR 을 GitHub 에서 다시 읽는다(실패해도 기록은 준다).
+    router.get(admin + '/autofix', async (req, res) => {
+        try { try { await af().refresh(); } catch (e) { console.error('[station_briefing] 자동 처리 PR 새로 읽기 실패(기록만 줌):', e && e.message); } res.set('Cache-Control', 'no-store').json({ ok: true, ...af().status() }); }
+        catch (e) { console.error('[station_briefing] 자동 처리 칸 읽기 실패:', e && e.message); fail(res, e); }
+    });
+    router.post(admin + '/autofix/prs/:n/merge', async (req, res) => {
+        try { const n = Number(req.params.n), r = await af().mergeNow(Number.isInteger(n) ? n : -1, '관리자(앱)'); res.set('Cache-Control', 'no-store').status(r.ok ? 200 : (r.status || 409)).json(r); }
+        catch (e) { console.error('[station_briefing] 자동 처리 PR 머지 버튼 실패:', e && e.message); fail(res, e); }
+    });
+    router.post(admin + '/autofix/prs/:n/dismiss', (req, res) => {
+        try { const n = Number(req.params.n), r = af().dismiss(Number.isInteger(n) ? n : -1); res.set('Cache-Control', 'no-store').status(r.ok ? 200 : (r.status || 409)).json(r); }
+        catch (e) { fail(res, e); }
+    });
     // ── 세션 시험(2026-11-17 사용자 「실제로 얼마나 걸리는지 … 실제로 돌려보면서」) — 재기만 한다: 사용자 화면·날짜 파일·오류 기록에 쓰지 않는다.
     //   GET trial-job?kind=morning|evening|night → 정시 판 재료로 만든 묶음별 지시문 · POST trial-result → 서버 검사로 판정·시간 기록 · GET trials → 기록 20개.
     const trial = '/api/station-briefing/automation';
@@ -188,6 +204,20 @@ function createRouter({
     router.get(trial + '/jobs', authorizeTrial, (req, res) => {
         try { res.set('Cache-Control', 'no-store').json({ ok: true, jobs: svc().jobLog() }); }
         catch (e) { fail(res, e); }
+    });
+    // ── 누적 오류 자동 처리(2026-11-20 사용자 「가, 나 진행」 — 설계서 §11.10.59): 매일 뜨는 예약 작업 세션이 처리 안 된 오류를 받아 가 검사기를 고치고 PR 을 낸다.
+    //   관리자 POST error-log/export 와 같은 일(내보내기 기록을 남겨 머지 때 「이 내보내기에 든 것」만 처리 완료) — 자동화 열쇠로도 열린다. 없으면 404.
+    router.post(trial + '/error-export', authorizeTrial, (req, res) => {
+        try {
+            const r = svc().exportErrors(); res.set('Cache-Control', 'no-store'); if (!r) return res.status(404).json({ ok: false, error: '처리 안 된 오류가 없습니다' });
+            try { af().started(r.export.id); } catch (e) { console.error('[station_briefing] 자동 처리 시작 기록 실패(내보내기는 줌):', e && e.message); }   // 자동 머지 조건(그 세션의 PR 인가)에 쓴다
+            res.json({ ok: true, ...r });
+        } catch (e) { fail(res, e); }
+    });
+    // 세션 결과 보고(늘 — PR·nothing·skipped·failed). PR 이면 조건부 자동 머지 담당에 넘긴다(§11.10.59). 본문 검사 실패는 400.
+    router.post(trial + '/autofix-done', authorizeTrial, express.json({ limit: '64kb' }), async (req, res) => {
+        try { const r = await af().done(req.body); res.set('Cache-Control', 'no-store').status(r.ok ? 200 : (r.status || 400)).json(r.ok ? r : { ok: false, error: r.error }); }
+        catch (e) { console.error('[station_briefing] 자동 처리 결과 받기 실패:', e && e.message); fail(res, e); }
     });
     router.get(trial + '/trials', authorizeTrial, (req, res) => {
         try { res.set('Cache-Control', 'no-store').json({ ok: true, trials: svc().trialLog() }); }

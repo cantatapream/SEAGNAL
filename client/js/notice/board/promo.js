@@ -6,7 +6,8 @@
  * [연계]
  *  - 사용하는 파일 : image_compress.js(compressImageToJpeg/blobToDataURL), markdown_import.js(noticeMarkdown.toHtml — 마크다운 불러오기), promo_comment5.js(loadPromoComments), admin.js(showUnifiedLoginModal·adminAuthenticated), admin/pagination_helper.js
  *  - 서버 API      : /api/promo(/*), /api/boards, /api/comments/counts, /api/reactions(/counts), /api/upload, /api/upload-file
- *  - 마크업        : index2.html #promo-list(-pagination), #promo-detail-modal, #promo-editor-modal, #promo-tabs-container, #promo-attachment-list 등
+ *  - 마크업        : index2.html #promo-list(-pagination), #promo-detail-modal, #promo-editor-modal, #promo-attachment-list 등 (#promo-tabs-container 알약 필터는 2026-11-21 없앰 — renderPromoTabs 는 그 칸이 없으면 아무것도 안 한다)
+ *  - 뉴스·공지·어황(2026-11-21): updateNewBadges 가 공지 24시간 새 글 여부를 notice/hub/notice_hub.js(window.NoticeHub.setNoticeNew)로 넘긴다 — 하단 탭 N 은 그쪽이 단다
  *  - 나를 쓰는 곳  : 자체 초기화 및 탭/검색 시 renderPromoPosts 호출; admin_trigger.js·댓글 파일들이 promo 전역·상세보기 참조
  * ============================================================================
  *
@@ -268,9 +269,28 @@ function renderPromoTabs(boards) {
     tabsContainer.innerHTML = html;
 }
 
+/**
+ * 게시글 시각 글자를 한국 시각으로 읽는다(휴대폰 시간대와 무관하게).
+ * 예: promoKstMs('2026.11.21 08:00') → 2026-11-20T23:00Z 의 ms · '2026. 11. 21. 오후 3:05' 도 읽는다 · 못 읽으면 NaN
+ * 왜: 서버 createdAt 은 한국 시각 글자다. new Date() 로 읽으면 휴대폰 현지 시각으로 해석돼, 한국보다 서쪽 시간대(예: 베트남 시각 휴대폰)에서는
+ *     새 공지가 「미래 글」로 보여 N 이 안 붙고 「처음 칸」 규칙(24시간 안 공지면 공지사항부터)이 틀렸다(별도 에이전트 검토 2026-11-21, 실행으로 재현).
+ * @param {string} str @returns {number}
+ * [연계] ← updateNewBadges · renderPromoPosts(목록 N) · notice/hub/notice_hub.js hasRecent(window.promoKstMs)
+ */
+function promoKstMs(str) {
+    const m = String(str || '').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})\D+?(?:(오전|오후)\s*)?(\d{1,2}):(\d{2})/);
+    if (!m) return NaN;
+    let h = +m[5];
+    if (m[4] === '오후' && h !== 12) h += 12;
+    if (m[4] === '오전' && h === 12) h = 0;
+    return Date.UTC(+m[1], +m[2] - 1, +m[3], h - 9, +m[6]);
+}
+window.promoKstMs = promoKstMs;
+
 // 24시간 이내 새 게시글 체크 및 뱃지 표시
 function updateNewBadges(posts) {
-    if (!posts || posts.length === 0) return;
+    // 뉴스·공지·어황 탭(2026-11-21): 공지가 없을 때도 「새 글 없음」을 알려야 처음 칸(오늘의 뉴스)이 바로 정해진다
+    if (!posts || posts.length === 0) { if (window.NoticeHub) window.NoticeHub.setNoticeNew(false); return; }
 
     const now = new Date();
     const ONE_DAY = 24 * 60 * 60 * 1000; // 24시간 (ms)
@@ -283,11 +303,10 @@ function updateNewBadges(posts) {
         let postDateStr = post.createdAt;
         if (!postDateStr) return;
 
-        postDateStr = postDateStr.replace(/\./g, '-');
-        const postDate = new Date(postDateStr);
+        const postMs = promoKstMs(postDateStr);   // 한국 시각으로(휴대폰 시간대와 무관 — 2026-11-21)
 
-        if (!isNaN(postDate.getTime())) {
-            const diff = now - postDate;
+        if (!isNaN(postMs)) {
+            const diff = now.getTime() - postMs;
             if (diff >= 0 && diff < ONE_DAY) {
                 hasNew['ALL'] = true;
                 if (hasNew.hasOwnProperty(post.category)) {
@@ -297,8 +316,10 @@ function updateNewBadges(posts) {
         }
     });
 
-    // 1. 메인 탭 (공지사항) 뱃지 업데이트
-    const mainTabBtn = document.querySelector('.main-tabs .tab-btn[data-target="promo-section"]');
+    // 1. 메인 탭 뱃지 — 뉴스·공지·어황 탭(2026-11-21)부터는 notice/hub/notice_hub.js 가 세 칸(뉴스·공지·어황)을 합쳐 단다.
+    //    여기서는 공지 24시간 새 글 여부만 넘긴다(그 값으로 「처음 보일 칸」도 정한다 — 사용자 「최근 1일 내 공지사항이 있다면 공지사항 부터」).
+    const mainTabBtn = window.NoticeHub ? null : document.querySelector('.main-tabs .tab-btn[data-target="promo-section"]');
+    if (window.NoticeHub) window.NoticeHub.setNoticeNew(!!hasNew['ALL']);
     if (mainTabBtn) {
         const existingBadge = mainTabBtn.querySelector('.new-badge');
         if (existingBadge) existingBadge.remove();
@@ -475,8 +496,8 @@ function renderPromoPosts(posts) {
         // [New] 24시간 이내 새 글 뱃지 (리스트용)
         let newBadgeHtml = '';
         if (post.createdAt) {
-            let pDate = new Date(post.createdAt.replace(/\./g, '-'));
-            if (!isNaN(pDate.getTime()) && (now - pDate) >= 0 && (now - pDate) < ONE_DAY) {
+            const pMs = promoKstMs(post.createdAt);   // 한국 시각으로(휴대폰 시간대와 무관 — 2026-11-21)
+            if (!isNaN(pMs) && (now.getTime() - pMs) >= 0 && (now.getTime() - pMs) < ONE_DAY) {
                 newBadgeHtml = '<span class="new-badge" style="vertical-align: middle; margin-left: 6px;">N</span>';
             }
         }
@@ -501,12 +522,10 @@ function renderPromoPosts(posts) {
                 ${pinIcon}
                 ${escapeHtml(post.title)}${newBadgeHtml}${commentCountHtml}
             </div>
-            <div class="promo-item-meta">
+            <div class="promo-item-meta nhub-right">
+                ${reactionHtml}
+                <span class="promo-item-views"><i class="fa-regular fa-eye"></i> ${post.views || 0}</span>
                 <span class="promo-item-date">${formatPromoDate(post.createdAt)}</span>
-                <div style="display:flex;align-items:center;gap:6px;">
-                    <span class="promo-item-views"><i class="fa-regular fa-eye"></i> ${post.views || 0}</span>
-                    ${reactionHtml}
-                </div>
             </div>
         </div>
         `;
@@ -591,6 +610,8 @@ window.searchPromo = function () {
 window.openPromoDetail = async function (postId) {
     const modal = document.getElementById('promo-detail-modal');
     if (!modal) return;
+    // 뉴스·공지·어황 탭(2026-11-21): 공지 팝업의 「게시글로 이동」·딥링크로 글을 열면 아래 칸도 공지사항으로(닫았을 때 뉴스가 보이지 않게 — 검토 지적)
+    if (window.NoticeHub && typeof window.NoticeHub.pick === 'function') window.NoticeHub.pick('notice');
 
     try {
         // 상세 조회 API 호출 (조회수 자동 증가)
@@ -1469,7 +1490,11 @@ document.addEventListener('DOMContentLoaded', async function () {
 
             if (unifiedAdminClickCount >= threshold) {
                 unifiedAdminClickCount = 0;
-                if (isAdminMode) {
+                // ★2026-11-20 관리자 모드라도 서버 열쇠(로그인 토큰)가 없으면 비밀번호를 받는다 — 푸시 발송·발송 기록 삭제가
+                //   관리자 확인을 받게 되어(routes/push.js), 열쇠 없이 들어가면 화면은 열려도 발송·삭제가 401 로 막힌다(독립 검토 A).
+                //   getStoredAdminToken 은 admin.js(이 파일보다 뒤에 로드되지만 클릭 시점에는 있다)의 전역 함수.
+                const hasServerKey = typeof getStoredAdminToken === 'function' && !!getStoredAdminToken();
+                if (isAdminMode && hasServerKey) {
                     // 관리자 모드: 비밀번호 없이 바로 진입
                     adminAuthenticated.api = true;
                     adminAuthenticated.notice = true;
@@ -1477,7 +1502,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                     adminAuthenticated.alert = true;
                     showUnifiedAdminModal('alert');
                 } else {
-                    // 일반 모드: 비밀번호 입력 필요
+                    // 일반 모드(또는 관리자 모드인데 서버 열쇠가 없음): 비밀번호 입력 필요
                     showUnifiedLoginModal('alert', '통합 관리자 인증', 'fa-user-shield');
                 }
             }
