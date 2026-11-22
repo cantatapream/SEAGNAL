@@ -1537,6 +1537,14 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-23 00:49 KST] ✅완료 — 연안 브리핑 오류 자동 처리 — 결정 답 칸·판정 자동 닫기·결정 푸시
+사용자(11-22) 「배경과 내용을 충분히 설명 … ai 브리핑 탭 … 맞다, 아니다, 기타 의견 … 다음 절차가 자동으로」·「처리한 건은 … 자동으로 목록에서 삭제」·「푸시알림에 … 선택해주어야 할 것이 있다는 내용」, 물음 답 「다음 새벽 05:48」·「네, 자동으로 닫기」. ①station_briefing_autofix.js decisions(배경·실제 문장·맞다면·아니다면·추천) 저장·「정하실 것 N건」 푸시 · POST /api/admin/station-briefing/autofix/decisions/:id/answer(아니다=곧바로 끝+그 유형 닫음 by decision, 맞다·기타=세션 몫) · GET automation/autofix-answers(answers+known) · POST automation/autofix-decisions ②autofix-done 의 left+left_kinds 유형을 by auto 로 자동 닫기(결정 유형·fixed 겹침·옛 꼴·남의 내보내기 제외, 못 닫으면 closeIssue 빨간 줄) ③화면: 「정하실 것」 카드·「처리 안 된 오류」 꼬리표·「처리한 오류」 목록·PR 카드 「확인 필요」 ④routine.md 지침(2-1 답 받기·decisions 쓰는 법·answer_ats·known). 독립 적대검증 상1·중5·하4 모두 반영. 시험 test_station_briefing 259/0 · test_station_briefing_ui 104/0 · test_silent_catch 22/0. 설계서 §11.10.62. 남은 일: 머지·배포 뒤 ①예약 작업 「연안 브리핑 오류 자동 처리」 지침 교체(update_trigger — 배포 전에 바꾸면 안 됨) ②#1559 결정 2건(몽돌해변·남동쪽 연안바다)을 autofix-decisions 로 다시 올림(초안 scratchpad legacy_decisions.json).
+
+
+### [2026-11-23 00:17 KST] 🟢착수 — 연안 브리핑 오류 자동 처리 — 결정 답 칸·판정 자동 닫기
+사용자(11-22): ①「결정 필요」를 배경·내용·추천과 함께 AI 브리핑 탭에 쉬운 말로 보이고 [맞다/아니다/기타 의견]+[보내기], 답에 따라 다음 절차 자동(사용자 「다음 새벽 05:48」) ②세션이 처리한 오류는 「처리 안 된 오류」에서 자동으로 빠져 「처리한 오류」로(사용자 「네, 자동으로 닫기」 — AI 어김·호출 문제 판정도 자동 닫기). 먼저 station_briefing_autofix.js·errlog·routes·admin 화면·routine.md 를 끝까지 읽는다.
+
+
 ### [2026-11-22 22:28 KST] ✅완료 — 너울 수집 실패 푸시 12시간 대기
 사용자 요청(2026-11-22): 너울 위험등급 수집 오류→복구 푸시가 잦음 → collect_fail_alert.js ITEMS.swell 에 minFailMs 12시간·failNote 추가. 처음 실패에서 12시간 넘게 복구 안 될 때만 실패 1통, 문장에 「발생 MM/DD HH:mm · 12시간 넘게 복구 안 됨」. 12시간 안에 풀리면 실패·복구 모두 0통. 다른 항목은 그대로. 검사 test_collect_fail_alert S1~S5 추가(C1·C6 은 첫 실패 항목으로 옮김) 131 PASS. 문서 00_docs/operations/collect-fail-alert.md §4-3. 다음 할 일 없음(운영 배포 시 반영).
 
