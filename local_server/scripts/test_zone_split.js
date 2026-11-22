@@ -54,7 +54,6 @@ const info = (lv) => ({ wrnTp: 'V', wrnTpNm: '풍랑', wrnLvlNm: lv, tmFc: '2026
     ok('푸시 차단 없음', !ZS.isPushBlocked(OLD) && !ZS.isPushBlocked(W));
     {
         const snap = new C.StateSnapshot({ parents: new Map([[OLD, info('주의보')]]) });
-        ok('MMIS 칸을 빼지 않는다', C._dropSplitZones(snap) === 0 && snap.parents.has(OLD));
         const t = C._buildZoneTreeFromSnapshot(snap);
         ok('옛 구역 MMIS 특보가 나무에 그대로', t['제주도']['제주도먼바다'][OLD].current && t['제주도']['제주도먼바다'][OLD].current.wrnLvl === '주의보');
         sent.length = 0;
@@ -94,7 +93,7 @@ const info = (lv) => ({ wrnTp: 'V', wrnTpNm: '풍랑', wrnLvlNm: lv, tmFc: '2026
 
         // 끼우기: MMIS 나무의 두 잎 = 통보문 기준 값, 나머지 잎 = MMIS 값
         const snap = new C.StateSnapshot({ parents: new Map([[OLD, info('경보')], [W, info('경보')], ['제주도남부앞바다', info('주의보')]]) });
-        ok('MMIS 스냅샷에서 옛·새 이름 칸을 뺀다', C._dropSplitZones(snap) === 2 && !snap.parents.has(OLD) && !snap.parents.has(W) && snap.parents.has('제주도남부앞바다'));
+        ok('MMIS 가 새 이름으로 줘도(경보) 뼈대의 옛 잎은 없다', !('제주도남쪽바깥먼바다' in C._buildZoneTreeFromSnapshot(snap)['제주도']['제주도먼바다']));
         const cur = C._buildZoneTreeFromSnapshot(snap), prv = C._buildZoneTreeFromSnapshot(null);
         const origRead = BS.read;
         BS.read = () => ({ updatedAt: new Date().toISOString(), listsOkMs: Date.now(), current: r2.tree });
@@ -103,6 +102,16 @@ const info = (lv) => ({ wrnTp: 'V', wrnTpNm: '풍랑', wrnLvlNm: lv, tmFc: '2026
         ok('남동쪽바깥 잎 = 특보 없음(통보문이 해제)', leaf(cur, E).current === null);
         ok('다른 구역은 MMIS 값 그대로', cur['제주도']['제주도앞바다']['제주도남부앞바다'].current.source === 'MARINE_MMIS');
         ok('previous 의 두 잎 = 직전에 보이던 값', leaf(prv, E).current && leaf(prv, E).current.wrnLvl === '주의보');
+        // 전환 직후 첫 주기 — 통보문 계산이 아직 전환 전 것(옛 이름 잎)이면 그 값을 두 잎에
+        ZS._forceForTest(false); const pre = BS.compute([b1], now1, []); ZS._forceForTest(true);
+        BS.read = () => ({ updatedAt: new Date().toISOString(), listsOkMs: Date.now(), current: pre.tree, splitCurrent: pre.splitTree });
+        const cur3 = C._buildZoneTreeFromSnapshot(snap);
+        C._graftBulletinSplitZones(cur3, C._buildZoneTreeFromSnapshot(null), null);
+        ok('전환 첫 주기(통보문 계산이 옛 이름 잎) → 두 잎에 그 특보가 보인다', leaf(cur3, W).current && leaf(cur3, E).current && leaf(cur3, W).current.wrnLvl === '주의보');
+        // 참고사항 AI 덧씌움은 일반 사용자에게 나가는 두 잎에 섞이지 않는다
+        const withAi = BS.compute([b1], now1, [{ 종류: '해제예고변경', zones: [W], exact: true, office: '제주청', ho: 'x', inMs: now1, 시간_후: 'AI가 바꾼 글자' }]);
+        ok('AI 덧씌움: 관리자 나무에는 반영, 사용자용(splitTree)에는 없음', leaf(withAi.tree, W).current.clrNtcTm.includes('AI') && !String(leaf(withAi.splitTree, W).current.clrNtcTm).includes('AI'), [leaf(withAi.tree, W).current.clrNtcTm, leaf(withAi.splitTree, W).current.clrNtcTm]);
+        ok('괄호로 한쪽만: 옛 이름(남서쪽바깥) = 남서쪽만', parentsOf(OLD + '(' + W + ')').join() === W && parentsOf(OLD + '(' + E + ' 제외)'.replace(' ', '')).join() === W, [parentsOf(OLD + '(' + W + ')')]);
         BS.read = () => null;
         const cur2 = C._buildZoneTreeFromSnapshot(snap);
         C._graftBulletinSplitZones(cur2, C._buildZoneTreeFromSnapshot(null), null);
@@ -112,6 +121,7 @@ const info = (lv) => ({ wrnTp: 'V', wrnTpNm: '풍랑', wrnLvlNm: lv, tmFc: '2026
 
     console.log('E. 전환 후 — 푸시 차단');
     ok('옛 이름·새 두 이름·띄어 쓴 이름 차단', ZS.isPushBlocked(OLD) && ZS.isPushBlocked(W) && ZS.isPushBlocked(E) && ZS.isPushBlocked('제주도 남동쪽 바깥먼바다'));
+    ok('MMIS 가 줄여 준 이름도 차단(「제주도남서쪽 바깥」)', ZS.isPushBlocked('제주도남서쪽 바깥') && ZS.isPushBlocked('제주도남동쪽바깥') && ZS.isPushBlocked('제주도바깥먼바다'));
     ok('다른 구역은 안 막는다(안쪽먼바다·앞바다)', !ZS.isPushBlocked('제주도남서쪽안쪽먼바다') && !ZS.isPushBlocked('제주도남부앞바다') && !ZS.isPushBlocked('서해남부남쪽바깥먼바다'));
     {
         const CS = { all: [], active: [], added: [], released: [] };

@@ -17,7 +17,7 @@
  * [연계]
  *  - 사용하는 파일 : 없음
  *  - 서버 API      : 없음
- *  - 나를 쓰는 곳  : marine_warning_crawler(구역 뼈대·MMIS 값 버림·통보문 값 끼움) · push_sender(푸시 차단) ·
+ *  - 나를 쓰는 곳  : marine_warning_crawler(구역 뼈대·통보문 값 끼움) · push_sender(푸시 차단) ·
  *                   analysis/bulletin_survey/lifecycle_check(통보문 해역 해석) · config/zone_group_map(묶음 사전) ·
  *                   services/push_helpers(구독 계층) · routes/weather(/api/warn-zones 분할본) · 검사 test_zone_split
  *  - 화면 쪽 짝    : client/js/core/zone_split.js (같은 시각·같은 이름 — 둘을 함께 고친다)
@@ -32,8 +32,9 @@ const NEW = [NEW_WEST, NEW_EAST];
 const DEFAULT_AT = '2026-11-26T00:00:00+09:00';
 const AT_MS = (() => {
     const env = process.env.ZONE_SPLIT_AT;
-    const ms = env ? Date.parse(env) : NaN;
-    if (env && isNaN(ms)) console.warn('[구역 분할] ZONE_SPLIT_AT 을 못 읽어 기본 시각을 쓴다:', env);
+    // 시간대(+09:00·Z)가 없는 값은 받지 않는다 — 서버 시계가 UTC 라 「2026-11-26」이 26일 09:00 KST 로 읽힌다(독립 검토 2026-11-23)
+    const ms = env && /(Z|[+-]\d{2}:?\d{2})$/.test(env.trim()) ? Date.parse(env) : NaN;
+    if (env && isNaN(ms)) console.warn('[구역 분할] ZONE_SPLIT_AT 을 못 읽어(시간대까지 적어야 한다 — 예 2026-11-26T00:00:00+09:00) 기본 시각을 쓴다:', env);
     return isNaN(ms) ? Date.parse(DEFAULT_AT) : ms;
 })();
 let _forced = null;   // 검사용 — true/false 로 고정, null 이면 시계를 본다
@@ -75,9 +76,7 @@ function splitNames(names) {
  * [연계] ← push_sender.processAndSendNotifications · marine_warning_crawler.run — 이 두 구역 푸시는 별도 검토 뒤 연다(사용자 확정)
  */
 function isPushBlocked(zone) {
-    if (!isActive()) return false;
-    const z = norm(zone);
-    return z === OLD || NEW.includes(z);
+    return isActive() && isSplitZone(zone);
 }
 
 /**
@@ -100,8 +99,16 @@ function filterPushItems(items) {
     return { items: cut ? out : items, cut };
 }
 
-/** 이 구역이 분할 대상(옛 이름·새 두 이름)인가 — 전환 여부와 무관. 예: isSplitZone('제주도남쪽바깥먼바다') → true */
-function isSplitZone(zone) { const z = norm(zone); return z === OLD || NEW.includes(z); }
+/**
+ * 이 구역이 분할 대상인가 — 옛 이름·새 두 이름, 그리고 MMIS 가 줄여 줄 수 있는 꼴(「제주도남서쪽 바깥」)까지. 전환 여부와 무관.
+ *   제주 해역 중 이름에 「바깥」이 든 것은 이 구역(들)뿐이다 — 기상청이 26일부터 줄 이름을 아직 모르므로 넓게 잡는다(독립 검토 2026-11-23:
+ *   모르는 코드 + 줄인 이름이 오면 완전 일치만으로는 푸시가 샌다).
+ * 예: isSplitZone('제주도남쪽바깥먼바다') → true · isSplitZone('제주도남서쪽 바깥') → true · isSplitZone('제주도남서쪽안쪽먼바다') → false · isSplitZone('서해남부남쪽바깥먼바다') → false
+ * @param {string} zone
+ * @returns {boolean}
+ * [연계] ← isPushBlocked(이 파일)
+ */
+function isSplitZone(zone) { return /^제주.*바깥/.test(norm(zone)); }
 
 /** 검사용: 전환 여부를 고정한다(true/false), null 이면 다시 시계를 본다. [연계] ← test_zone_split 등 */
 function _forceForTest(v) { _forced = (v === true || v === false) ? v : null; }

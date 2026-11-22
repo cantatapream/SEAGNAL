@@ -41,6 +41,18 @@ function matchChildren(parent, tok) {
  *     '제주도남부앞바다(연안바다 제외)' → 부모만 / '경북북부앞바다(연안바다)' → 그 자식만
  */
 function expand(token, unknown) {
+    // 전환 뒤 「제주도남쪽바깥먼바다(제주도남서쪽바깥먼바다)」「…(남동쪽 제외)」처럼 옛 이름에 괄호로 한쪽만 적은 꼴 — 괄호 안이 가리키는 쪽만.
+    //   없으면: 옛 이름은 자식이 없어 괄호를 못 읽고 두 구역 모두로 읽는다(특보 없는 쪽 카드·지도에 특보가 뜬다 — 독립 검토 2026-11-23).
+    //   괄호 안을 못 읽으면 아래 본체로 내려가 두 구역 모두(넓은 쪽)로 둔다.
+    if (ZONE_SPLIT.isActive()) {
+        const m = token.match(/^([^(]+)\((.*)\)$/);
+        if (m && norm(m[1]) === ZONE_SPLIT.OLD) {
+            const excl = /제외\s*$/.test(m[2]);
+            const toks = splitTop(m[2].replace(/제외\s*$/, '')).map(norm).filter(Boolean);
+            const hit = ZONE_SPLIT.NEW.filter((n) => toks.some((t) => n === t || n.endsWith(t) || n.replace(/바깥먼바다$/, '').endsWith(t)));
+            if (hit.length) return new Set(excl ? ZONE_SPLIT.NEW.filter((n) => !hit.includes(n)) : hit);
+        }
+    }
     const set = expandRaw(token, unknown);
     // 2026-11-26 부터 「제주도남쪽바깥먼바다」 = 새 두 구역 모두(사용자 확정 — config/zone_split.js). 묶음(제주도먼바다·제주도전해상)·괄호 안·단독 어느 꼴로 와도
     //   여기 한 곳에서 바꾼다 → 제주도먼바다 = 4구역, 제주도전해상 = 8구역. 25일 이전 통보문(옛 이름)으로 발효 중인 특보도 26일에 끊기지 않고 두 구역으로 이어진다.
@@ -91,7 +103,7 @@ function parseItems(t2, unknown) {
             for (const tok of splitTop(sm[1])) {
                 const pm = tok.match(/^([^(]+)/); const p = pm ? norm(pm[1]) : '';
                 if (!PARENTS.has(p)) continue;
-                for (const x of [p, ...childrenOf(p)]) cur.units.delete(x);
+                for (const x of [p, ...childrenOf(p), ...ZONE_SPLIT.splitNames([p])]) cur.units.delete(x);   // 전환 뒤 옛 이름 세부 줄 = 새 두 구역 칸을 바꿔 끼운다
                 const u = expand(tok, unknown); if (u) for (const x of u) cur.units.add(x);
             }
         }

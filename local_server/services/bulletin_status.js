@@ -258,9 +258,14 @@ function compute(bulletins, nowMs, cands = []) {
     const trails = buildTrails(zones, ys.sort((a, b) => a.ref.inMs - b.ref.inMs), endedAll, nowMs);
     // 발자취는 규칙 계산까지만 본다 — 참고사항 AI 덧씌움(아래)은 발자취에 섞지 않는다. 발자취는 일반 사용자 앱(📋 팝업)에 나가고, AI 해석은 관리자 [통보문] 화면까지만이다
     //   (적대검증 2026-11-18: 처음엔 AI 가 해제 예고를 바꾼 통보문을 「참고사항 — …」 줄로 넣었다 — AI 가 지어낸 제목이 모든 사용자에게 나가는 길이었다).
+    // [구역 분할 2026-11-26] 제주 바깥먼바다(옛 이름·새 두 이름)의 「규칙 계산까지만」 상태를 따로 떠 둔다 — 이 두 구역은 일반 사용자 화면에 나가므로
+    //   (marine_warning_crawler._graftBulletinSplitZones) 참고사항 AI 덧씌움을 섞지 않는다(위 발자취와 같은 원칙: AI 해석은 관리자 화면까지만).
+    //   자식이 없는 구역이라 fillParents 와 무관하다.
+    const ZS = require('../config/zone_split'), splitRule = {};
+    for (const n of [ZS.OLD, ...ZS.NEW]) if (zones[n]) splitRule[n] = JSON.parse(JSON.stringify(zones[n]));
     const aiApplied = applyAi(zones, cands);
     fillParents(zones);
-    return { zones, tree: toTree(zones), waiting: waiting.filter((u) => zones[u]), aiApplied, trails };
+    return { zones, tree: toTree(zones), splitTree: toTree(splitRule), waiting: waiting.filter((u) => zones[u]), aiApplied, trails };
 }
 
 /**
@@ -392,7 +397,7 @@ function run({ watch = require('./bulletin_watch'), ai = require('./bulletin_ai_
     try { cands = ai.enabled === false ? [] : ai.candidates(); } catch (e) { console.warn('[통보문 기준] AI 후보를 못 읽어 규칙만:', e && e.message); }
     const r = compute(list, now(), cands);
     // listsOkMs = 관찰기가 목록 16개(8개 관서 × 특보·예비)를 마지막으로 다 받은 시각 — 📋 팝업이 「통보문이 최신인가」를 볼 때 쓴다(zoneBulletins)
-    const out = { updatedAt: new Date(now()).toISOString(), bulletins: list.length, zones: r.zones, waiting: r.waiting, current: r.tree, aiApplied: r.aiApplied, trails: r.trails, listsOkMs: watch.listsOkMs ? watch.listsOkMs() : 0 };
+    const out = { updatedAt: new Date(now()).toISOString(), bulletins: list.length, zones: r.zones, waiting: r.waiting, current: r.tree, splitCurrent: r.splitTree, aiApplied: r.aiApplied, trails: r.trails, listsOkMs: watch.listsOkMs ? watch.listsOkMs() : 0 };
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file + '.tmp', JSON.stringify(out)); fs.renameSync(file + '.tmp', file);
     return out;
