@@ -20,5 +20,6 @@
 ## 연계
 - 서버 API: `GET /api/fishcond` · `/:id/view` · `/:id/pdf` — `local_server/routes/fishcond.js`
 - 마크업: `index2.html #nhub-fishcond` · `#fishcond-detail-modal`
-- 부르는 곳: `../hub/notice_hub.js`(`FishcondTab.open` · `prefetch` · `hasNew`)
+- 부르는 곳: `../hub/notice_hub.js`(`FishcondTab.open` · `refresh`(당겨서 새로고침 — 보던 쪽 그대로) · `prefetch` · `hasNew`)
+- 쪽 번호 단추(2026-11-22 사용자 「공지사항과 마찬가지로 아래 그 버튼 1, 2, 3 … 버튼」): 10건씩 · `#fishcond-pagination` · 공지와 같은 `.pagination-btn` 모양
 - 시험: `local_server/scripts/test_news_hub_ui.js`

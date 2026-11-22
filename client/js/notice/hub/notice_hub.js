@@ -10,8 +10,9 @@
  * [연계]
  *  - 사용하는 파일 : notice/board/promo.js(loadPromoPosts — 공지 목록 · updateNewBadges 가 window.NoticeHub.setNoticeNew 를 부른다)
  *                    · notice/news/news.js(window.NewsTab) · notice/fishcond/fishcond.js(window.FishcondTab)
+ *                    · shared/ui/pull_refresh.js(window.PullRefresh — 세 칸 당겨서 새로고침, 사용자 2026-11-22 「오늘의 뉴스, 공지사항, 그리고 어항 정보」)
  *  - 서버 API      : GET /api/promo(앱이 켜질 때 공지 N 판정 — 목록은 그리지 않는다)
- *  - 마크업        : index2.html #nhub-tabs(.nhub-tab[data-nhub]) · #nhub-news · #nhub-notice · #nhub-fishcond · 하단 .tab-btn[data-target="promo-section"]
+ *  - 마크업        : index2.html #nhub-tabs(.nhub-tab[data-nhub]) · #nhub-ptr(당겨서 새로고침 띠) · #nhub-news · #nhub-notice · #nhub-fishcond · 하단 .tab-btn[data-target="promo-section"]
  *  - 나를 쓰는 곳  : promo.js updateNewBadges(setNoticeNew) · 하단 탭이 이 탭으로 바뀜(core/index2_patch.js switchMainTab 이 body[data-active-tab] 을 바꾸면 이 파일이 본다)
  * [로드 순서] notice/fishcond/fishcond.js 다음 — 순서 변경 금지(NewsTab·FishcondTab 이 먼저 있어야 한다)
  * ============================================================================
@@ -126,6 +127,24 @@
             if (now === 'promo-section' && last !== 'promo-section') onMainOpen();
             last = now;
         }).observe(document.body, { attributes: true, attributeFilter: ['data-active-tab'] });
+        // 당겨서 새로고침 — 이 탭이 보이고 팝업이 없을 때, 지금 보이는 칸만 다시 받는다(뉴스는 서버가 모아 둔 것을 다시 받을 뿐 새로 수집하지 않는다)
+        var ptr = document.getElementById('nhub-ptr'), sec = document.getElementById('promo-section');
+        if (ptr && sec && w.PullRefresh) {
+            w.NoticeHub._ptr = w.PullRefresh.attach({
+                area: sec, indicator: ptr,
+                enabled: function () {
+                    if (document.body.getAttribute('data-active-tab') !== 'promo-section') return false;
+                    if (w.PopupStack && w.PopupStack.size && w.PopupStack.size() > 0) return false;
+                    return !Array.prototype.some.call(document.querySelectorAll('.modal:not(.hidden)'), function (m) { return m.offsetParent !== null; });
+                },
+                onRefresh: function () {
+                    if (cur === 'news' && w.NewsTab) return w.NewsTab.refresh();
+                    if (cur === 'fishcond' && w.FishcondTab) return w.FishcondTab.refresh();
+                    if (cur === 'notice' && typeof w.loadPromoPosts === 'function') return w.loadPromoPosts();
+                    return Promise.resolve();
+                },
+            });
+        }
         // 앱이 켜지고 잠시 뒤 — 세 칸의 N 을 미리 알아 둔다(하단 탭 N). 첫 화면을 그리는 일을 막지 않게 늦춘다.
         var refreshBadges = function () {
             var base = (w.CONFIG && w.CONFIG.API_BASE) || '';

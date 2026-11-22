@@ -5,13 +5,14 @@
  *         누르면 뜨는 게시글 팝업(PDF 를 쪽마다 그림으로 보여 주고 [PDF 받기]·[원문 보기]).
  * 사용자 확정(원문은 js/notice/news_hub.design.md §1·§1-2):
  *   「어황정보는 공지사항의 게시글처럼 하되 누르면 지금 게시글에 반영된 것처럼 게시글 팝업이 뜨고 해당 pdf 정보가 표출」 · 「pdf 다운로드 기능도 반영」 ·
- *   「Pdf 쪽수 불필요, 날짜 주관부서 맨 오른쪽, 날짜 왼쪽에 조회 눈 붙이고」 · 바다 꼬리표 「붙여」 · 댓글·반응 「불필요. 공지사항에만」
+ *   「Pdf 쪽수 불필요, 날짜 주관부서 맨 오른쪽, 날짜 왼쪽에 조회 눈 붙이고」 · 바다 꼬리표 「붙여」 · 댓글·반응 「불필요. 공지사항에만」 ·
+ *   (2026-11-22) 「어항 정보는 공지사항과 마찬가지로 아래 그 버튼 1, 2, 3, 4, 5, 6 버튼을 둠으로써 페이지를 넘길 수 있도록」 — 공지와 같은 단추·10건씩(「추천대로」) · 당겨서 새로고침
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : shared/ui/ui_modal.js(window.downloadKmaFile — PDF 받기, 앱은 시스템 브라우저로) · core/backbutton.js(window.PopupStack — 뒤로가기로 팝업 닫기)
  *  - 서버 API      : GET /api/fishcond · GET /api/fishcond/:id/view(열 때 조회 수 1 — ?admin=true 는 하루 1번) · GET /api/fishcond/:id/pdf — local_server/routes/fishcond.js
- *  - 마크업        : index2.html #nhub-fishcond(#fishcond-list) · #fishcond-detail-modal
- *  - 나를 쓰는 곳  : notice/hub/notice_hub.js(window.FishcondTab.open · hasNew · prefetch) · 팝업 닫기 단추(onclick="closeFishcondDetail()")
+ *  - 마크업        : index2.html #nhub-fishcond(#fishcond-list · #fishcond-pagination) · #fishcond-detail-modal — 쪽 단추 모양은 공지와 같은 style.css .promo-pagination·.pagination-btn
+ *  - 나를 쓰는 곳  : notice/hub/notice_hub.js(window.FishcondTab.open · refresh(당겨서 새로고침) · hasNew · prefetch) · 팝업 닫기 단추(onclick="closeFishcondDetail()")
  * [로드 순서] notice/news/news.js 다음 · notice/hub/notice_hub.js 이전 — 순서 변경 금지
  * ============================================================================
  */
@@ -20,6 +21,7 @@
     var SEA_CLS = { '서해': 'west', '남해': 'south', '동해': 'east', '전국': 'all' };
     var SEEN_KEY = 'nhub_fishcond_seen_v1';   // 마지막으로 본 가장 새 글 ID(글 ID 앞 17자리가 등록 시각이라 글자 순서 = 시간 순서)
     var posts = [], newest = '', current = null;
+    var PER_PAGE = 10, page = 1;   // 한 쪽 글 수 — 공지사항(promo.js PROMO_ITEMS_PER_PAGE)과 같게(사용자 「공지사항과 마찬가지로」)
 
     function api(p) { return ((w.CONFIG && w.CONFIG.API_BASE) || '') + p; }
     function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = String(text); return e; }
@@ -36,12 +38,15 @@
     function render() {
         var host = document.getElementById('fishcond-list'); if (!host) return;
         host.innerHTML = '';
+        var pages = Math.max(1, Math.ceil(posts.length / PER_PAGE));
+        page = Math.min(Math.max(1, page), pages);   // 글이 줄어 쪽이 없어졌으면 마지막 쪽으로
+        renderPages(pages);
         if (!posts.length) {
             var em = el('div', 'promo-empty'); var i = document.createElement('i'); i.className = 'fa-solid fa-fish'; em.appendChild(i);
             em.appendChild(el('p', '', '아직 받아 둔 어황정보가 없습니다.')); host.appendChild(em); return;
         }
         var seen = lsGet(SEEN_KEY) || '';
-        posts.forEach(function (p) {
+        posts.slice((page - 1) * PER_PAGE, page * PER_PAGE).forEach(function (p) {
             var item = el('div', 'promo-item'); item.setAttribute('role', 'button'); item.tabIndex = 0; item.setAttribute('data-fishcond-id', p.id);
             var t = el('div', 'promo-item-title');
             t.appendChild(el('span', 'fishcond-sea ' + (SEA_CLS[p.sea] || 'all'), p.sea || '전국'));
@@ -60,7 +65,27 @@
         });
     }
 
-    /** 목록을 받는다. [연계] ← open · prefetch · 팝업을 닫을 때(조회 수 갱신) */
+    /**
+     * 목록 아래 쪽 번호 단추 — 공지사항(promo.js renderPagination)과 같은 모양: ‹ 1 2 3 › (지금 쪽은 파랗게, 한 쪽뿐이면 단추 없음).
+     * @param {number} pages 전체 쪽 수 [연계] ← render / → 누르면 그 쪽을 그린다
+     */
+    function renderPages(pages) {
+        var box = document.getElementById('fishcond-pagination'); if (!box) return;
+        box.innerHTML = '';
+        if (pages <= 1) return;
+        var btn = function (label, to, active, ico) {
+            var b = el('button', 'pagination-btn' + (active ? ' active' : '')); b.type = 'button';
+            if (ico) { var i = document.createElement('i'); i.className = 'fa-solid ' + ico; i.setAttribute('aria-hidden', 'true'); b.appendChild(i); b.setAttribute('aria-label', label); }
+            else b.textContent = label;
+            if (!active) b.addEventListener('click', function () { page = to; render(); });
+            box.appendChild(b);
+        };
+        if (page > 1) btn('이전 쪽', page - 1, false, 'fa-chevron-left');
+        for (var n = 1; n <= pages; n++) btn(String(n), n, n === page);
+        if (page < pages) btn('다음 쪽', page + 1, false, 'fa-chevron-right');
+    }
+
+    /** 목록을 받는다. [연계] ← open · refresh · prefetch · 팝업을 닫을 때(조회 수 갱신) */
     function load(draw) {
         return fetch(api('/api/fishcond')).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function (j) {
             posts = Array.isArray(j.posts) ? j.posts : [];
@@ -69,7 +94,7 @@
             return true;
         }).catch(function (e) {
             console.warn('[어황정보] 목록 불러오기 실패:', e && e.message);
-            if (draw) { var host = document.getElementById('fishcond-list'); if (host) { host.innerHTML = ''; var em = el('div', 'promo-empty'); em.appendChild(el('p', '', '어황정보를 불러오지 못했습니다. 잠시 뒤 다시 열어 주세요.')); host.appendChild(em); } }
+            if (draw) { var pg = document.getElementById('fishcond-pagination'); if (pg) pg.innerHTML = ''; var host = document.getElementById('fishcond-list'); if (host) { host.innerHTML = ''; var em = el('div', 'promo-empty'); em.appendChild(el('p', '', '어황정보를 불러오지 못했습니다. 잠시 뒤 다시 열어 주세요.')); host.appendChild(em); } }
             return false;
         });
     }
@@ -134,6 +159,8 @@
         open: function () { return load(true).then(function () { if (newest) lsSet(SEEN_KEY, newest); }); },
         /** 앱이 켜질 때 N 표시만을 위해 받아 둔다. @returns {Promise<boolean>} 새 글이 있나 */
         prefetch: function () { return load(false).then(function () { return hasNew(); }); },
+        /** 당겨서 새로고침 — 목록을 다시 받아 그린다(보던 쪽은 그대로). @returns {Promise} [연계] ← notice_hub(PullRefresh) */
+        refresh: function () { return load(true).then(function () { if (newest) lsSet(SEEN_KEY, newest); }); },
         hasNew: hasNew,
         _posts: function () { return posts; },
     };

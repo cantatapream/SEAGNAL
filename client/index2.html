@@ -2598,7 +2598,7 @@
     <link rel="stylesheet" href="/assets/vendor/fonts/fonts.css">
 
     <!-- Styles -->
-    <link rel="stylesheet" href="style.css?v=Trend_20261120c">
+    <link rel="stylesheet" href="style.css?v=NHub_20261122">
     <link rel="stylesheet" href="splash.css?v=Lifevest_20261120">
 
 
@@ -4684,6 +4684,9 @@
                 </div>
 
                 <!-- 오늘의 뉴스 — notice/news/news.js 가 채운다(날짜줄 시안 5-1 B · 카드 시안 5-2 B) -->
+                <!-- 당겨서 새로고침 띠(2026-11-22 사용자 「아래로 내려서 당기는 모션이 반영되는 것은 오늘의 뉴스, 공지사항, 그리고 어항 정보」) — shared/ui/pull_refresh.js · notice_hub.js 가 붙인다. 평소 높이 0 -->
+                <div id="nhub-ptr" class="ptr" aria-hidden="true"><i class="fa-solid fa-circle-notch"></i></div>
+
                 <div class="nhub-panel" id="nhub-news" role="tabpanel">
                     <div id="news-dateline" class="news-dateline"></div>
                     <div id="news-updated" class="news-updated"></div>
@@ -4693,6 +4696,8 @@
                 <!-- 어황정보 — notice/fishcond/fishcond.js 가 채운다(목록 시안 7-1 A) -->
                 <div class="nhub-panel" id="nhub-fishcond" role="tabpanel">
                     <div id="fishcond-list" class="promo-list"></div>
+                    <!-- 쪽 번호 단추(2026-11-22 사용자 「공지사항과 마찬가지로 아래 그 버튼 1, 2, 3, 4, 5, 6 버튼」) — fishcond.js renderPages 가 채운다 -->
+                    <div id="fishcond-pagination" class="promo-pagination"></div>
                 </div>
 
                 <div class="nhub-panel promo-container" id="nhub-notice" role="tabpanel">
@@ -5763,9 +5768,11 @@
     <script src="js/notice/comments/promo_comment5.js?v=NoCmt_20261119"></script>
     <!-- 뉴스·공지·어황 탭(2026-11-21) — promo.js 다음: notice_hub 가 promo 의 새 글 판정(updateNewBadges)을 받아 처음 탭·N 을 정한다.
          news.js·fishcond.js 는 notice_hub 가 탭을 열 때 부른다(window.NewsTab·window.FishcondTab). -->
-    <script src="js/notice/news/news.js?v=NHub_20261121"></script>
-    <script src="js/notice/fishcond/fishcond.js?v=NHub_20261121"></script>
-    <script src="js/notice/hub/notice_hub.js?v=NHub_20261121"></script>
+    <!-- 당겨서 새로고침(2026-11-22) — notice_hub 가 시작할 때 window.PullRefresh 로 세 칸에 붙인다(그보다 먼저) -->
+    <script src="js/shared/ui/pull_refresh.js?v=NHub_20261122"></script>
+    <script src="js/notice/news/news.js?v=NHub_20261122"></script>
+    <script src="js/notice/fishcond/fishcond.js?v=NHub_20261122"></script>
+    <script src="js/notice/hub/notice_hub.js?v=NHub_20261122"></script>
     <!-- 공용 페이지네이션 helper (window.renderStandardPagination 노출)
          관리자 리스트 화면(admin.js / admin_collect.js / admin_survey.js / admin_report.js / alert_push.js)에서
          사용하므로 반드시 이 스크립트들보다 먼저 로드되어야 함 -->

@@ -18,6 +18,8 @@
 - N: 공지 = 24시간 안 글(종전 규칙) · 뉴스 = 마지막으로 본 뒤 새 기사(`news.js`, 기기 저장소) · 어황 = 마지막으로 본 뒤 새 글(`fishcond.js`). 하단 탭 N = 셋 중 하나라도.
 - 앱이 켜지고 4초 뒤 `/api/promo` · `NewsTab.prefetch` · `FishcondTab.prefetch` 로 N 을 미리 알아 둔다.
 
+- 당겨서 새로고침(2026-11-22): `shared/ui/pull_refresh.js` 를 `#promo-section` 에 붙인다(띠 `#nhub-ptr`). 이 탭이 보이고 팝업(PopupStack·보이는 `.modal`)이 없을 때만, 지금 보이는 칸만 다시 받는다 — 뉴스 `NewsTab.refresh` · 공지 `loadPromoPosts` · 어황 `FishcondTab.refresh`.
+
 ## 수정 시 주의
 - 하단 탭 N 은 이제 이 파일이 단다. `promo.js updateNewBadges` 는 `window.NoticeHub` 가 있으면 공지 판정만 넘긴다.
 - 시험: `local_server/scripts/test_news_hub_ui.js`(실제 Chromium).
