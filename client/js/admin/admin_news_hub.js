@@ -19,7 +19,7 @@
  */
 (function (w) {
     'use strict';
-    var CATS = { money: '돈', duty: '처벌·의무', rule: '조업·이용 규칙', safety: '안전', sea: '바다 여건', conflict: '바다 이용 갈등·제도' };
+    var CATS = { money: '돈', duty: '처벌·의무', rule: '조업·이용 규칙', safety: '안전', sea: '바다 여건', conflict: '갈등·제도' };
     var CAT_COLOR = { money: '#69f0ae', duty: '#ff5252', rule: '#ffab40', safety: '#448aff', sea: '#4dd0e1', conflict: '#b388ff' };
     var SEA_COLOR = { '서해': '#448aff', '남해': '#69f0ae', '동해': '#4dd0e1', '전국': '#cbd5e1' };
     var STATUS = { ok: '정상', no_pdf: 'PDF 없음', convert_failed: '그림 실패', pending: '받는 중' };

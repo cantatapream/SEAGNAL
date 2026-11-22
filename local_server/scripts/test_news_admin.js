@@ -96,7 +96,7 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
             const r = await call('POST', '/api/admin/news/' + D + '/publish', { index: 0, cat: 'conflict' });
             assert.equal(r.status, 200, JSON.stringify(r.json));
             const day = news.day(D), c = day.cards.find((x) => /FIRA/.test(x.title));
-            assert.ok(c && c.cat === 'conflict' && c.catName === '바다 이용 갈등·제도' && c.summary === '자율관리어업 워크숍을 열었다. 다음 문장.' && /img\.test/.test(c.image) && c.source === '테스트일보', JSON.stringify(c));
+            assert.ok(c && c.cat === 'conflict' && c.catName === '갈등·제도' && c.summary === '자율관리어업 워크숍을 열었다. 다음 문장.' && /img\.test/.test(c.image) && c.source === '테스트일보', JSON.stringify(c));
             assert.equal(news.adminDay(D).rejected.length, 0); assert.ok(news.adminDay(D).cards.find((x) => /FIRA/.test(x.title)).manual);
             assert.equal((await call('POST', '/api/admin/news/' + D + '/publish', { index: 5 })).status, 404);
             // 원문 주소로 찾는다 — 자리 번호가 밀린 낡은 화면에서도 그 기사가 실린다(검토 지적)
