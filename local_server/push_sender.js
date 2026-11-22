@@ -11,6 +11,7 @@ if (!fetch) {
 }
 
 const fs = require('fs');
+const ZONE_SPLIT = require('./config/zone_split');   // 2026-11-26 구역 분할 — 제주 바깥먼바다 푸시 차단
 const path = require('path');
 
 const API_URL = 'http://localhost:3001/api/push-custom';
@@ -68,6 +69,14 @@ function clearPendingPushes() {
  * @returns {boolean} 발송 성공 여부 (실패 시 false → 크롤러에서 재시도 판단)
  */
 async function processAndSendNotifications(changes, options = {}) {
+    // [구역 분할 2026-11-26] 제주 바깥먼바다(옛 이름·새 두 이름)의 특보 푸시는 전환 뒤 보내지 않는다 — 사용자 확정
+    //   「제주도남쪽바깥먼바다(남서쪽바깥먼바다, 남동쪽바깥먼바다)에 대해서 푸시는 26일부터는 보내지 말것 … 26일 이후 별도 검토 후 발송」(config/zone_split.js).
+    //   특보 변화로 만들어지는 푸시가 모두 이 함수를 지난다(MMIS 크롤러·관리자 수동 특보 입력). 관리자 「직접 발송」(/api/push-custom 을 직접 부르는 안내 푸시)은 여기를 안 지나 막히지 않는다.
+    if (changes && changes.length) {
+        const kept = changes.filter((c) => !(c && ZONE_SPLIT.isPushBlocked(c.zone)));
+        if (kept.length !== changes.length) console.log(`[PushSender] 구역 분할: 제주 바깥먼바다 푸시 ${changes.length - kept.length}건을 보내지 않음`);
+        changes = kept;
+    }
     if (!changes || changes.length === 0) {
         // 신규 변경사항은 없지만 미발송 건이 있으면 재시도
         return await retryPendingPushes();
