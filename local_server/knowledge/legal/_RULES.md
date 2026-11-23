@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 175 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 176 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -424,6 +424,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_news_collector` | 오늘의 뉴스(services/news_collector · services/news_judge) 검사 — 모으기·겹침 지우기·확실한 것만 거르기·AI 판정·같은 사건 묶기· |
 | `test_bulletin_escalation` | 격상 가능성(services/bulletin_escalation) 검사 — 통보문 참고사항·날씨해설에서 「풍랑경보로 변경될 가능성」「태풍특보로 변경될 가능성」의 |
 | `test_regional_sea_summary` | 지방청 단기 전망 「해상 기상 요약」 검사 — 바다 항목 뽑기(규칙) · AI 답의 원문 대조(check) · 요약 흐름(없음/요약됨/원문 그대로) · |
+| `test_ai_compare_trial` | 「AI 비교 시험」(services/ai_compare_trial) · 관리자 창구(routes/bulletin_watch) · 화면 카드(client/js/admin/admin_bulletin_a… |
 | `test_regional_sea_ui` | 「지방기상청 단기 전망」 칸(2026-11-19 종전 「종합 예보」 칸 + 지방청 카드를 한 단계로)의 모양을 실제 Chromium 으로 index2.html 전체를 띄워 본다(2026-11-19 … |
 | `test_zone_trend_ui` | 특보 카드 뱃지의 오르내림 화살표를 실제 화면(Chromium)으로 본다. |
 | `test_bulletin_compare` | MMIS ↔ 통보문 비교 기록(services/bulletin_compare) · 메인 출처 전환 버튼(client/js/forecast/alerts/alert_source_toggle.js) 검사… |

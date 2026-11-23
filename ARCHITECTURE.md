@@ -209,6 +209,7 @@ client/js/
 │       ├── mappings.js
 │       ├── usage_keys.js
 │       ├── utils.js
+├── tutorial/
 └── typhoon/  ← ⚡ 태풍
     ├── location_alert_typhoon_runtime.js
     ├── ocean_typhoon.js
