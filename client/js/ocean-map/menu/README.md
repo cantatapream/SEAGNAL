@@ -56,6 +56,16 @@
 | `marine-life/safety/accident_info.js` | 「선택 초기화」는 필터가 걸렸을 때만 |
 | `typhoon/ocean_typhoon.js` · `layers/shrt_forecast_layer.js` · `shared/ui/locate_toast.js` | 읽기 통로 추가(`hasActive`·`_shrtForecastHasFrames`·`showLocateStyleNotice`) — 평소 화면 동작은 그대로 |
 
+## 관리자 점검(선택 차단)과 사용량 통계 (2026-11-23)
+- **점검**: 사이드바 줄마다 관리자 점검 목록의 id 가 있다(`BLOCK_IDS` — `admin.js featureTree` 와 같은 이름).
+  막힌 줄은 회색 + 「점검 중」으로 보이고, 눌러도·미뤄 둔 값을 반영할 때도 켜지지 않는다(`_blocked`).
+  사이드바는 숨은 원래 버튼을 프로그램으로 대신 누르기 때문에, 「사람이 누른 것만 막는」 기존 차단(index2.html)만으로는 뚫렸다.
+  이미 켜져 있는 기능을 강제로 끄지는 않는다(옛 화면의 차단과 같다) — 끄는 것은 막지 않는다.
+  줄을 더하면 `BLOCK_IDS` 와 `featureTree` 에 같이 넣는다(`test_maintenance_tree.js` 가 빠진 것을 잡는다).
+- **통계**: 스위치를 켜면 1건(끌 때는 안 셈). 원래 버튼이 스스로 세는 것(파고·풍향·유향 등)은 그 버튼이 세고,
+  스스로 안 세는 것(특보구역·현황·기상부이·해구기상·CCTV)과 [보기] 중 미뤄 둔 스위치는 `_countSwitch` 가 센다.
+  [전체 메뉴] 열기·즐겨찾기 담기·사고 세 갈래도 여기서 센다. 이름표는 `shared/utils/usage_keys.js`(「묶음 · 기능 · 한 일」).
+
 ## 수정 시 주의사항
 - **옛 화면이 달라지면 안 된다**(옛 화면 시험이 밑바탕 기능을 지킨다). CSS 는 `body.om-mode` 아래에만, JS 분기는 `document.body.classList.contains('om-mode')` 로만 건다.
 - `#ocean-overlay-controls` 의 버튼 id·`data-layer`·`data-shrt` 가 바뀌면 `SWITCHES`/`VIEWS`/`WX_SUBS` 도 같이 고친다.

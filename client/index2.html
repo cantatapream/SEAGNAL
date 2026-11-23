@@ -2730,7 +2730,7 @@
     <link rel="stylesheet" href="js/marine-life/risk-forecast/risk_forecast.css?v=20261019beachui">
     <link rel="stylesheet" href="js/forecast/station-briefing/station_briefing.css?v=20261119wxGrid">
     <!-- 해양종합정보 「새 모드」(탭 10회 누르면 켜지는 통합 메뉴) — 전부 body.om-mode 아래라 평소 화면엔 영향 없음 -->
-    <link rel="stylesheet" href="js/ocean-map/menu/ocean_menu.css?v=20261123p">
+    <link rel="stylesheet" href="js/ocean-map/menu/ocean_menu.css?v=20261123q">
 </head>
 
 <body class="loading">
@@ -5670,7 +5670,7 @@
     <script src="js/core/config.js"></script>
     <script src="js/shared/utils/mappings.js"></script>
     <script src="js/shared/utils/accident_codes.js?v=Kin001InfoNone_20260831"></script>
-    <script src="js/shared/utils/utils.js?v=Usage_20260910"></script>
+    <script src="js/shared/utils/utils.js?v=Usage_20261123"></script>
     <script src="js/forecast/alerts/data.js"></script>
     <!-- [관리자만] 메인 특보현황 출처 전환 [MMIS][통보문] (data.js 다음 — flattenAlertsData 사용, 2026-11-16) -->
     <script src="js/forecast/alerts/alert_source_toggle.js"></script>
@@ -5753,7 +5753,7 @@
     <script src="js/ocean-map/warnings/ocean_warn_vsby.js?v=VsbyErrBadge_20260617"></script>
     <script src="js/ocean-map/timeline/ocean_timeline.js"></script>
     <!-- 천기 (KMA 단기예보 PNG 오버레이): 토글 버튼 + 5개 서브버튼 + 슬라이더/재생 + 범례 + 클릭 팝업 -->
-    <script src="js/ocean-map/layers/shrt_forecast_layer.js?v=OmMode_20261122"></script>
+    <script src="js/ocean-map/layers/shrt_forecast_layer.js?v=Usage_20261123"></script>
     <!-- 물빠짐 (서해·남해 갯벌 노출 예측): 토글 버튼 + 시간 슬라이더/재생 + 2색 벡터 레이어 + 클릭 팝업
          (의존: ocean_map.js 의 window.__getOceanMap, /api/tide-field) -->
     <script src="js/ocean-map/layers/tide_field.js?v=Usage_20260910"></script>
@@ -5781,8 +5781,8 @@
          사용하므로 반드시 이 스크립트들보다 먼저 로드되어야 함 -->
     <script src="js/admin/pagination_helper.js"></script>
     <!-- 사용량 통계 기능 키 → 한글 이름표(화면·CSV 공용). admin_collect.js 보다 먼저 -->
-    <script src="js/shared/utils/usage_keys.js?v=20261018usage"></script>
-    <script src="js/admin/admin.js?v=PushAuth_20261120"></script>
+    <script src="js/shared/utils/usage_keys.js?v=20261123usage2"></script>
+    <script src="js/admin/admin.js?v=Maint_20261123b"></script>
     <!-- [데이터 수집현황] 점검 탭 하위 화면(수집 목록·현재 원천 상태·오류·복구 이력). admin.js 의 renderAiForecastSubtab 을 쓰므로 그 뒤 -->
     <script src="js/admin/admin_data_status.js"></script>
     <!-- [AI 브리핑] AI 탭 하위 탭(활동지점 안전 브리핑 생성 방식·모델·노출 범위·상태·미리보기). admin.js switchAiSubTab 이 부른다 -->
@@ -5791,7 +5791,7 @@
     <script src="js/admin/admin_bulletin_ai.js?v=AiCmp_20261123b"></script>
     <!-- 게시판 관리 → 어황정보·오늘의 뉴스 칸(2026-11-21 시안 8-2·8-3) — admin_collect.js switchNhubAdminTab 이 부른다 -->
     <script src="js/admin/admin_news_hub.js?v=NHub_20261121"></script>
-    <script src="js/admin/admin_collect.js?v=Storage_20261115"></script>
+    <script src="js/admin/admin_collect.js?v=UsageGroup_20261123"></script>
     <script src="js/admin/admin_survey.js"></script>
     <script src="js/admin/admin_report.js"></script>
     <!-- [통보문 관찰] 관리자 센터 특보 관리 → 통보문 관찰 탭(관찰기록·참고사항 AI 시험, 2026-11-15) -->
@@ -5897,7 +5897,7 @@
     <script src="js/marine-life/risk-forecast/risk_forecast.js?v=20261019all"></script>
     <script src="js/marine-life/safety/life_safety.js?v=OmPair_20261122"></script>
     <!-- 해양종합정보 「새 모드」 통합 메뉴 — life_safety.js 가 감싼 탭 전환 위에 한 겹 더 얹으므로 반드시 그 뒤 -->
-    <script src="js/ocean-map/menu/ocean_menu.js?v=20261123p"></script>
+    <script src="js/ocean-map/menu/ocean_menu.js?v=20261123r"></script>
     <!-- 활동지점 안전 브리핑(해양예보 탭 아코디언, 설계서 §11) — 바로가기가 위험예측(risk_forecast.js)·탭 전환(life_safety.js)을,
          [기준 상세] 문안이 risk_basis_content.js 의 RiskBasisContent 를 쓰므로 그 뒤. 렌더 → 기준 문안 → 관할 고르기 탭(picker) → 본체 순서. -->
     <!-- 위험예측 배경 지도·바텀시트 부품(설계서 §11.10.24) — risk_*.js(RiskMapLayer·RiskSheet·RiskMarine) 뒤, 렌더 앞 -->
@@ -5905,7 +5905,7 @@
     <script src="js/forecast/station-briefing/station_briefing_render.js?v=20261119wxB"></script>
     <script src="js/forecast/station-briefing/station_briefing_basis.js?v=20261116aichain"></script>
     <script src="js/forecast/station-briefing/station_briefing_picker.js?v=20261017sb9"></script>
-    <script src="js/forecast/station-briefing/station_briefing.js?v=20261018usage"></script>
+    <script src="js/forecast/station-briefing/station_briefing.js?v=20261123block"></script>
 
     <!-- 관심해역 설정 화면 — 「해역별 특보현황」 ⚙ (forecast/alerts/render.js openAlertZoneSetup)가 누를 때 연다.
          상세: js/onboarding/README.md
@@ -6010,8 +6010,15 @@
         // 관리자 모드 여부 확인 (통합 관리자 센터에서 체크한 경우)
         // [연계] admin.js _toggleAdminMode() → localStorage 'seagnal_admin_mode' 설정
         const isAdmin = localStorage.getItem('seagnal_admin_mode') === 'true';
+        // [2026-11-23] 새 메뉴 화면에서 한 줄로 합쳐진 기능 — 관리자 목록도 한 항목이 됐다. 그 한 항목이 원래 버튼 두 개를 함께 막는다.
+        //   (특보구역·현황 = 특보구역 + 활성특보 색칠 / 천기 = 천기 + 시정 / 관제구역·항로 = 관제구역 + 항로·해역)
+        //   옛 항목 id 는 아래 buttonMap 에 그대로 남겨, 서버에 저장돼 있던 옛 차단 값도 통한다.
+        blocked = (blocked || []).slice();
+        [['ov-warn-zone', 'ov-warn-active'], ['ov-other-wx', 'ov-vsby'], ['sf-vts', 'sf-seaway']].forEach(function (p) {
+            if (blocked.includes(p[0]) && !blocked.includes(p[1])) blocked.push(p[1]);
+        });
         // 위임 클릭 핸들러/래퍼가 참조할 현재 차단 목록 저장
-        window._blockedFeatures = blocked || [];
+        window._blockedFeatures = blocked;
 
         // ── 아코디언 차단 매핑 ──
         // featureId → 아코디언 헤더 DOM ID
@@ -6059,6 +6066,7 @@
             'scuba': 'scuba-section',
             'mudflat': 'mudflat-section',
             'sea-parting': 'sea-parting-section',
+            'swell': 'swell-section',
         };
 
         // ── 아코디언 차단/해제 처리 ──
@@ -6180,6 +6188,9 @@
             'sf-navwarn': '#ocean-navwarn-btn',
             'sf-vts': '#ocean-vts-toggle-btn',
             'sf-seaway': '#ocean-seaway-toggle-btn',
+            'sf-risk': '#ocean-risk-forecast-toggle-btn',
+            // 새 메뉴 화면의 [전체 메뉴] 버튼(js/ocean-map/menu/ocean_menu.js 가 만든다)
+            'om-menu': '#om-menu-btn',
             // 해양생활(활동) — 하위탭 버튼 + 우측 레일/좌측 상단 컨트롤
             'life-activities': '#ls-life-sub-btn',
             'ls-basemap': '#ls-basemap-toggle',
@@ -6240,6 +6251,10 @@
 
         // ── 6. 동적 버튼(해역별 기상현황 구역별 버튼 + 부이 버튼) 외관 ──
         _applyDynamicButtonVisuals();
+
+        // ── 6-2. 새 메뉴 화면 사이드바 — 막힌 줄을 회색 + 「점검 중」으로 다시 그린다 ──
+        // [연계] js/ocean-map/menu/ocean_menu.js _blocked()·refreshBlocks (window._blockedFeatures 를 읽는다)
+        if (window.OceanMenu && typeof window.OceanMenu.refreshBlocks === 'function') window.OceanMenu.refreshBlocks();
 
         // ── 7. 초기 진입 시 활성 탭이 차단 상태면 비차단 탭으로 리다이렉트 ──
         // [FIX 3] 기본 활성 탭(weather-group / weather-alert-section)이 차단된 채

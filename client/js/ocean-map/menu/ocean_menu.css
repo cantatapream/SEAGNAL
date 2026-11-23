@@ -69,6 +69,8 @@ body.om-mode.om-here #om-menu-btn {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 #om-menu-btn i { font-size: 14px; }
+/* 점검으로 막혔을 때(.feat-blocked 는 position:relative 를 강제한다 — index2.html) 자리가 무너지지 않게 */
+body.om-mode.om-here #om-menu-btn.feat-blocked { position: fixed !important; }
 /* 해양안전 지도(검색란 없음)·해양생활 활동 화면에서는 왼쪽 위 버튼 줄과 같은 높이에 */
 body.om-mode.om-here.ls-safety #om-menu-btn { top: calc(env(safe-area-inset-top, 20px) + 12px + var(--om-banner-h, 0px)); }
 body.om-mode.om-here.ls-life #om-menu-btn { top: calc(env(safe-area-inset-top, 20px) + 10px + var(--om-banner-h, 0px)); }
@@ -350,6 +352,8 @@ body.om-mode.om-here.om-open #om-sidebar { transition: transform 0.3s ease, visi
 #om-sidebar .om-name { flex: 1; min-width: 0; font-size: 0.84rem; color: #e2e8f0; white-space: nowrap; overflow: hidden; letter-spacing: -0.02em; }
 #om-sidebar .om-name small { display: block; font-size: 0.68rem; color: #94a3b8; }
 #om-sidebar .om-dead .om-name { color: #64748b; }
+/* 관리자 점검(선택 차단)으로 막힌 줄 — 회색 + 주황 「점검 중」. 눌러도 켜지지 않고 안내 창만 뜬다(ocean_menu.js _blocked) */
+#om-sidebar .om-blocked .om-name small { color: #f59e0b; }
 #om-sidebar .om-sw {
     flex: none;
     position: relative;

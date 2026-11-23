@@ -1540,6 +1540,13 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ### [2026-11-23 17:38 KST] 🟢착수 — ② 참고사항 해석 — 근거 문장이 딸린 해역(특정관리해역·평수구역·연안바다)을 말하면 부모 이름으로 덧씌우지 않기
 대전 예비 제11-6호(11-23): 「특정관리해역 예비 해제」를 AI 10설정 모두 「충남앞바다 예비취소」로 뽑아 자동 반영 후보로 통과. 본체가 예비일 때 오면 본체 예비까지 지움. 사용자 '수정하기 위한 절차를 진행'. 먼저 과거 표본으로 걸리는 건 센 뒤 checkEvent 고침·검토·검사.
 
+### [2026-11-23 17:49 KST] ✅완료 — 점검·통계·수집현황을 새 메뉴 화면 구조로 전면 정리
+①점검: 새 메뉴 사이드바가 차단을 지나가던 결함 수정(대신 누름이라 통과 — 재현함). ocean_menu.js BLOCK_IDS·_blocked — 막힌 줄 회색+「점검 중」, 스위치·[보기]·미뤄 둔 값·천기 하위 버튼·갯바위/선상 모두 막음. 브리핑의 위험예측 바로가기도 sf-risk 차단을 지킨다. 관리자 목록(admin.js featureTree)을 사이드바 폴더 구조로: 합쳐진 줄은 한 항목(index2.html applyFeatureBlocks 가 원래 버튼 둘로 확장), 진북 정렬·해양안전생활 탭 삭제, [전체 메뉴]·위험예측·너울 추가, 옛 id 는 사용자 화면에서 계속 통하고 관리자 「차단된 서비스」에 이름으로 보인다. 이미 켜진 기능을 강제로 끄지는 않는다(종전과 같음). ②통계: usage_keys.js 이름표 108개를 「묶음 · 기능 · 한 일」로(키 그대로·영문 없음·__groups 순서). 운영 기록에 영문 키로 보이던 life.mudflat.region·ocean.hazard_rocks 에 이름. 새 키: menu.open·menu.fav_add·ocean.buoy·ocean.marine_zone·ocean.cctv·shrt.rain_type·safety.accident.ship/person/stats·hub.news/notice/fishcond·chat.open·settings.open. [보기] 한 번 = 1건(관제구역·항로 둘째 버튼·사고정보 버튼은 조용히). 관리자 막대(admin_collect.js _usageGroupedRows)·CSV(routes/usage.js)를 묶음별로. ③수집현황 manifest 33→35(오늘의 뉴스·어황정보). 확인: verify_all 전체 — 스위트 175개 중 test_silent_catch 1개만 실패(product io 156>기준선 155). 원인은 이 작업이 아니라 PR #1579 의 새 파일 local_server/services/ai_compare_trial.js(io 0→1) — 이 브랜치가 바꾼 파일은 io 증가 0(파일별 대조). 손대지 않았다. 검사 도중 고친 파일 관련 스위트는 따로 다시 돌려 0 FAIL(test_ocean_menu_ui 25·test_usage_keys 400·test_maintenance_tree 200·test_push_route_auth 30·test_data_collection_status 19·test_station_briefing 260·_ui 104·test_usage_briefing_risk_ui 18·test_guide_tabs 77·test_tab_structure 42·check_order). 독립 검토 1회(코드 읽기) — 지적 반영. 안 한 것: 설정 버튼 집계의 실제 누름 확인, 관리자 통계 화면 실물 캡처, 수집현황에 항행경보·조석 곡선·지도 자료류 추가, 뉴스 안쪽 탭별 점검 차단, 옛 화면 코드 걷어 내기.
+
+
+### [2026-11-23 17:03 KST] 🟢착수 — 점검·통계·수집현황을 새 메뉴 화면 구조로 전면 정리
+사용자 2026-11-23 「전체적으로 다시 현재 상황에 맞게 수정」「통계 네이밍도 기능별로 묶어서 정리」「전체적으로 모두 진행한 뒤에 결과를 보고」「결정사항은 추천 방안으로」. 계획: ①새 메뉴 사이드바가 점검 차단을 지키게(회색+점검 중, 대신 누름도 막음) ②admin.js featureTree 를 사이드바 폴더 구조로 ③usage_keys.js 이름표를 묶음·기능·행동 꼴로 통일 + 새 기준(전체 메뉴·즐겨찾기·스위치 켜기·사고 3종·뉴스 탭 등) ④data_collection_manifest 보강 검토. 끝나면 결정 목록(택한 안/다른 안) 보고.
+
 
 ### [2026-11-23 16:00 KST] ✅완료 — AI 비교 시험 — ②참고사항 해석·⑥해상 기상 요약, 클로드 4·업스테이지 6 설정
 services/ai_compare_trial.js + 관리자 AI 탭 「🧪 AI 비교 시험」. 시험 글 ② 20(실수 6·표본 14, 정답은 원문에서) · ⑥ 10(실수 1·표본 9). 채점 = 운영 검사 + 정답 대조. 바른 답 20 모두 맞음, 실제 틀린 답 6 모두 틀림. test_ai_compare_trial 23. 대전 11-6(예비) 업스테이지 넓혀 적음 새로 찾음. 다음: 배포 뒤 관리자가 버튼으로 돌리고 결과 표로 모델 판단.

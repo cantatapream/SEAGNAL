@@ -111,7 +111,7 @@
         pcp: 'shrt.rain_amount',
         sno: 'shrt.snow',
         sky: 'shrt.sky',
-        pty: 'shrt.rain_prob',   // 강수형태도 강수 계열 대표 key 로 통합
+        pty: 'shrt.rain_type',   // 강수형태 — 2026-11-23 따로 센다(그 전에는 강수확률 key 에 합쳤다. 새 메뉴 천기 버튼이 둘을 따로 보여 준다)
         tmp: 'shrt.temp_air'
     };
     /** 현재 활성 천기 요소의 사용량 key 를 +1 (없으면 무시). */
