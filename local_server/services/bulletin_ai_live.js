@@ -190,7 +190,7 @@ function createLive({ ai = (p) => require('./bulletin_ai').call('interpret', p, 
     }
 
     /**
-     * 아직 안 읽힌 통보문을 차례로 읽힌다(한 번에 하나씩, 겹쳐 돌지 않음). 끝나면 관찰기가 더는 들고 있지 않은 기록을 지운다(관찰기 보관 10일 — bulletin_watch SEEN_KEEP_DAYS).
+     * 아직 안 읽힌 통보문을 차례로 읽힌다(한 번에 하나씩, 겹쳐 돌지 않음). 끝나면 관찰기가 더는 들고 있지 않은 기록을 지운다(관찰기 보관 15일 — bulletin_watch SEEN_KEEP_DAYS).
      * @returns {Promise<{done:number, skipped?:boolean}>}
      * [연계] ← scheduler.js(매분 — 기다리지 않음)
      */
@@ -206,7 +206,7 @@ function createLive({ ai = (p) => require('./bulletin_ai').call('interpret', p, 
             }).sort((x, y) => x.result.tmIn.localeCompare(y.result.tmIn));
             let n = 0;
             for (const b of todo) { await runOne(b, all); save(); n++; if (gapMs) await sleep(gapMs); }
-            // 정리: 관찰기에 더는 없는 통보문(관찰기가 10일 뒤 지움 — bulletin_watch SEEN_KEEP_DAYS)과 참고사항이 바뀌어 옛 열쇠가 된 기록만 지운다.
+            // 정리: 관찰기에 더는 없는 통보문(관찰기가 15일 뒤 지움 — bulletin_watch SEEN_KEEP_DAYS)과 참고사항이 바뀌어 옛 열쇠가 된 기록만 지운다.
             //   통보문 입력시각으로 자르면 관찰기가 아직 들고 있는 통보문을 매분 다시 AI 에 보낸다(적대검증 2026-11-16 — 재현 5분에 5번).
             //   관찰기 목록이 비었으면(읽기 실패 등) 지우지 않는다 — 다 지우면 전부 다시 부른다.
             if (all.length) {

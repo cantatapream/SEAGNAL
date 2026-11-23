@@ -97,7 +97,7 @@ ok('본문이 없으면(null) 빈 것', isEmpty('6', null));
         s.tick(2 * 24 * 60); await s.w.run();
         ok('목록에 아직 있는 통보문은 오래돼도 「새 통보문」으로 다시 잡지 않음', s.kinds().filter((k) => k === 'new').length === 2);
     }
-    {   // 목록에서 빠진 통보문도 처음 본 뒤 10일까지 들고 있는다(사용자 결정 2026-11-18 「10일로 하자」 — 통보문 없이 이어지는 특보가 계산에서 빠지지 않게)
+    {   // 목록에서 빠진 통보문도 처음 본 뒤 15일까지 들고 있는다(사용자 결정 2026-11-18 「10일로 하자」 → 2026-11-23 「일단 15일 보관토록」 — 통보문 없이 이어지는 특보가 계산에서 빠지지 않게 · 점검 때 AI 해석 기록이 남게)
         const s = setup();
         const OLD = code(31, '202611110100');
         s.f.lists['184|6'] = [{ code: OLD, value: 'old' }, { code: C1, value: 'v1' }]; s.f.details[OLD] = FULL6; s.f.details[C1] = FULL6;
@@ -106,10 +106,10 @@ ok('본문이 없으면(null) 빈 것', isEmpty('6', null));
         const has = () => s.w.bulletins().some((b) => b.code === OLD);
         s.tick(6 * 24 * 60); await s.w.run();
         ok('목록에서 빠지고 6일이 지나도 본문을 들고 있음(종전 5일이면 지워졌다)', has());
-        s.tick(3 * 24 * 60 + 23 * 60); await s.w.run();
-        ok('9일 23시간째까지 들고 있음', has());
+        s.tick(8 * 24 * 60 + 23 * 60); await s.w.run();
+        ok('14일 23시간째까지 들고 있음(종전 10일이면 지워졌다)', has());
         s.tick(2 * 60); await s.w.run();
-        ok('10일이 넘으면 지움 · 목록에 남아 있는 통보문은 그대로', !has() && s.w.bulletins().some((b) => b.code === C1));
+        ok('15일이 넘으면 지움 · 목록에 남아 있는 통보문은 그대로', !has() && s.w.bulletins().some((b) => b.code === C1));
     }
 
     console.log('B4. 본문 없는 옛 기록 채우기');
