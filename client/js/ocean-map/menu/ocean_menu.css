@@ -71,6 +71,11 @@ body.om-mode.om-here #om-menu-btn {
 /* 해양안전 지도(검색란 없음)·해양생활 활동 화면에서는 왼쪽 위 버튼 줄과 같은 높이에 */
 body.om-mode.om-here.ls-safety #om-menu-btn { top: calc(env(safe-area-inset-top, 20px) + 12px + var(--om-banner-h, 0px)); }
 body.om-mode.om-here.ls-life #om-menu-btn { top: calc(env(safe-area-inset-top, 20px) + 10px + var(--om-banner-h, 0px)); }
+/* 사고분석 통계 시트 — [전체 메뉴] 버튼(안내 줄 + 12px 에서 42px 높이) 바로 아래까지만 올라온다.
+   2026-11-23 사용자 「바텀시트가 전체메뉴 버튼 뒤로 올라오는데 전체메뉴 버튼 좀 아래까지만 올라오도록」 */
+body.om-mode .accident-stats-sheet {
+    max-height: calc(100vh - var(--main-tab-height, 68px) - env(safe-area-inset-top, 20px) - var(--om-banner-h, 0px) - 62px);
+}
 #om-menu-btn .om-count {
     position: absolute;
     top: -7px;

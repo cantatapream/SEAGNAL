@@ -4991,6 +4991,8 @@
         _statsKey = _statsScope === 'person' ? 'person' : 'hk';
         _statsMembers = scopedMembers();
         body.innerHTML = buildStatsHtml(_statsKey, _statsMembers);
+        // 좁은 화면에서 칩 글자가 두 줄이 되면 글자 간격을 좁혀 한 줄로(한도를 넘으면 두 줄 그대로) — shared/ui/text_fit.js
+        if (window.textFitOneLine) body.querySelectorAll('.ash-chip-t1, .ash-chip-t2').forEach(window.textFitOneLine);
         renderActiveChart(_statsKey, _statsMembers);
         armCardReveal(body);
     }
