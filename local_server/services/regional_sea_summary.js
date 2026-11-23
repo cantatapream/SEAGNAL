@@ -121,6 +121,26 @@ const bare = (s) => String(s || '').replace(/\{\{(?:loc|num|warn):([^{}]*)\}\}/g
  * @param {Array<{lines:string[]}>} items @returns {Map<string,string>} 딸린 줄(bare) → 기간을 볼 글
  * [연계] ← check · trim(기간의 「까지·부터」 고치기)
  */
+/**
+ * 그 종류의 자기 문장 — 그 종류 낱말(KINDS)이 든 원문 줄 · 그 종류 이름의 항목(「○ (조고) …」 밑 줄 전부) · 그런 줄이 딸린 「-」 줄이면 위 ○ 줄까지(bare, 줄바꿈으로 이음).
+ * 예: ownText(items, '조고') → bare('○ (조고) 모레(25일)부터 … 침수 가능성 …') · ownText(items, '너울') 은 「- 또한, 너울에 의한 …」과 그 위 ○ 줄
+ * @param {Array<{label:string, sec:string, lines:string[]}>} items @param {string} kind @returns {string}
+ * [연계] ← check(한 줄의 숫자·해역·날 말을 이 글과 대조)
+ */
+function ownText(items, kind) {
+    const re = KINDS[kind], out = [];
+    if (!re) return '';
+    for (const i of items) {
+        const whole = re.test(String(i.label || '') + ' ' + String(i.sec || ''));
+        let head = '';
+        for (const l of i.lines) {
+            const t = String(l).trim(), b = bare(l);
+            if (/^[○ㅇo]/.test(t)) head = b;
+            if (whole || re.test(b)) { if (/^-/.test(t) && head) out.push(head); out.push(b); }
+        }
+    }
+    return [...new Set(out)].join('\n');
+}
 function periodCtx(items) {
     const m = new Map();
     for (const i of items) {
@@ -397,6 +417,16 @@ function check(p, items, rawText) {
         for (const t of zoneTokens(plain)) if (!named(t, all)) return '한 줄의 해역 이름이 글에 없다: ' + t;
         const heavy = HEAVY_WORDS.find((w) => plain.includes(w) && !all.includes(w));
         if (heavy) return '한 줄에 글에 없는 말이 있다: ' + heavy;
+        // 그 종류의 자기 문장과 대조 — 한 줄의 숫자·해역·날 말은 바다 글 어딘가가 아니라 **그 종류 낱말이 든 원문 줄**(그 종류 이름의 항목 전체 · 딸린 「-」 줄이면 위 ○ 줄도) 안에 있어야 한다.
+        //   다른 문장의 숫자·해역을 빌려 와 엉뚱한 종류 딱지에 싣는 것을 막는다(운영 제주 2026-11-23: [조고] 줄에 둘째 줄의 「제주도남부앞바다 · 8~14m/s」). 사용자 「가로 검토해보자」.
+        if (n.kind !== '해제 예고') {
+            const own = ownText(items, n.kind);
+            if (!digitsIn(bare(n.text), own)) return '한 줄의 숫자가 그 종류 문장에 없다: ' + n.kind;
+            for (const m of n.text.matchAll(/\{\{loc:([^{}]*)\}\}/g)) if (!hangul(m[1]).every((r) => named(r, own))) return '한 줄의 지역 이름이 그 종류 문장에 없다: ' + n.kind + ' ' + m[1];
+            for (const t of zoneTokens(plain)) if (!named(t, own)) return '한 줄의 해역 이름이 그 종류 문장에 없다: ' + n.kind + ' ' + t;
+            const day = DAY_WORDS.find((d) => plain.includes(d) && !own.includes(d));
+            if (day) return '한 줄의 날이 그 종류 문장에 없다: ' + n.kind + ' ' + day;
+        }
         // 해제 예고: 글의 해제 예고마다 그 해역 바로 뒤(몇 글자 안)에 그 시점이 글 그대로 있어야 한다 — 빠뜨림·다른 해역의 시점과 바꿔 적음·시점 고쳐 적음을 잡는다.
         //   해제 예고가 없는 해역과 해제 시점이 아닌 숫자는 이 줄에 못 쓴다(「서해중부해상 19일 밤 해제」처럼 넓혀 적지 못하게).
         if (n.kind === '해제 예고') {
