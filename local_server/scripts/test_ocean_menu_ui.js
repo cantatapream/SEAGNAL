@@ -118,6 +118,8 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
       assert.ok(Math.abs(g.base.y - g.north.y) <= 2 && Math.abs(g.base.y - g.my.y) <= 2 && Math.abs(g.base.y - g.info.y) <= 2, '한 줄 ' + JSON.stringify(g));
       assert.ok(g.base.y >= g.search.y + g.search.h, '검색란 아래'); assert.ok(g.menu.w >= 90 && g.menu.h <= 46 && Math.abs(g.menu.y - g.base.y) <= 4, JSON.stringify(g.menu));
       assert.ok(g.info.x + g.info.w < g.menu.x, '안내 버튼과 [전체 메뉴]가 겹치지 않는다');
+      assert.deepEqual([g.north.w, g.north.h, g.my.w, g.my.h, g.info.w, g.info.h], [g.base.w, g.base.h, g.base.w, g.base.h, g.base.w, g.base.h], '네 버튼이 기본맵 버튼과 같은 크기 ' + JSON.stringify(g));
+      assert.ok(g.menu.h === g.base.h, '[전체 메뉴] 높이도 같다');
       const before = g.menu;
       await page.evaluate(() => { document.documentElement.setAttribute('data-font-size', 'large'); document.documentElement.style.fontSize = '18px'; }); await wait(300);
       g = await m(); assert.deepEqual([g.menu.w, g.menu.h], [before.w, before.h], '글자 크게에도 [전체 메뉴] 크기 그대로');
@@ -135,7 +137,7 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
       assert.deepEqual(s.folders, [
         '즐겨찾기:',
         '해양기상정보:특보구역·현황,파고·파향,풍향·풍속,유향·유속,기상부이,해구기상,천기,태풍',
-        '해양안전정보:항행경보 현황,위험예측,사고발생 이력 분석,사고이력,사고분석,위험지형,갯벌 수위 예측,출입통제·낚시금지,관제구역·항로,CCTV',
+        '해양안전정보:항행경보 현황,위험예측,사고발생 이력·분석,사고이력,사고분석,위험지형,갯벌 수위 예측,출입통제·낚시금지,관제구역·항로,CCTV',
         '해양생활지수:바다낚시,서핑,스킨스쿠버,갯벌체험,바다갈라짐,너울,해수욕']);
       await clean(); await page.mouse.click(20, 400); await wait(450); s = await S(); assert.equal(s.open, false); assert.deepEqual(s.stack, []);
       await click('#om-menu-btn'); await wait(300);
@@ -202,15 +204,19 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
     });
     await check('⑧ 사고이력[인명] — 현황·인명사고 · 「필터」 접힌 채 시작 → 누르면 펼침 · 「선택 초기화」는 숨김 / 사고분석 — 「전국 통계」', async () => {
       await click('#om-menu-btn'); await wait(300); await view('accPerson');
+      assert.equal(await page.evaluate(() => { const b = document.getElementById('om-loading'); return !b.hidden && getComputedStyle(b).display !== 'none'; }), true, '자료를 받는 동안 가운데 로딩 표시');
       await page.waitForFunction(() => { const b = document.querySelector('#accident-source-toggle button.active'); return b && b.getAttribute('data-source') === 'person' && getComputedStyle(document.getElementById('accident-filter-bar')).display !== 'none'; }, null, { timeout: 30000 });
       await wait(500);
       const a = () => page.evaluate(() => { const g = id => getComputedStyle(document.getElementById(id)); const bar = document.getElementById('accident-filter-bar');
         return { mode: document.querySelector('#ocean-accident-mode-toggle button.active').getAttribute('data-mode'), modeVis: g('ocean-accident-mode-toggle').visibility, srcDisp: g('accident-source-toggle').display,
           barH: bar.offsetHeight, open: bar.classList.contains('om-open'), reset: g('accident-filter-reset-btn').display, nw: g('accident-nationwide-btn').display, head: g('om-acc-filter-head').display }; });
       let r = await a();
+      assert.equal(await page.evaluate(() => document.getElementById('om-loading').hidden), true, '다 받으면 로딩 표시가 내려간다');
       assert.equal(r.mode, 'status'); assert.equal(r.modeVis, 'hidden'); assert.equal(r.srcDisp, 'none'); assert.equal(r.head, 'flex');
       assert.ok(r.barH <= 50 && !r.open, 'barH=' + r.barH); assert.equal(r.reset, 'none');
       await click('#om-acc-filter-head'); await wait(450); r = await a(); assert.ok(r.open && r.barH > 120, 'barH=' + r.barH);
+      assert.equal(await page.evaluate(() => document.getElementById('om-acc-filter-head').textContent.trim()), '필터 선택');
+      await click('#accident-filter-reset-btn'); await wait(450); r = await a(); assert.ok(!r.open && r.barH <= 50, '선택 초기화를 누르면 필터가 접힌다 barH=' + r.barH);
       assert.equal((await S()).view, 'accPerson');
       await click('#om-menu-btn'); await wait(300); await view('accStat'); await wait(1500); r = await a();
       assert.equal(r.mode, 'analysis'); assert.equal(r.nw, 'block'); assert.equal((await S()).banner, '사고분석 화면 표출 중 해양기상정보는 표시되지 않습니다.');

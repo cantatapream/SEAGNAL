@@ -103,7 +103,7 @@
         ] },
         { id: 'safe', title: '해양안전정보', rows: [
             { kind: 'view', id: 'navw' }, { kind: 'view', id: 'risk' },
-            { kind: 'label', id: 'accGroup', label: '사고발생 이력 분석' },
+            { kind: 'label', id: 'accGroup', label: '사고발생 이력·분석' },
             { kind: 'pair', id: 'accHist', label: '사고이력', sub: true, pair: [['accShip', '선박'], ['accPerson', '인명']] },
             { kind: 'view', id: 'accStat', sub: true },
             { kind: 'view', id: 'terr' }, { kind: 'view', id: 'mud' }, { kind: 'view', id: 'ban' }, { kind: 'view', id: 'vts' },
@@ -143,6 +143,7 @@
     var _tapCount = 0, _tapTimer = null;
     var _viewSeq = 0;           // [보기]를 연달아 눌렀을 때 앞선 누름의 뒤처리가 끼어들지 않게 하는 번호
     var _arbTimers = [];
+    var _accBusy = false;       // 사고 자료를 받는 동안의 로딩 표시가 떠 있는가
     var _loadSeq = 0;           // 천기 로딩 표시 — 연달아 눌렀을 때 앞선 표시가 끼어들지 않게 하는 번호
     var _northHome = null;      // 진북 정렬 버튼의 원래 자리 {parent, next} — 새 모드를 끌 때 되돌린다
 
@@ -470,16 +471,25 @@
             for (var i = 0; i < on.length; i++) { if (want.indexOf(on[i].id) < 0 && _isActive(on[i])) on[i].click(); }
         });
         want.forEach(function (bid) { var b = document.getElementById(bid); if (b && !_isActive(b)) b.click(); });
-        if (def.accMode) _setAccident(def, seq, 0);
+        if (def.accMode) { _accLoading(true); _setAccident(def, seq, 0); } else _accLoading(false);
         _sync();
     }
 
     /** 사고정보의 분석/현황·선박/인명을 맞춘다 — 자료를 다 받은 뒤에야 전환 단추가 나타나므로 기다리며 시도한다 */
+    /** 사고 자료를 받는 동안 화면 가운데 「불러오는 중입니다...」를 띄우고 내린다(천기와 같은 표시 — 2026-11-23 사용자).
+     *  @param {boolean} on  [연계] ← _pressSafety()·_setAccident()·_afterNav() */
+    function _accLoading(on) {
+        var box = document.getElementById('om-loading');
+        if (!box) return;
+        if (on) { _loadSeq++; _accBusy = true; box.hidden = false; }
+        else if (_accBusy) { _accBusy = false; box.hidden = true; }
+    }
+
     function _setAccident(def, seq, tries) {
         if (seq !== _viewSeq) return;
         var tgl = document.getElementById('ocean-accident-mode-toggle');
         var ready = tgl && tgl.style.display !== 'none' && tgl.style.display !== '';
-        if (!ready) { if (tries < 80) setTimeout(function () { _setAccident(def, seq, tries + 1 || 1); }, 250); return; }
+        if (!ready) { if (tries < 80) setTimeout(function () { _setAccident(def, seq, tries + 1 || 1); }, 250); else _accLoading(false); return; }
         var mBtn = tgl.querySelector('button[data-mode="' + def.accMode + '"]');
         // ⚠이미 그 모드면 누르지 않는다 — 같은 모드를 다시 누르면 필터 줄이 접힌다(accident_info.js)
         var okMode = !mBtn || _isActive(mBtn);
@@ -494,6 +504,7 @@
         }
         // 선박/인명의 눌린 표시는 자료를 다 받은 뒤에야 바뀐다 — 연달아 눌렀을 때 어긋나지 않게 맞을 때까지 다시 본다
         if ((!okMode || !okSrc) && tries < 80) setTimeout(function () { _setAccident(def, seq, tries + 1); }, 350);
+        else _accLoading(false);     // 분석/현황·선박/인명이 다 맞았다(또는 끝내 못 맞췄다) — 로딩 표시를 내린다
     }
 
     /**
@@ -565,6 +576,7 @@
     function _afterNav(pre) {
         if (!_mode) return;
         var tab = _tab();
+        if (tab !== 'ocean-life-group' || !_safetyShown()) _accLoading(false);
         if (tab === 'ocean-life-group') {
             // 우리 [보기]가 아닌 길로 들어온 경우에도, 들어오기 직전의 스위치 상태(pre)를 미뤄 둔 값으로 삼는다
             if (!_pending) _pending = pre || _snapshotPending();
@@ -679,13 +691,20 @@
         var b = document.createElement('button');
         b.type = 'button'; b.id = 'om-acc-filter-head'; b.className = 'om-acc-filter-head';
         b.setAttribute('aria-expanded', 'false');
-        b.innerHTML = '<span>필터</span><i class="fa-solid fa-chevron-down" aria-hidden="true"></i>';
+        b.innerHTML = '<span>필터 선택</span><i class="fa-solid fa-chevron-down" aria-hidden="true"></i>';
         b.addEventListener('click', function (e) {
             e.stopPropagation();
             bar.classList.toggle('om-open');
             _syncFilterHead();
         });
         bar.insertBefore(b, bar.firstChild);
+        // 「선택 초기화」를 누르면 필터도 접는다(새 모드에서만 — 2026-11-23 사용자 「선택 초기화를 누르면 필터는 자동으로 접히도록」)
+        var reset = document.getElementById('accident-filter-reset-btn');
+        if (reset) reset.addEventListener('click', function () {
+            if (!_mode) return;
+            bar.classList.remove('om-open');
+            _syncFilterHead();
+        });
     }
     function _syncFilterHead() {
         var bar = document.getElementById('accident-filter-bar'), b = document.getElementById('om-acc-filter-head');
@@ -921,7 +940,7 @@
         if (!on) {
             if (_tab() === 'ocean-life-group') _closeView();
             _setOpen(false);
-            _pending = null; _view = ''; _wxOpen = false; _loadSeq++;
+            _pending = null; _view = ''; _wxOpen = false; _loadSeq++; _accBusy = false;
             var lb = document.getElementById('om-loading'); if (lb) lb.hidden = true;
             // 평소 화면은 「해안도가 아니면 파고·풍향·유향을 켜 두지 않는다」 — 새 모드에서만 가능한 조합을 남기지 않는다
             if ((_liveOn('wav') || _liveOn('wind') || _liveOn('cur')) && typeof window.oceanGetBasemap === 'function' &&
