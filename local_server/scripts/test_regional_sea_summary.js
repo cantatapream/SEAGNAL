@@ -252,7 +252,7 @@ const GOOD_SUMMER = () => ({
         ok('호출이 던지거나 · JSON 이 아니거나 · 검사를 건너뛴 답이 와도 던지지 않고 「원문 그대로」', r4.state === 'raw' && /network down/.test(r4.error) && r5.state === 'raw' && r6.state === 'raw');
         const t = await S.trial(JEJU).catch((e) => ({ thrown: e.message }));
         ok('trial(관리자 「시험 요약」): 던지지 않고 걸린 시간·AI 에게 준 바다 글·결과를 준다(이 환경엔 AI 키가 없어 「원문 그대로」)', !t.thrown && typeof t.ms === 'number' && /^○ \(해상\)/.test(t.seaText) && ['ok', 'raw'].includes(t.result.state), t.thrown || t.result.state);
-        ok('지시문: 종류 이름이 검사가 아는 종류와 같다 · 글에 없는 것을 만들지 말라고 적는다', Object.keys(S.KINDS).every((k) => S.PROMPT('x').includes('"' + k + '"')) && /글에 없는 해역·숫자·시점을 만들지 않는다/.test(S.PROMPT('x')));
+        ok('지시문: 종류 이름이 검사가 아는 종류와 같다(「바람·물결」은 서버가 원문에서 붙여 AI 에게 안 준다) · 글에 없는 것을 만들지 말라고 적는다', Object.keys(S.KINDS).filter((k) => k !== '바람·물결').every((k) => S.PROMPT('x').includes('"' + k + '"')) && /글에 없는 해역·숫자·시점을 만들지 않는다/.test(S.PROMPT('x')));
     }
 
     console.log('── 운영 「시험 요약」 2026-11-20(수도권) — 「X에 특보가 발효된 가운데, A는 …, B는 …」의 X 는 배경이다 ──');
@@ -397,6 +397,28 @@ const GOOD_SUMMER = () => ({
         ok('원문 받기: 지방청 수집이 끝날 때마다(부팅·발표 시간대) — 방재기상플랫폼 관찰기와 무관하게', (sch.match(/regionalBulletinCollector\.syncDocs\(\)/g) || []).length === 2 && /syncExtra\(docs\)/.test(col));
         ok('화면 자료: 원문 그림이 있는 관서에만 doc(보기·받기 주소)을 붙인다', /docs\.pages\(d\.key\)\.length/.test(wea) && /viewUrl: '\/api\/bulletin-doc\/' \+ d\.key \+ '\/view'/.test(wea) && /e\.doc\.downloadUrl = '\/api\/bulletin-doc\/' \+ d\.key \+ '\/pdf'/.test(wea));
         ok('관리자 「시험 요약」: 지방청 7곳 가운데서만 · 저장하지 않는다(trial)', /try-sea-summary', authorize/.test(adm) && /BULLETIN_OFFICES\.some\(\(o\) => o\.code === office\)/.test(adm) && /regional_sea_summary'\)\.trial\(raw\)/.test(adm));
+        // 「바람·물결」(2026-11-22 운영 제주 — 숫자 없는 바다 글은 종전엔 어떤 답도 통과하지 못해 원문 그대로 나갔다).
+        //   이 종류 줄은 AI 가 쓰지 않고 서버가 원문을 잘라 붙인다(calmNote) — AI 에게 쓰게 했더니 독립 검토에서 해역 넓히기·날 섞기·「매우」 빌리기·뜻 뒤집기가 통과했다.
+        {
+            const JL = '○ (해상) 모레(24일)부터 제주도해상과 남해서부서쪽먼바다에는 차차 바람이 강하게 불고 물결이 높게 일겠으니, 항해 및 조업하는 선박은 유의하기 바라며, 앞으로 발표하는 기상정보를 참고하기 바랍니다.';
+            const JI = [{ label: '해상', sec: '강풍 및 해상', lines: [JL] }], JR = '<강풍 및 해상>\n' + JL;
+            const NL = '○ (해상) 내일(23일)은 동해중부먼바다에 바람이 30~65km/h(9~18m/s)로 매우 강하게 불고 물결이 1.5~4.0m로 매우 높게 일겠습니다.';
+            const NI = [{ label: '해상', sec: '해상', lines: [NL] }];
+            const cn = S.calmNote([JL]);
+            ok('바람·물결: 원문을 잘라 만든다 — 줄머리·뒤 당부를 떼고 마지막 「높게」까지, 해역은 {{loc:}}', cn && cn.kind === '바람·물결' && cn.text === '모레(24일)부터 {{loc:제주도해상}}과 {{loc:남해서부서쪽먼바다}}에는 차차 바람이 강하게 불고 물결이 높게', cn);
+            ok('바람·물결: 숫자가 적힌 줄에서는 만들지 않는다 · 숫자 줄이 있는 글의 숫자 없는 덧붙임 줄로도 만들지 않는다(그런 글은 해역 줄이 싣는다)', S.calmNote([NL]) === null && S.calmNote([NL, '- 또한, 모레(24일) 동해중부앞바다에도 바람이 강하게 불고 물결이 높게 일겠습니다.']) === null);
+            { const L2 = '- 또한, 모레(24일) 제주도남쪽바깥먼바다를 중심으로 바람이 매우 강하게 불고 물결이 매우 높게 일겠습니다.'; const c3 = S.calmNote([JL, JL, L2, L2.replace('남쪽바깥', '남서쪽안쪽'), L2.replace('남쪽바깥', '남동쪽안쪽'), L2.replace('남쪽바깥먼바다', '동부앞바다')]);
+              ok('바람·물결: 같은 문장은 한 번만 · 길면 문장 단위로 240자까지(색 표시가 깨지지 않는다)', c3.text.split(' · ').length === new Set(c3.text.split(' · ')).size && c3.text.length <= 240 && !/\{\{[^}]*$/.test(c3.text) && (c3.text.match(/\{\{/g) || []).length === (c3.text.match(/\}\}/g) || []).length, c3.text); }
+            ok('바람·물결: 줄머리의 「- 또한,」은 뗀다', (S.calmNote(['- 또한, 모레(24일) 제주도해상에도 바람이 강하게 불고 물결이 높게 일겠습니다.']) || {}).text === '모레(24일) {{loc:제주도해상}}에도 바람이 강하게 불고 물결이 높게');
+            ok('바람·물결: 숫자 없는 줄뿐인 글은 빈 답도 받는다 · 숫자 없는 해역 줄만 낸 답도(지워져 빈 답) 받는다', S.check({ zones: [], notes: [] }, JI, JR) === '' && S.check({ zones: [{ zone: '제주도해상', period: '모레(24일)~', wind: null, wave: null }], notes: [] }, JI, JR) === '');
+            const evil = ['모레(24일)부터 {{loc:제주도해상}}과 {{loc:동해중부먼바다}}에 바람이 강하게 불고 물결이 높게', '모레(24일)부터 {{loc:제주도해상}}에 바람이 약해지고 물결이 낮아지겠음', '모레(24일)부터 {{loc:제주도해상}}에 바람이 매우 강하게'];
+            ok('바람·물결: AI 가 쓴 이 종류 줄은 무엇이든 버린다(검토가 찾은 넓히기·뒤집기·부풀리기)', evil.every((x) => S.trim(S.normalize({ zones: [], notes: [{ kind: '바람·물결', text: x }] }), JI).p.notes.length === 0));
+            ok('바람·물결: 숫자 글에는 빈 답을 여전히 안 받는다', /해역 줄이 없다|답이 비었다/.test(S.check({ zones: [], notes: [] }, NI, NL)));
+            const r1 = await S.summarize(JR, { call: async (id, prompt, o) => { const text = '{"zones":[],"notes":[{"kind":"바람·물결","text":"' + evil[1] + '"}]}'; return o.accept(JSON.parse(text)) ? { success: true, text, provider: 'fake' } : { success: false, error: 'x' }; } });
+            ok('바람·물결: summarize — AI 의 뒤집은 줄은 버리고 원문을 잘라 붙인 한 줄만 싣는다', r1.state === 'ok' && r1.notes.length === 1 && r1.notes[0].text === cn.text, r1);
+            ok('바람·물결: 지시문은 이 얘기를 AI 에게 쓰지 말라 하고, 화면 딱지(노랑)는 있다', /서버가 원문을 그대로 붙인다/.test(S.PROMPT('x')) && !/"바람·물결"/.test(S.PROMPT('x')) && /'바람·물결': 'yellow'/.test(read('../client/js/forecast/outlook/marine_forecast.js')));
+            ok('「매우」는 글에 있을 때만 한 줄에 쓴다(부풀리는 말)', /글에 없는 말이 있다: 매우/.test(S.check({ zones: [], notes: [{ kind: '천둥·번개', text: '모레 {{loc:제주도해상}}에 매우 강한 천둥·번개' }] }, [{ label: '해상', sec: '해상', lines: ['○ (해상) 모레(24일) 제주도해상에는 천둥·번개가 치는 곳이 있겠습니다.'] }], 'x')));
+        }
         ok('MMIS 코드를 쓰지 않는다', !/mmis/i.test(read('services/regional_sea_summary.js').replace(/\/\*[\s\S]*?\*\//g, '')));
     }
 
