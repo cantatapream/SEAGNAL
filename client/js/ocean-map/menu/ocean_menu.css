@@ -481,3 +481,21 @@ body.om-mode .nhub-head.stuck {
         radial-gradient(ellipse at 50% 50%, transparent 35%, rgba(6, 10, 22, 0.6) 100%),
         linear-gradient(135deg, #0a101f 0%, #0c1730 32%, #11244d 55%, #0d1936 76%, #0a101f 100%);
 }
+
+/* ── 8. 지도 위 패널의 바탕색을 왼쪽 위 버튼(안내 버튼)과 같게 ───────────────────────────────
+ * 2026-11-23 사용자(출입통제·낚시금지 화면 첨부): 「선택 창도 색상이 다른데, 동일하게 맞춰줘 또한 이렇게 적용되어있는곳이
+ * 또 있는지 확인해서 수정반영해줘」 — 새 모드의 [보기] 화면 8종을 열어 지도 위에 뜨는 패널의 바탕색을 재서 모았다:
+ * 위험지형·출입통제/낚시금지 범례 스위치, 위험예측 범례·색 범례, 항행경보 날짜 줄, 사고 「전국 통계」·「선택 초기화」·격자 범례.
+ * (아래쪽 시간 막대·가운데 로딩 표시·바텀시트는 버튼이 아니라 그대로 둔다) */
+body.om-mode .ocean-legend-stack > .banzone-legend,
+body.om-mode #ocean-map-section .banzone-legend,
+body.om-mode #ocean-map-section .rf-legend,
+body.om-mode #ocean-map-section .rf-color-legend,
+body.om-mode #ocean-map-section .navwarn-date-nav,
+body.om-mode #accident-nationwide-btn,
+body.om-mode #accident-filter-reset-btn,
+body.om-mode #accident-grid-legend {
+    background: rgba(15, 27, 51, 0.85);
+    border-color: transparent;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
