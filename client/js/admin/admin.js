@@ -4558,7 +4558,16 @@ async function renderMaintenanceFullTab(container) {
     ];
 
     // 트리 평탄화: id→label 조회 + 짝꿍(linked) 양방향 맵 구성
-    const featureFlat = {};
+    // 지금 목록에는 없지만 서버에 저장돼 있을 수 있는 옛 항목 — 「차단된 서비스」에 영문 id 가 그대로 보이지 않게 이름을 준다.
+    //   (2026-11-23 목록을 새 메뉴 구조로 다시 짜면서 빠졌다. 사용자 화면에서는 여전히 통한다 — index2.html buttonMap·tabMap, ocean_menu.js BLOCK_IDS.
+    //    목록에 체크 상자가 없으므로 [차단 기능 저장]을 누르면 지워진다 — 새 목록의 항목으로 다시 고른다.)
+    const featureFlat = {
+        'main-life': '(옛 항목) 해양안전생활 탭 전체 — 지금은 「해양안전정보」+「해양생활지수」',
+        'ov-warn-active': '(옛 항목) 활성특보 색칠 — 지금은 「특보구역·현황」',
+        'ov-vsby': '(옛 항목) 시정 — 지금은 「천기」',
+        'sf-seaway': '(옛 항목) 항로·해역 — 지금은 「관제구역·항로」',
+        'ov-northup': '(옛 항목) 진북 정렬 — 버튼이 없어졌다',
+    };
     const featureLinks = {};
     const featureParent = {};
     (function walk(nodes, parentId) {

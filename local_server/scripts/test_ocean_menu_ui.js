@@ -340,6 +340,41 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
       if (!(await S()).open) { await click('#om-menu-btn'); await wait(300); }
       void wasOn;
     });
+    await check('[2026-11-23 통계] 스위치 켬 1건(끔 0건) · [전체 메뉴] 열기 · 즐겨찾기 담기 · [보기] 한 번 = 1건(관제구역·항로 · 사고 세 갈래, 보던 것 다시 누름은 0건) · 막힌 천기 하위 버튼은 안 켜짐', async () => {
+      const used = [];
+      await page.route('**/api/usage', (r) => { try { const b = JSON.parse(r.request().postData() || '{}'); used.push(...(b.features || [b.feature])); } catch (e) { /* 본문이 없으면 무시 */ } r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }); });
+      const take = async () => { await wait(350); return used.splice(0).sort(); };
+      if (!(await S()).open) { await click('#om-menu-btn'); await wait(300); }
+      await take();
+      const buoyOn = (await S()).on.includes('ocean-buoy-toggle-btn');
+      if (buoyOn) { await sw('buoy'); await wait(500); assert.deepEqual(await take(), [], '끄는 것은 세지 않는다'); }
+      await sw('buoy'); await wait(600); assert.deepEqual(await take(), ['ocean.buoy']);
+      await sw('buoy'); await wait(500); assert.deepEqual(await take(), [], '끄는 것은 세지 않는다');
+      await click('#om-sidebar [data-om="close"]'); await wait(300); await click('#om-menu-btn'); await wait(300); assert.deepEqual(await take(), ['menu.open']);
+      await click('#om-sidebar .om-folder:not([data-folder="fav"]) [data-om="fav"][data-id="buoy"]'); assert.deepEqual(await take(), ['menu.fav_add']);
+      await click('#om-sidebar .om-folder:not([data-folder="fav"]) [data-om="fav"][data-id="buoy"]'); assert.deepEqual(await take(), [], '즐겨찾기를 푸는 것은 세지 않는다');
+      await view('vts'); await wait(1600); assert.deepEqual(await take(), ['safety.vts'], '관제구역·항로 [보기] 한 번 = 1건(항로 버튼은 조용히)');
+      await click('#om-menu-btn'); await wait(300); await take();
+      await view('accShip'); await wait(2500); assert.deepEqual(await take(), ['safety.accident.ship'], '사고이력(선박) = 갈래 키 1건(사고정보 버튼은 조용히)');
+      await click('#om-menu-btn'); await wait(300); await take();
+      await view('accShip'); await wait(800); assert.deepEqual(await take(), [], '보던 것을 다시 누르면 세지 않는다');
+      await click('#om-menu-btn'); await wait(300); await take();
+      await view('accStat'); await wait(1500); assert.deepEqual(await take(), ['safety.accident.stats']);
+      await click('#om-menu-btn'); await wait(300); await take();
+      await sw('wind'); assert.deepEqual(await take(), ['ocean.wind'], '[보기] 중 미뤄 둔 스위치도 켠 때 1건');
+      await page.evaluate(() => window.OceanMenu.closeView()); await wait(1400); assert.deepEqual(await take(), [], '[끄기] 뒤 지도에 반영할 때는 다시 세지 않는다');
+      // 천기 하위 버튼 — 천기가 점검으로 막히면 새 그림을 켜지 않는다(독립 검토 지적)
+      await click('#om-menu-btn'); await wait(300); await sw('wx'); await wait(900);
+      await page.evaluate(() => { localStorage.removeItem('seagnal_admin_mode'); (window.applyFeatureBlocks || applyFeatureBlocks)(['ov-other-wx']); }); await wait(300);
+      const before = await page.evaluate(() => [...document.querySelectorAll('#ocean-overlay-controls .ocean-overlay-btn.active')].map(b => b.id || b.dataset.shrt || b.dataset.layer).sort());
+      await page.evaluate(() => { const b = [...document.querySelectorAll('#om-subs [data-om="wx"]')].find(x => !x.classList.contains('active') && !x.classList.contains('om-sub-dead')); if (b) b.click(); }); await wait(900);
+      const after = await page.evaluate(() => [...document.querySelectorAll('#ocean-overlay-controls .ocean-overlay-btn.active')].map(b => b.id || b.dataset.shrt || b.dataset.layer).sort());
+      assert.deepEqual(after, before, '막힌 천기의 하위 버튼을 눌러도 켜지지 않는다');
+      await page.evaluate(() => (window.applyFeatureBlocks || applyFeatureBlocks)([])); await wait(200);
+      await page.evaluate(() => { const p = document.getElementById('blocked-feature-popup'); if (p) p.remove(); });
+      await page.unroute('**/api/usage');
+      if (!(await S()).open) { await click('#om-menu-btn'); await wait(300); }
+    });
     await check('⑫ 시험 창구 setMode(false) → 옛 화면(보던 화면 닫힘 · 탭 4개 · 버튼 줄 다시 보임) — 옛 화면을 보는 다른 시험들이 쓰는 길', async () => {
       await view('terr'); await wait(1400); assert.equal((await S()).view, 'terr');
       await page.evaluate(() => window.OceanMenu.setMode(false)); await wait(900); const s = await S();

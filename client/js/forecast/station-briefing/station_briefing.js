@@ -399,6 +399,11 @@
      * [연계] ← station_briefing_render.js linkBtn / → switchMainTab·switchSubTab·RiskForecast.openAt(risk_forecast.js)·window.trackUsage('risk.goto_*_from_briefing')
      */
     async function openInRisk(target, btn) {
+        // 점검으로 「위험예측」이 막혀 있으면 열지 않는다(관리자 모드는 통과) — 이 바로가기도 버튼을 프로그램으로 대신 누르는 길이라
+        //   「사람이 누른 것만 막는」 차단을 지나간다(2026-11-23 관리자 목록에 위험예측 항목 sf-risk 를 넣으면서 막음).
+        var blockedNow = (w._blockedFeatures || []).indexOf('sf-risk') >= 0, adminMode = false;
+        try { adminMode = localStorage.getItem('seagnal_admin_mode') === 'true'; } catch (e0) { /* 못 읽으면 일반 기기 */ }
+        if (blockedNow && !adminMode) { if (typeof w.showBlockedFeaturePopup === 'function') w.showBlockedFeaturePopup(); return false; }
         // [사용량] 바로가기 1건 — 「위험예측」 묶음(사용자 2026-10-18 *"브리핑에서 위험예측 기능과 관련된 지도가 열리면 위험예측으로 반영"*).
         //   이어서 RiskForecast.openAt 이 위험예측 버튼·층 스위치를 대신 누르지만 그 클릭은 risk_forecast.js quiet 로 세지 않는다(이중 집계 없음).
         if (typeof w.trackUsage === 'function') w.trackUsage(target && target.kind === 'coast' ? 'risk.goto_coast_from_briefing' : 'risk.goto_sea_from_briefing');

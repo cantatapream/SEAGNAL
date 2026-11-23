@@ -265,7 +265,7 @@
     //   DEFERRED: 원래 버튼이 스스로 세는 것 — 바로 켤 때는 그 버튼이 세고, [보기] 중이라 미뤄 둘 때만 여기서 센다
     //             (나중에 지도에 반영할 때는 조용히 대신 누르므로 그때는 안 세어진다).
     var USAGE_SW_ALWAYS = { zone: 'ocean.warn_zone', buoy: 'ocean.buoy', grid: 'ocean.marine_zone', cctv: 'ocean.cctv' };
-    var USAGE_SW_DEFERRED = { wav: 'ocean.wave', wind: 'ocean.wind', cur: 'ocean.current' };
+    var USAGE_SW_DEFERRED = { wav: 'ocean.wave', wind: 'ocean.wind', cur: 'ocean.current', typh: 'ocean.typhoon' };
     var USAGE_VIEW = { accShip: 'safety.accident.ship', accPerson: 'safety.accident.person', accStat: 'safety.accident.stats' };
     function _track(key) { if (key && typeof window.trackUsage === 'function') window.trackUsage(key); }
     function _countSwitch(id, deferred) { _track(USAGE_SW_ALWAYS[id] || (deferred ? USAGE_SW_DEFERRED[id] : '')); }
@@ -278,9 +278,9 @@
     function _toggle(id) {
         var on = !_shownOn(id);
         if (on && _blocked(id)) { _blockedNotice(); return; }      // 점검 중 — 끄는 것은 막지 않는다
-        if (on) _countSwitch(id, !!_pending);
         if (_pending) {
             if (id === 'typh' && _typhDisabled()) return;
+            if (on) _countSwitch(id, true);
             var touched = _pending.touched || (_pending.touched = {});
             if (on && EXCLUSIVE.indexOf(id) >= 0) EXCLUSIVE.forEach(function (x) { _pending[x] = false; touched[x] = true; });
             _pending[id] = on; touched[id] = true;
@@ -288,6 +288,7 @@
             _renderRows();
             return;
         }
+        if (on) _countSwitch(id, false);
         if (id === 'typh') {
             // 태풍 버튼은 그대로 대신 누른다 — 활성 태풍이 없을 때 10번 누르면 열리는 숨은 기능을 그 버튼이 갖고 있다
             _noteFreeBase();
@@ -380,6 +381,8 @@
         }
         var el = _wxItemEl(subId);
         if (!el) return;
+        // 점검으로 천기가 막혀 있으면 새 그림을 켜지 않는다(켜져 있는 것을 끄는 누름은 둔다) — 하위 버튼도 원래 버튼을 대신 누르는 길이다
+        if (!_isActive(el) && _blocked('wx')) { _blockedNotice(); return; }
         _noteFreeBase();
         // 천기 그림은 특보구역·현황과 함께 켤 수 없다(하나만) — 파고·풍향·유향은 원래 코드가 끈다
         if (!_isActive(el) && _liveOn('zone')) _setLive('zone', false);
@@ -474,6 +477,7 @@
         var fresh = !_view && !_pending;      // 해양종합정보 지도에서 처음 여는 [보기]인가
         if (fresh) { _noteFreeBase(); _pending = _snapshotPending(); }
         _applyPendingOnOcean = false;
+        var prevView = _view;
         _view = id;
         _setOpen(false);
         if (def.screen === 'safety') {
@@ -489,7 +493,7 @@
         }
         // 점검으로 막힌 화면이면 탭이 바뀌지 않는다(index2_patch.js 가 안내 창만 띄운다) — 아무것도 바꾸지 않은 것으로 되돌린다
         if (_tab() !== 'ocean-life-group') { _viewSeq++; _view = ''; if (fresh) _pending = null; }
-        else _track(USAGE_VIEW[id]);      // 사고발생 이력·분석의 세 갈래를 가른다(나머지 [보기]는 그 화면의 버튼·탭이 스스로 센다)
+        else if (prevView !== id) _track(USAGE_VIEW[id]);      // 사고발생 이력·분석의 세 갈래를 가른다(보던 것을 다시 누른 것은 안 센다 · 나머지 [보기]는 그 화면의 버튼·탭이 스스로 센다)
         _sync();
     }
 
@@ -520,7 +524,13 @@
             var on = document.querySelectorAll('#ocean-overlay-controls .ocean-overlay-btn.active');
             for (var i = 0; i < on.length; i++) { if (want.indexOf(on[i].id) < 0 && _isActive(on[i])) on[i].click(); }
         });
-        want.forEach(function (bid) { var b = document.getElementById(bid); if (b && !_isActive(b)) b.click(); });
+        // 사용량 — [보기] 한 번은 1건이다. 첫 버튼만 스스로 세게 두고, 함께 켜는 둘째 버튼(관제구역·항로의 항로)은 조용히 누른다.
+        //   사고발생 이력·분석은 세 갈래 키(USAGE_VIEW)로 세므로 사고정보 버튼 자체는 조용히 누른다(묶음 합계가 2건으로 부풀지 않게).
+        want.forEach(function (bid, i) {
+            var b = document.getElementById(bid);
+            if (!b || _isActive(b)) return;
+            if (i === 0 && !def.accMode) b.click(); else _quiet(function () { b.click(); });
+        });
         if (def.accMode) { _accLoading(true); _setAccident(def, seq, 0); } else _accLoading(false);
         if (def.base) _applyViewBase(def.base, seq);
         _sync();
@@ -604,8 +614,8 @@
             if (_liveOn(id) !== !!p[id]) _setLive(id, !!p[id]);
         });
         var tb = $(SWITCHES.typh.sel);
-        if (!skip('typh') && tb && _isActive(tb) !== !!p.typh && !_typhDisabled()) _quiet(function () { tb.click(); });
-        if (skip('wx')) { /* 그대로 둔다 */ }
+        if (!skip('typh') && tb && _isActive(tb) !== !!p.typh && !_typhDisabled() && !(p.typh && _blocked('typh'))) _quiet(function () { tb.click(); });
+        if (skip('wx') || (p.wx && _blocked('wx'))) { /* 그대로 둔다 — 믿을 수 없는 값이거나, 그 사이 점검으로 막혔다 */ }
         else if (p.wx) {
             _wxOpen = true; _probeWx();
             var sel = p.wxSel && _wxItemEl(p.wxSel);
