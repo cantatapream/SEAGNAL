@@ -164,6 +164,36 @@
         try { run(fn); } finally { window._showOceanToast = orig; }
     }
 
+    // ── 관리자 「점검(선택 차단)」 ─────────────────────────────────────────────
+    // 사이드바 줄 → 관리자 점검 목록의 id (client/js/admin/admin.js featureTree · index2.html applyFeatureBlocks 와 같은 이름).
+    // 둘째 이름은 2026-11-23 에 한 줄로 합치기 전의 옛 id — 서버에 저장돼 있던 옛 차단 값도 그대로 통하게 한다.
+    var BLOCK_IDS = {
+        zone: ['ov-warn-zone', 'ov-warn-active'], typh: ['ov-typhoon'], wav: ['ov-wave'], wind: ['ov-wind'], cur: ['ov-current'],
+        buoy: ['ov-buoy'], grid: ['ov-marine-zone'], wx: ['ov-other-wx', 'ov-vsby'], cctv: ['ov-cctv'],
+        navw: ['sf-navwarn'], risk: ['sf-risk'], accShip: ['sf-accident'], accPerson: ['sf-accident'], accStat: ['sf-accident'],
+        terr: ['sf-terrain'], mud: ['ov-mudflat'], ban: ['sf-banzone'], vts: ['sf-vts', 'sf-seaway'],
+        fish: ['fishing'], surf: ['surfing'], scuba: ['scuba'], swim: ['swimming'], flat: ['mudflat'], part: ['sea-parting'], swell: ['swell']
+    };
+    /**
+     * 그 줄이 지금 점검으로 막혀 있는가 — 막혀 있으면 사이드바에서 회색 + 「점검 중」으로 보이고, 눌러도(대신 눌러도) 켜지지 않는다.
+     * 2026-11-23 사용자 「일부 기능을 점검한다고 치면 그 일부 기능의 토글이나 아니면 보기 버튼을 비활성화 시켜야」.
+     * 그 전에는 사이드바가 숨은 원래 버튼을 프로그램으로 대신 눌러, 「사람이 직접 누른 것만 막는」 차단을 그냥 지나갔다(재현함).
+     * 관리자 모드(통합 관리자 센터에서 켠 기기)는 다른 차단과 같이 그대로 쓸 수 있다.
+     * 예: 관리자가 「파고·파향」을 차단 → _blocked('wav') === true
+     * @param {string} id - SWITCHES·VIEWS 의 키 @returns {boolean}
+     * [연계] ← _rowHTML·_toggle·_setLive·_openView / → window._blockedFeatures (index2.html applyFeatureBlocks 가 채운다)
+     */
+    function _blocked(id) {
+        var list = window._blockedFeatures || [];
+        if (!list.length) return false;
+        try { if (localStorage.getItem('seagnal_admin_mode') === 'true') return false; } catch (e) { /* 저장을 못 읽으면 일반 기기로 본다 */ }
+        var ids = (BLOCK_IDS[id] || []).slice();
+        if (VIEWS[id]) ids.push('main-life', VIEWS[id].screen === 'safety' ? 'ocean-safety' : 'life-activities');
+        for (var i = 0; i < ids.length; i++) if (list.indexOf(ids[i]) >= 0) return true;
+        return false;
+    }
+    function _blockedNotice() { if (typeof window.showBlockedFeaturePopup === 'function') window.showBlockedFeaturePopup(); }
+
     function _load(key) {
         try { var v = JSON.parse(localStorage.getItem(key)); return Array.isArray(v) ? v : null; } catch (e) { return null; }
     }
@@ -214,6 +244,7 @@
      */
     function _setLive(id, on, byUser) {
         if (_liveOn(id) === on && id !== 'typh') return;
+        if (on && _blocked(id)) return;                              // 점검 중 — 미뤄 둔 값을 반영할 때도 켜지 않는다
         var press = function (el) { if (!el) return; if (byUser) el.click(); else _quiet(function () { el.click(); }); };
         if (id === 'wx') {
             if (on) { _wxOpen = true; _probeWx(); }
@@ -229,6 +260,16 @@
         press($(SWITCHES[id].sel));
     }
 
+    // 사용량 통계 — 스위치를 켠 것을 1건으로 센다(끌 때는 세지 않는다 · 이름표는 shared/utils/usage_keys.js).
+    //   ALWAYS: 원래 버튼이 스스로 세지 않는 것 — 여기서 센다(특보구역·현황은 우리가 「현황」 버튼을 조용히 대신 눌러 원래 집계가 빠진다).
+    //   DEFERRED: 원래 버튼이 스스로 세는 것 — 바로 켤 때는 그 버튼이 세고, [보기] 중이라 미뤄 둘 때만 여기서 센다
+    //             (나중에 지도에 반영할 때는 조용히 대신 누르므로 그때는 안 세어진다).
+    var USAGE_SW_ALWAYS = { zone: 'ocean.warn_zone', buoy: 'ocean.buoy', grid: 'ocean.marine_zone', cctv: 'ocean.cctv' };
+    var USAGE_SW_DEFERRED = { wav: 'ocean.wave', wind: 'ocean.wind', cur: 'ocean.current', typh: 'ocean.typhoon' };
+    var USAGE_VIEW = { accShip: 'safety.accident.ship', accPerson: 'safety.accident.person', accStat: 'safety.accident.stats' };
+    function _track(key) { if (key && typeof window.trackUsage === 'function') window.trackUsage(key); }
+    function _countSwitch(id, deferred) { _track(USAGE_SW_ALWAYS[id] || (deferred ? USAGE_SW_DEFERRED[id] : '')); }
+
     /**
      * 사이드바 스위치를 눌렀을 때 — [보기] 중이면 미뤄 두고, 아니면 바로 지도에 반영한다.
      * 예: 풍향·풍속이 켜진 채 파고·파향을 누름 → 풍향·풍속이 꺼지고 파고·파향이 켜진다(함께 켤 수 없는 묶음)
@@ -236,8 +277,10 @@
      */
     function _toggle(id) {
         var on = !_shownOn(id);
+        if (on && _blocked(id)) { _blockedNotice(); return; }      // 점검 중 — 끄는 것은 막지 않는다
         if (_pending) {
             if (id === 'typh' && _typhDisabled()) return;
+            if (on) _countSwitch(id, true);
             var touched = _pending.touched || (_pending.touched = {});
             if (on && EXCLUSIVE.indexOf(id) >= 0) EXCLUSIVE.forEach(function (x) { _pending[x] = false; touched[x] = true; });
             _pending[id] = on; touched[id] = true;
@@ -245,6 +288,7 @@
             _renderRows();
             return;
         }
+        if (on) _countSwitch(id, false);
         if (id === 'typh') {
             // 태풍 버튼은 그대로 대신 누른다 — 활성 태풍이 없을 때 10번 누르면 열리는 숨은 기능을 그 버튼이 갖고 있다
             _noteFreeBase();
@@ -337,6 +381,8 @@
         }
         var el = _wxItemEl(subId);
         if (!el) return;
+        // 점검으로 천기가 막혀 있으면 새 그림을 켜지 않는다(켜져 있는 것을 끄는 누름은 둔다) — 하위 버튼도 원래 버튼을 대신 누르는 길이다
+        if (!_isActive(el) && _blocked('wx')) { _blockedNotice(); return; }
         _noteFreeBase();
         // 천기 그림은 특보구역·현황과 함께 켤 수 없다(하나만) — 파고·풍향·유향은 원래 코드가 끈다
         if (!_isActive(el) && _liveOn('zone')) _setLive('zone', false);
@@ -426,10 +472,12 @@
         var def = VIEWS[id];
         if (!def) return;
         if (id === 'swim' && _beachOpen === false) return;
+        if (_blocked(id)) { _blockedNotice(); return; }
         var seq = ++_viewSeq;
         var fresh = !_view && !_pending;      // 해양종합정보 지도에서 처음 여는 [보기]인가
         if (fresh) { _noteFreeBase(); _pending = _snapshotPending(); }
         _applyPendingOnOcean = false;
+        var prevView = _view;
         _view = id;
         _setOpen(false);
         if (def.screen === 'safety') {
@@ -445,6 +493,7 @@
         }
         // 점검으로 막힌 화면이면 탭이 바뀌지 않는다(index2_patch.js 가 안내 창만 띄운다) — 아무것도 바꾸지 않은 것으로 되돌린다
         if (_tab() !== 'ocean-life-group') { _viewSeq++; _view = ''; if (fresh) _pending = null; }
+        else if (prevView !== id) _track(USAGE_VIEW[id]);      // 사고발생 이력·분석의 세 갈래를 가른다(보던 것을 다시 누른 것은 안 센다 · 나머지 [보기]는 그 화면의 버튼·탭이 스스로 센다)
         _sync();
     }
 
@@ -475,7 +524,13 @@
             var on = document.querySelectorAll('#ocean-overlay-controls .ocean-overlay-btn.active');
             for (var i = 0; i < on.length; i++) { if (want.indexOf(on[i].id) < 0 && _isActive(on[i])) on[i].click(); }
         });
-        want.forEach(function (bid) { var b = document.getElementById(bid); if (b && !_isActive(b)) b.click(); });
+        // 사용량 — [보기] 한 번은 1건이다. 첫 버튼만 스스로 세게 두고, 함께 켜는 둘째 버튼(관제구역·항로의 항로)은 조용히 누른다.
+        //   사고발생 이력·분석은 세 갈래 키(USAGE_VIEW)로 세므로 사고정보 버튼 자체는 조용히 누른다(묶음 합계가 2건으로 부풀지 않게).
+        want.forEach(function (bid, i) {
+            var b = document.getElementById(bid);
+            if (!b || _isActive(b)) return;
+            if (i === 0 && !def.accMode) b.click(); else _quiet(function () { b.click(); });
+        });
         if (def.accMode) { _accLoading(true); _setAccident(def, seq, 0); } else _accLoading(false);
         if (def.base) _applyViewBase(def.base, seq);
         _sync();
@@ -559,8 +614,8 @@
             if (_liveOn(id) !== !!p[id]) _setLive(id, !!p[id]);
         });
         var tb = $(SWITCHES.typh.sel);
-        if (!skip('typh') && tb && _isActive(tb) !== !!p.typh && !_typhDisabled()) _quiet(function () { tb.click(); });
-        if (skip('wx')) { /* 그대로 둔다 */ }
+        if (!skip('typh') && tb && _isActive(tb) !== !!p.typh && !_typhDisabled() && !(p.typh && _blocked('typh'))) _quiet(function () { tb.click(); });
+        if (skip('wx') || (p.wx && _blocked('wx'))) { /* 그대로 둔다 — 믿을 수 없는 값이거나, 그 사이 점검으로 막혔다 */ }
         else if (p.wx) {
             _wxOpen = true; _probeWx();
             var sel = p.wxSel && _wxItemEl(p.wxSel);
@@ -763,6 +818,7 @@
         return null;
     }
 
+    var BLOCK_NOTE = '<small><i class="fa-solid fa-wrench" aria-hidden="true"></i> 점검 중</small>';   // 점검으로 막힌 줄 이름 아래 작은 글
     function _rowHTML(r, inFav) {
         var star = '';
         if (r.kind !== 'label') {
@@ -773,20 +829,21 @@
         var cls = 'om-row' + (r.sub && !inFav ? ' om-row-sub' : '');
         if (r.kind === 'label') return '<div class="' + cls + ' om-row-label"><span class="om-name">' + _esc(r.label) + '</span></div>';
         if (r.kind === 'pair') {
-            return '<div class="' + cls + '"><span class="om-name">' + _esc(r.label) + '</span>' + r.pair.map(function (p) {
-                return '<button type="button" class="om-view-btn' + (_view === p[0] ? ' on' : '') + '" data-om="view" data-id="' + p[0] + '">' + _esc(p[1]) + '</button>';
+            var pb = _blocked(r.pair[0][0]);
+            return '<div class="' + cls + (pb ? ' om-dead om-blocked' : '') + '"><span class="om-name">' + _esc(r.label) + (pb ? BLOCK_NOTE : '') + '</span>' + r.pair.map(function (p) {
+                return '<button type="button" class="om-view-btn' + (_view === p[0] ? ' on' : '') + '" data-om="view" data-id="' + p[0] + '"' + (pb ? ' aria-disabled="true"' : '') + '>' + _esc(p[1]) + '</button>';
             }).join('') + star + '</div>';
         }
         if (r.kind === 'view') {
-            var def = VIEWS[r.id], dead = r.id === 'swim' && _beachOpen === false, cur = _view === r.id;
-            return '<div class="' + cls + (dead ? ' om-dead' : '') + '"><button type="button" class="om-main" data-om="view" data-id="' + r.id + '"' +
-                (dead ? ' aria-disabled="true"' : '') + '><span class="om-name">' + _esc(def.label) +
-                (dead ? '<small>개장 해수욕장 없음</small>' : '') + '</span>' +
+            var def = VIEWS[r.id], dead = r.id === 'swim' && _beachOpen === false, cur = _view === r.id, vb = !dead && _blocked(r.id);
+            return '<div class="' + cls + (dead ? ' om-dead' : '') + (vb ? ' om-dead om-blocked' : '') + '"><button type="button" class="om-main" data-om="view" data-id="' + r.id + '"' +
+                (dead || vb ? ' aria-disabled="true"' : '') + '><span class="om-name">' + _esc(def.label) +
+                (dead ? '<small>개장 해수욕장 없음</small>' : '') + (vb ? BLOCK_NOTE : '') + '</span>' +
                 '<span class="om-view-btn' + (cur ? ' on' : '') + '">' + (cur ? '보는 중' : '보기') + '</span></button>' + star + '</div>';
         }
-        var on = _shownOn(r.id), off = r.id === 'typh' && _typhDisabled();
-        return '<div class="' + cls + (off ? ' om-dead' : '') + '"><button type="button" class="om-main" data-om="sw" data-id="' + r.id + '" role="switch" aria-checked="' + on + '">' +
-            '<span class="om-name">' + _esc(SWITCHES[r.id].label) + (off ? '<small>활성 태풍 없음</small>' : '') + '</span>' +
+        var on = _shownOn(r.id), off = r.id === 'typh' && _typhDisabled(), sb = !off && _blocked(r.id);
+        return '<div class="' + cls + (off ? ' om-dead' : '') + (sb ? ' om-dead om-blocked' : '') + '"><button type="button" class="om-main" data-om="sw" data-id="' + r.id + '" role="switch" aria-checked="' + on + '">' +
+            '<span class="om-name">' + _esc(SWITCHES[r.id].label) + (off ? '<small>활성 태풍 없음</small>' : '') + (sb ? BLOCK_NOTE : '') + '</span>' +
             '<span class="om-sw' + (on ? ' on' : '') + '" aria-hidden="true"></span></button>' + star + '</div>';
     }
 
@@ -945,7 +1002,7 @@
         var el = e.target.closest('[data-om]');
         if (!el) return;
         var act = el.getAttribute('data-om'), id = el.getAttribute('data-id');
-        if (act === 'open') _setOpen(!_open);
+        if (act === 'open') { if (!_open) _track('menu.open'); _setOpen(!_open); }
         else if (act === 'close') _setOpen(false);
         else if (act === 'off') _closeView();
         else if (act === 'fold') {
@@ -957,13 +1014,17 @@
         }
         else if (act === 'fav') {
             var k = _fav.indexOf(id);
-            if (k >= 0) _fav.splice(k, 1); else _fav.push(id);
+            if (k >= 0) _fav.splice(k, 1); else { _fav.push(id); _track('menu.fav_add'); }
             _save(LS_FAV, _fav); _renderRows();
         }
         else if (act === 'sw') _toggle(id);
         else if (act === 'view') _openView(id);
         else if (act === 'wx') _pickWx(id);
         else if (act === 'gubun') {
+            // 점검으로 「갯바위/선상 전환」이 막혀 있으면 바꾸지 않는다(관리자 모드는 통과 — 다른 차단과 같다)
+            var gb = (window._blockedFeatures || []).indexOf('ls-gubun') >= 0, adm = false;
+            try { adm = localStorage.getItem('seagnal_admin_mode') === 'true'; } catch (e3) { /* 못 읽으면 일반 기기 */ }
+            if (gb && !adm) { _blockedNotice(); return; }
             var orig = $('#ls-rail .ls-gubun-item[data-gubun="' + id + '"]');
             if (orig) orig.click();
             _renderSubs();
@@ -1039,6 +1100,8 @@
         state: function () { return { mode: _mode, open: _open, view: _view, pending: _pending, wxOpen: _wxOpen, wxAvail: _wxAvail, beachOpen: _beachOpen, fav: _fav.slice(), closed: _closed.slice() }; },
         _anyBeachOpen: _anyBeachOpen,
         _setBeachOpen: function (v) { _beachOpen = v; _renderRows(); },
-        _setWxAvail: function (id, ok) { _wxAvail[id] = ok; _renderSubs(); }
+        _setWxAvail: function (id, ok) { _wxAvail[id] = ok; _renderSubs(); },
+        /** 점검 차단 목록이 바뀌었을 때 줄을 다시 그린다. [연계] ← index2.html applyFeatureBlocks() 끝 */
+        refreshBlocks: _renderRows
     };
 })();

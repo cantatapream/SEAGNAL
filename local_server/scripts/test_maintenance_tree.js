@@ -40,8 +40,14 @@ const treeIds = [...treeSrc.matchAll(/\{\s*id:\s*'([^']+)'/g)].map(m => m[1]);
 const treeLabels = [...treeSrc.matchAll(/label:\s*'([^']+)'/g)].map(m => m[1]);
 check(treeIds.length >= 60, '트리 id ' + treeIds.length + '개(60개 이상)');
 check(new Set(treeIds).size === treeIds.length, '트리 id 중복 없음');
-check(treeLabels.indexOf('해양생활') === -1 && treeLabels.indexOf('해양안전생활') !== -1,
-    "트리 최상위 이름이 '해양안전생활'(옛 '해양생활' 아님)");
+// [2026-11-23] 새 메뉴 화면(사이드바)이 기본 — 트리가 사이드바 폴더(해양기상정보·해양안전정보·해양생활지수) 순서다.
+//   「해양안전생활」 탭은 아래 탭에서 빠졌으므로 트리에도 없다.
+check(treeLabels.indexOf('해양생활') === -1 && treeLabels.indexOf('해양안전생활') === -1,
+    "트리에 옛 탭 이름('해양생활'·'해양안전생활')이 없다");
+['해양기상정보', '해양안전정보', '해양생활지수'].forEach(f => check(treeLabels.some(l => l.indexOf(f) === 0), '트리에 사이드바 폴더가 있다: ' + f));
+check(treeLabels.indexOf('뉴스·공지·어황') !== -1, "마지막 탭 이름이 '뉴스·공지·어황'(옛 '공지사항' 아님)");
+['ov-northup', 'ov-warn-active', 'ov-vsby', 'sf-seaway', 'main-life'].forEach(id => check(treeIds.indexOf(id) === -1, '없어졌거나 한 줄로 합쳐진 항목은 트리에 없다: ' + id));
+['om-menu', 'sf-risk', 'swell'].forEach(id => check(treeIds.indexOf(id) !== -1, '새로 넣은 항목이 트리에 있다: ' + id));
 
 // ── 차단 적용 코드 — index2.html 의 applyFeatureBlocks ~ 인터셉터 구간 ──
 const html = read('client/index2.html');
@@ -52,7 +58,7 @@ const blockSrc = html.slice(blockStart, blockEnd);
 const surveySrc = read('client/js/engagement/survey_user.js');
 
 // 트리에만 있고 실제 차단 대상이 없는 "묶음용" id — 자식이 전부 연결돼 있으면 된다.
-const GROUP_ONLY = new Set(['main-etc']);
+const GROUP_ONLY = new Set(['main-etc', 'om-common', 'om-weather']);   // om-common·om-weather = 사이드바 폴더(묶음 이름뿐)
 treeIds.forEach(id => {
     if (GROUP_ONLY.has(id)) return;
     const wired = blockSrc.indexOf("'" + id + "'") !== -1 || surveySrc.indexOf("'" + id + "'") !== -1;
@@ -73,7 +79,7 @@ buttonMap.forEach(([, id, sel]) => {
     let ok = false;
     // AI 챗봇 FAB(#nryaFab)처럼 자바스크립트가 만드는 요소는 그 파일의 문자열에서 확인한다
     const idAttr = 'id="' + first.slice(1).replace(/\[.*$/, '') + '"';
-    if (first[0] === '#') ok = html.indexOf(idAttr) !== -1 || read('client/js/ai-chat/ai_chat.js').indexOf(idAttr) !== -1;
+    if (first[0] === '#') ok = html.indexOf(idAttr) !== -1 || read('client/js/ai-chat/ai_chat.js').indexOf(idAttr) !== -1 || read('client/js/ocean-map/menu/ocean_menu.js').indexOf(idAttr) !== -1;   // [전체 메뉴] 버튼은 ocean_menu.js 가 만든다
     else if (first[0] === '.') {
         const cls = first.slice(1).replace(/\[.*$/, '');
         ok = new RegExp('class="[^"]*\\b' + cls + '\\b').test(html) || read('client/js/ai-chat/ai_chat.js').indexOf(cls) !== -1;
@@ -88,6 +94,24 @@ const featureMap = [...mapObject('featureMap').matchAll(/'([^']+)':\s*'([^']+)'/
 featureMap.forEach(([, id, headerId]) => {
     check(html.indexOf('id="' + headerId + '"') !== -1, '아코디언 헤더가 마크업에 있음: ' + id + ' → ' + headerId);
 });
+// ── ②-2 새 메뉴 사이드바 — 줄마다 점검 id 가 있고, 그 id 가 트리나 옛 이름 목록에 있는가 ──
+//   (사이드바는 숨은 원래 버튼을 프로그램으로 대신 누르므로 「사람이 누른 것만 막는」 인터셉터를 지나간다 — 그래서 줄에서 직접 막는다)
+const menuSrc = read('client/js/ocean-map/menu/ocean_menu.js');
+const bi = menuSrc.indexOf('var BLOCK_IDS = {'), bj = menuSrc.indexOf('};', bi);
+const blockIdsSrc = menuSrc.slice(bi, bj);
+const rowKeys = [...blockIdsSrc.matchAll(/(\w+):\s*\[/g)].map(m => m[1]);
+const rowIds = [...blockIdsSrc.matchAll(/'([^']+)'/g)].map(m => m[1]);
+const sw = menuSrc.slice(menuSrc.indexOf('var SWITCHES = {'), menuSrc.indexOf('var FOLDERS'));
+const menuKeys = [...sw.matchAll(/^\s{8}(\w+):\s*\{ label:/gm)].map(m => m[1]);
+check(menuKeys.length >= 24, '사이드바 줄(스위치·보기) ' + menuKeys.length + '개를 읽었다');
+menuKeys.forEach(k => check(rowKeys.indexOf(k) !== -1, '사이드바 줄에 점검 id 가 있다: ' + k));
+const LEGACY = ['ov-warn-active', 'ov-vsby', 'sf-seaway'];
+rowIds.forEach(id => check(treeIds.indexOf(id) !== -1 || LEGACY.indexOf(id) !== -1, '사이드바 점검 id 가 트리(또는 옛 이름)에 있다: ' + id));
+check(/function _toggle\(id\) \{[\s\S]{0,200}_blocked\(id\)/.test(menuSrc) && /function _setLive\(id, on, byUser\) \{[\s\S]{0,200}_blocked\(id\)/.test(menuSrc)
+    && /if \(_blocked\(id\)\) \{ _blockedNotice\(\); return; \}\s*var seq = \+\+_viewSeq;/.test(menuSrc),
+    '사이드바의 스위치·대신 누름·[보기] 세 길이 모두 _blocked 를 본다');
+check(blockSrc.indexOf('OceanMenu.refreshBlocks') !== -1, 'applyFeatureBlocks 가 사이드바 줄을 다시 그리게 한다');
+
 check(blockSrc.indexOf("window.addEventListener('click'") !== -1,
     '차단 인터셉터가 window 캡처 단계에 걸려 있다(life_safety 의 document 캡처보다 먼저)');
 

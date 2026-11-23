@@ -42,7 +42,7 @@ function listClientJs(dir, out) {
 // ── ① 발신 키 ⊂ 이름표 ──────────────────────────────────────────────
 // trackUsage 를 부르는 파일 안의 '접두어.키' 꼴 문자열 리터럴을 전부 모은다.
 //   (오버레이·천기 레이어처럼 변수로 넘기는 키도 결국 같은 파일 안에 리터럴로 있다)
-const KEY_RE = /'((?:main|buoy|chart|ocean|shrt|sheet|life|safety|briefing|risk)\.[A-Za-z0-9_.가-힣]+)'/g;   // briefing·risk = 2026-10-18 연안 안전 브리핑·위험예측 묶음
+const KEY_RE = /'((?:main|buoy|chart|ocean|shrt|sheet|life|safety|briefing|risk|menu|hub|chat|settings)\.[A-Za-z0-9_.가-힣]+)'/g;   // briefing·risk = 2026-10-18 연안 안전 브리핑·위험예측 묶음
 const emitted = new Map(); // key -> 첫 발견 파일
 listClientJs(path.join(ROOT, 'client/js'), []).forEach(f => {
     const src = fs.readFileSync(f, 'utf8');
@@ -87,6 +87,34 @@ Object.keys(LABELS).filter(k => /^briefing\./.test(k)).forEach(k =>
     check(/^연안 안전 브리핑 · /.test(LABELS[k]), '「연안 안전 브리핑」 묶음 이름표: ' + k + ' → ' + LABELS[k]));
 Object.keys(LABELS).filter(k => /^risk\./.test(k)).forEach(k =>
     check(/^위험예측 · /.test(LABELS[k]), '「위험예측」 묶음 이름표: ' + k + ' → ' + LABELS[k]));
+
+// ── 사용자 확정(2026-11-23) — 이름표 꼴 「묶음 · 기능 · 한 일」, 영문·줄임말 없음, 새 메뉴 화면의 새 기준 ──
+const GROUPS = LABELS.__groups;
+check(Array.isArray(GROUPS) && GROUPS.length >= 10, '묶음 순서(__groups)가 있다: ' + (GROUPS || []).length + '개');
+check(Object.keys(LABELS).indexOf('__groups') === -1, '묶음 순서는 이름표 목록(Object.keys)에 섞이지 않는다');
+Object.keys(LABELS).forEach(k => {
+    const parts = LABELS[k].split(' · ');
+    check(GROUPS.indexOf(parts[0]) !== -1 && parts.length >= 2 && parts.every(x => x.trim() !== ''), '이름표가 「묶음 · …」 꼴이고 묶음이 목록에 있다: ' + k + ' → ' + LABELS[k]);
+    check(!/[A-Za-z]{2,}/.test(LABELS[k].replace(/CCTV|AI/g, '')), '이름표에 영문이 섞이지 않았다: ' + k + ' → ' + LABELS[k]);
+});
+['menu.open', 'menu.fav_add', 'ocean.buoy', 'ocean.marine_zone', 'ocean.cctv', 'ocean.warn_zone', 'shrt.rain_type',
+    'safety.accident.ship', 'safety.accident.person', 'safety.accident.stats', 'hub.news', 'hub.notice', 'hub.fishcond', 'chat.open', 'settings.open'
+].forEach(k => check(emitted.has(k), '새 메뉴 화면·새 기능 집계 키 발신처 있음: ' + k));
+// 운영 기록에 이름표 없이 영문 키로 보이던 것(2026-11-23 운영 통계에서 확인) — 이름이 있다
+['life.mudflat.region', 'ocean.hazard_rocks'].forEach(k => check(typeof LABELS[k] === 'string', '옛 기록 키에도 이름표가 있다: ' + k));
+
+// 관리자 화면의 묶음별 모으기(admin_collect.js _usageGroupedRows) — 묶음 제목 줄(값 null) 아래 그 묶음 기능이 많은 순으로
+(function () {
+    const src = fs.readFileSync(path.join(ROOT, 'client/js/admin/admin_collect.js'), 'utf8');
+    const grab = name => { const i = src.indexOf('function ' + name + '('); let d = 0, j = src.indexOf('{', i); for (let k = j; k < src.length; k++) { if (src[k] === '{') d++; else if (src[k] === '}' && --d === 0) return src.slice(i, k + 1); } return ''; };
+    const box = { USAGE_FEATURE_LABELS: LABELS };
+    vm.createContext(box);
+    vm.runInContext(grab('usageFeatureGroup') + grab('usageFeatureShort') + grab('_usageGroupedRows'), box);
+    const r = box._usageGroupedRows([{ key: 'life.fishing.tab', count: 9 }, { key: 'ocean.wind', count: 7 }, { key: 'ocean.wave', count: 5 }, { key: 'zzz.unknown', count: 1 }]   /* 화면이 넘기는 것처럼 건수 내림차순 */);
+    check(JSON.stringify(r.labels) === JSON.stringify(['■ 해양기상정보 — 합계 12건', '풍향·풍속 · 켬', '파고·파향 · 켬', '■ 해양생활지수 — 합계 9건', '바다낚시 · 화면 열기', '■ 이름표 없음 — 합계 1건', 'zzz.unknown'])
+        && JSON.stringify(r.values) === JSON.stringify([null, 7, 5, null, 9, null, 1]),
+        '관리자 막대: 묶음 순서대로 제목 줄 + 그 묶음 기능(많은 순) — ' + JSON.stringify(r.labels));
+})();
 
 // ── ② withUsageSuppressed 동작 — utils.js 를 가짜 브라우저에 올려 실제로 호출 ──
 const sent = [];
