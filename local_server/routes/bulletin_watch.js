@@ -120,6 +120,18 @@ function createRouter({ bulletinAi = require('../services/bulletin_ai'), watch =
         try { res.json(Object.assign({ ok: true, office }, await require('../services/regional_sea_summary').trial(raw))); }
         finally { seaTrialBusy = false; }
     });
+    // 「AI 비교 시험」(2026-11-23) — ② 참고사항 해석 · ⑥ 해상 기상 요약을 클로드(하이쿠·소넷 × low·medium)·업스테이지(mini·pro × low·medium·high) 10가지 설정으로
+    //   같은 글(실수한 글 전체 + 유형별 표본)에 돌려 운영과 같은 검사로 채점한다. 설정·카드에는 반영하지 않는다. 운영 키로 나가는 호출이라 한 번에 하나만.
+    //   사용자 「각 도출된 결과를 보고 어떤 모델이 적절한지 판단해보자」. GET → 진행·설정별 요약 · POST start { features:['interpret','seasummary'] } · POST stop · GET report.md(답 전문)
+    const aiCompare = require('../services/ai_compare_trial');
+    router.get('/api/admin/bulletin-ai/compare', authorize, (req, res) => { res.set('Cache-Control', 'no-store'); res.json(Object.assign({ ok: true }, aiCompare.status())); });
+    router.post('/api/admin/bulletin-ai/compare/start', authorize, (req, res) => res.json(Object.assign({ ok: true }, aiCompare.start((req.body || {}).features))));
+    router.post('/api/admin/bulletin-ai/compare/stop', authorize, (req, res) => res.json(Object.assign({ ok: true }, aiCompare.stop())));
+    router.get('/api/admin/bulletin-ai/compare/report.md', authorize, (req, res) => {
+        res.set('Cache-Control', 'no-store'); res.type('text/markdown; charset=utf-8');
+        res.set('Content-Disposition', "attachment; filename*=UTF-8''" + encodeURIComponent('ai_compare_trial.md'));
+        res.send(aiCompare.report());
+    });
     // 통보문 기준 특보현황(관리자 메인 화면 [통보문] 버튼) — /api/weather-alerts 와 같은 모양(current 나무). 2026-11-16
     router.get('/api/admin/bulletin-status', authorize, (req, res) => {
         const s = status.read();

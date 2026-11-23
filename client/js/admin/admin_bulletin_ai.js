@@ -19,6 +19,7 @@
  * [연계]
  *  - 사용하는 파일 : admin/admin.js(window.fetch 관리자 토큰 래퍼 · switchAiSubTab 이 나를 부름) · ai-chat/ai_chat.js(window.NariyaChat.renderModelSettingsInto)
  *  - 서버 API      : GET·POST /api/admin/bulletin-ai/config (routes/bulletin_watch.js → services/bulletin_ai.js)
+ *                    · 🧪 AI 비교 시험(2026-11-23): GET /api/admin/bulletin-ai/compare · POST …/compare/start·stop · GET …/compare/report.md (services/ai_compare_trial.js)
  *  - 마크업        : 없음(switchAiSubTab 이 준 상자에 그린다)
  *  - 나를 쓰는 곳  : admin.js switchAiSubTab('bulletinAi') → window.renderBulletinAiAdmin
  *  - ⑥ 해상 기상 요약(2026-11-19): 지방청 단기 전망의 바다 얘기를 줄인다 — 「먼저 Gemma」 줄(처음부터 켜짐) + 순서 + 「시험 요약」(POST /api/admin/bulletin-ai/try-sea-summary — 지금 설정대로 그 지방청 글을 요약해 보고
@@ -286,6 +287,68 @@
         if (state.config.escalation) drawFeature(host, 'escalation');   // ⑤ — 옛 서버면 그리지 않는다
         if (state.config.seasummary) drawFeature(host, 'seasummary');   // ⑥ — 옛 서버면 그리지 않는다
         if (state.config.news) drawFeature(host, 'news');   // ⑦ 오늘의 뉴스 판정(2026-11-21) — 옛 서버면 그리지 않는다
+        drawCompare(host);   // 🧪 AI 비교 시험(2026-11-23)
+    }
+
+    var cmpTimer = null;
+    /**
+     * 「🧪 AI 비교 시험」 카드 — ② 참고사항 해석 · ⑥ 해상 기상 요약을 클로드 4가지(하이쿠·소넷 × low·medium)·업스테이지 6가지(mini·pro × low·medium·high) 설정으로
+     *   같은 글(실수한 글 전체 + 유형별 표본)에 돌려 설정별 결과를 표로 보인다. 설정·카드에는 반영하지 않는다. 답 전문은 「결과 내려받기」.
+     *   사용자 2026-11-23: 「각 도출된 결과를 보고 어떤 모델이 적절한지 판단해보자」.
+     * 예: 「둘 다 시작」 → 확인 창(부르는 횟수) → 도는 동안 10초마다 표 갱신 → 끝나면 표·결과 내려받기
+     * @param {HTMLElement} host [연계] ← draw / → GET·POST /api/admin/bulletin-ai/compare… · window.__bwDownload(admin_bulletin_watch.js — 앱이면 시스템 브라우저로)
+     */
+    function drawCompare(host) {
+        var card = el('div', 'margin-top:16px;padding:12px;border-radius:12px;background:#111827;border:1px solid #334155');
+        card.setAttribute('data-bai-compare', '1');
+        card.appendChild(el('div', 'font-weight:800;color:#e2e8f0;margin-bottom:4px', '🧪 AI 비교 시험 — ② 참고사항 해석 · ⑥ 해상 기상 요약'));
+        card.appendChild(el('div', 'color:#94a3b8;font-size:0.78rem;margin-bottom:8px', '같은 글(실수했던 글 전체 + 유형별 표본)을 클로드 키1(하이쿠·소넷 × low·medium)과 업스테이지(mini·pro × low·medium·high) 10가지 설정으로 한 번씩 부르고, 운영과 같은 검사로 채점합니다. 설정·화면에는 반영하지 않습니다. 운영 키로 나가는 호출입니다.'));
+        var bar = el('div', 'display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px');
+        var out = el('div', 'font-size:0.78rem;color:#cbd5e1');
+        card.appendChild(bar); card.appendChild(out); host.appendChild(card);
+        var cur = null;
+        function start(features) {
+            if (!cur) return;
+            var n = 10 * features.reduce(function (s, f) { return s + (cur.cases[f] || 0); }, 0);
+            if (!w.confirm('AI 를 ' + n + '번 부릅니다(설정 10가지 × 글 ' + (n / 10) + '편). 운영 키로 나가는 호출이고, 수십 분 걸릴 수 있습니다. 시작할까요?')) return;
+            fetch('/api/admin/bulletin-ai/compare/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ features: features }) }).then(function () { load(); });
+        }
+        function cell(x, word) { return x ? (word + ' ' + x.ok + '/' + x.n + (x.fail ? ' · 실패 ' + x.fail : '') + ' · 실수글 ' + x.mistakeOk + '/' + x.mistakeN + ' · ' + (x.avgMs / 1000).toFixed(1) + '초') : '—'; }
+        function render(j) {
+            cur = j; bar.innerHTML = ''; out.innerHTML = '';
+            if (j.running) {
+                bar.appendChild(btn('멈추기', function () { fetch('/api/admin/bulletin-ai/compare/stop', { method: 'POST' }).then(function () { load(); }); }));
+            } else {
+                bar.appendChild(btn('② 시작', function () { start(['interpret']); }));
+                bar.appendChild(btn('⑥ 시작', function () { start(['seasummary']); }));
+                bar.appendChild(btn('둘 다 시작', function () { start(['interpret', 'seasummary']); }));
+            }
+            if (j.done) bar.appendChild(btn('결과 내려받기(답 전문)', function () { if (w.__bwDownload) w.__bwDownload('/api/admin/bulletin-ai/compare/report.md', 'ai_compare_trial.md'); else w.open('/api/admin/bulletin-ai/compare/report.md'); }));
+            out.appendChild(el('div', 'margin-bottom:6px;color:#94a3b8', (j.running ? '도는 중 ' : j.done ? '마지막 시험 ' : '아직 돌린 적 없음 ') + (j.done ? j.done + '/' + j.total + '건' : '') + (j.startedAt ? ' · 시작 ' + new Date(j.startedAt).toLocaleString('ko-KR') : '') + (j.stopped ? ' · ' + j.stopped : '') +
+                ' · 시험 글: ② ' + j.cases.interpret + '건 · ⑥ ' + j.cases.seasummary + '편'));
+            if (!j.done) return;
+            var t = el('table', 'width:100%;border-collapse:collapse;font-size:0.74rem');
+            var hd = el('tr', ''); ['설정', '② 참고사항 해석', '⑥ 해상 기상 요약'].forEach(function (h) { hd.appendChild(el('th', 'text-align:left;padding:4px;border-bottom:1px solid #334155;color:#e2e8f0', h)); }); t.appendChild(hd);
+            j.rows.forEach(function (r) {
+                var tr = el('tr', '');
+                tr.appendChild(el('td', 'padding:4px;border-bottom:1px solid #1f2937;white-space:nowrap', r.label));
+                tr.appendChild(el('td', 'padding:4px;border-bottom:1px solid #1f2937', cell(r.interpret, '맞음')));
+                tr.appendChild(el('td', 'padding:4px;border-bottom:1px solid #1f2937', cell(r.seasummary, '통과')));
+                t.appendChild(tr);
+            });
+            out.appendChild(t);
+            out.appendChild(el('div', 'margin-top:6px;color:#64748b', '맞음·통과 = 운영이었다면 그대로 쓰였을 답 · 실수글 = 업스테이지가 실제로 실수했던 글 중 맞힌 수 · 시간 = 한 번 부르는 데 든 평균'));
+        }
+        function load() {
+            fetch('/api/admin/bulletin-ai/compare', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+                if (!document.body.contains(card)) return;
+                if (!j || !j.ok) { out.textContent = '서버가 이 기능을 모릅니다(서버가 옛 판) — 서버를 새로 올린 뒤 다시 여세요.'; return; }
+                render(j);
+                if (cmpTimer) clearTimeout(cmpTimer);
+                if (j.running) cmpTimer = setTimeout(load, 10000);
+            }).catch(function (e) { out.textContent = '불러오기 실패: ' + (e && e.message); });
+        }
+        load();
     }
 
     /**
