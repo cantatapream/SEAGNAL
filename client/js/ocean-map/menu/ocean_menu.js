@@ -4,8 +4,8 @@
  * 역할  : 해양종합정보의 「새 모드」 — 지도 오른쪽 버튼 줄 대신 [메뉴] 버튼 하나와
  *         오른쪽에서 열리는 사이드바(즐겨찾기 · 해양기상정보 · 해양안전정보 · 해양생활지수)로
  *         모든 기능을 켜고 본다. 해양안전생활 탭의 화면들도 여기서 [보기]로 연다.
- *         평소에는 아무것도 하지 않고, 아래 「해양종합정보」 탭을 3초 안에 10번 누르면 켜진다
- *         (앱을 껐다 켜면 원래 화면 — 저장하지 않는다).
+ *         앱이 뜨면 바로 이 화면이다(2026-11-23 사용자 「이제 트리거없이 메인화면에 그대로 반영되도록 하자」).
+ *         그 전(2026-11-22~23)에는 「해양종합정보」 탭을 10번 눌러야 켜지는 숨은 화면이었다 — 아래 원문의 그 부분은 지난 결정이다.
  * ----------------------------------------------------------------------------
  * [사용자 확정 2026-11-22 — 원문]
  *  「수정한 화면에 대해서는 해양종합정보 탭 버튼을 10회 클릭하는 것으로 트리거가 작동하여 수정된 인터페이스가 나오도록」
@@ -42,7 +42,7 @@
  *                    #accident-filter-bar · .tab-btn[data-target="ocean-map-section"] ·
  *                    이 파일이 body 끝에 만드는 #om-menu-btn · #om-subs · #om-banner · #om-backdrop · #om-sidebar
  *  - 스타일        : js/ocean-map/menu/ocean_menu.css (전부 body.om-mode 아래)
- *  - 나를 쓰는 곳  : 없음 — 스스로 탭 버튼의 10회 누름을 듣는다. 시험: local_server/scripts/test_ocean_menu_ui.js
+ *  - 나를 쓰는 곳  : 없음 — 앱이 뜰 때 스스로 켠다. 시험: local_server/scripts/test_ocean_menu_ui.js
  * [로드 순서] js/marine-life/safety/life_safety.js 다음(그 파일이 감싼 switchMainTab/switchSubTab 위에 한 겹 더 얹는다)
  *             · 순서 변경 금지
  * ============================================================================
@@ -54,8 +54,6 @@
     // 상수 — 사이드바에 올리는 기능 목록(순서 = 사용자가 순서판에서 정한 순서)
     // ========================================================================
 
-    var TAP_THRESHOLD = 10;     // 「해양종합정보」 탭을 이만큼 누르면 새 모드가 켜지고 꺼진다
-    var TAP_RESET_MS = 3000;    // 이 시간 안에 이어 눌러야 센다
     var LS_FAV = 'seagnal_ocean_menu_fav_v1';        // 즐겨찾기한 기능 id 목록
     var LS_CLOSED = 'seagnal_ocean_menu_closed_v1';  // 접어 둔 폴더 id 목록(없으면 = 처음 = 모두 펼침)
 
@@ -83,7 +81,8 @@
         accPerson: { label: '사고이력(인명)', screen: 'safety', btns: ['ocean-accident-toggle-btn'], accMode: 'status', accSrc: 'person' },
         accStat:   { label: '사고분석', screen: 'safety', btns: ['ocean-accident-toggle-btn'], accMode: 'analysis' },
         terr:      { label: '위험지형', screen: 'safety', btns: ['ocean-terrain-toggle-btn'] },
-        mud:       { label: '갯벌 수위 예측', screen: 'safety', btns: ['ocean-mudflat-toggle-btn'] },
+        // base: 그 화면을 보는 동안 쓰는 배경지도 — 물빠짐 기능은 배경을 바꾸지 않으므로 여기서 맞춘다(2026-11-23 사용자 「위성지도를 기본 배경으로」)
+        mud:       { label: '갯벌 수위 예측', screen: 'safety', btns: ['ocean-mudflat-toggle-btn'], base: 'vworld' },
         ban:       { label: '출입통제·낚시금지', screen: 'safety', btns: ['ocean-banzone-toggle-btn'] },
         vts:       { label: '관제구역·항로', screen: 'safety', btns: ['ocean-vts-toggle-btn', 'ocean-seaway-toggle-btn'] },
         fish:      { label: '바다낚시', screen: 'life', section: 'fishing-section' },
@@ -103,7 +102,7 @@
         ] },
         { id: 'safe', title: '해양안전정보', rows: [
             { kind: 'view', id: 'navw' }, { kind: 'view', id: 'risk' },
-            { kind: 'label', id: 'accGroup', label: '사고발생 이력 분석' },
+            { kind: 'label', id: 'accGroup', label: '사고발생 이력·분석' },
             { kind: 'pair', id: 'accHist', label: '사고이력', sub: true, pair: [['accShip', '선박'], ['accPerson', '인명']] },
             { kind: 'view', id: 'accStat', sub: true },
             { kind: 'view', id: 'terr' }, { kind: 'view', id: 'mud' }, { kind: 'view', id: 'ban' }, { kind: 'view', id: 'vts' },
@@ -140,9 +139,12 @@
     var _closed = [];           // 접어 둔 폴더 id
     var _freeBase = null;       // 배경을 정하는 기능이 하나도 안 켜졌을 때의 배경지도(= 사용자가 쓰던 것)
     var _forcedBase = false;    // 지금 배경을 우리가 정해 둔 상태인가
-    var _tapCount = 0, _tapTimer = null;
     var _viewSeq = 0;           // [보기]를 연달아 눌렀을 때 앞선 누름의 뒤처리가 끼어들지 않게 하는 번호
     var _arbTimers = [];
+    var _viewBasePrev = null;   // [보기] 화면 전용 배경(VIEWS[].base)으로 바꾸기 전의 배경 — 그 화면을 떠날 때 되돌린다
+    var _accBusy = false;       // 사고 자료를 받는 동안의 로딩 표시가 떠 있는가
+    var _loadSeq = 0;           // 천기 로딩 표시 — 연달아 눌렀을 때 앞선 표시가 끼어들지 않게 하는 번호
+    var _northPrev = null;      // 새 모드를 켜기 전 진북 상태('free'|'aligned'|'locked') — 끌 때 되돌린다
 
     // ========================================================================
     // 작은 도구
@@ -236,8 +238,9 @@
         var on = !_shownOn(id);
         if (_pending) {
             if (id === 'typh' && _typhDisabled()) return;
-            if (on && EXCLUSIVE.indexOf(id) >= 0) EXCLUSIVE.forEach(function (x) { _pending[x] = false; });
-            _pending[id] = on;
+            var touched = _pending.touched || (_pending.touched = {});
+            if (on && EXCLUSIVE.indexOf(id) >= 0) EXCLUSIVE.forEach(function (x) { _pending[x] = false; touched[x] = true; });
+            _pending[id] = on; touched[id] = true;
             if (id === 'wx' && !on) _pending.wxSel = '';
             _renderRows();
             return;
@@ -337,9 +340,31 @@
         _noteFreeBase();
         // 천기 그림은 특보구역·현황과 함께 켤 수 없다(하나만) — 파고·풍향·유향은 원래 코드가 끈다
         if (!_isActive(el) && _liveOn('zone')) _setLive('zone', false);
+        var turningOn = !_isActive(el);
         el.click();
         _wxOpen = true;
+        if (turningOn) _showWxLoading();
         _arbitrateSoon(); _renderRows(); _renderSubs();
+    }
+
+    /**
+     * 천기 그림을 받는 동안 화면 가운데에 「불러오는 중입니다...」를 띄운다(항행경보의 로딩 표시와 같은 모양).
+     * 그림 층이 범례 자리에 「데이터를 불러오는 중…」을 적어 두는 동안을 받는 중으로 본다.
+     * [연계] ← _pickWx() / 읽는 곳: .shrt-fcst-legend-loading(shrt_forecast_layer.js) · .vsby-fcst-legend-loading(vsby_forecast_layer.js)
+     */
+    function _showWxLoading() {
+        var box = document.getElementById('om-loading');
+        if (!box) return;
+        var seq = ++_loadSeq, n = 0;
+        box.hidden = false;
+        (function tick() {
+            if (seq !== _loadSeq) return;
+            var lg = $('.shrt-fcst-legend-loading, .vsby-fcst-legend-loading');
+            var busy = !!lg && lg.textContent.indexOf('불러오는 중') >= 0 && lg.offsetParent !== null;
+            // 처음 0.4초는 범례가 아직 안 바뀌었을 수 있어 기다린다 · 최대 20초
+            if ((busy || n < 2) && n < 100 && _mode && !_view) { n++; setTimeout(tick, 200); }
+            else box.hidden = true;
+        })();
     }
 
     // ========================================================================
@@ -386,6 +411,9 @@
     function _snapshotPending() {
         var p = { wxSel: _wxActiveSub() };
         Object.keys(SWITCHES).forEach(function (id) { p[id] = _liveOn(id); });
+        // 지도가 아직 안 만들어졌으면(앱을 켜고 해양종합정보 지도를 한 번도 안 연 채 다른 길로 [보기] 화면에 들어온 경우)
+        //   버튼들이 지난번 저장값을 아직 되살리지 않아 전부 「꺼짐」으로 읽힌다 — 이 값은 믿을 수 없다고 적어 둔다(_applyPending 이 건너뛴다).
+        p.blind = !(typeof window.getOceanMap === 'function' && window.getOceanMap());
         return p;
     }
 
@@ -412,6 +440,7 @@
                 if (_tab() === 'ocean-life-group') _whenSafetyReady(seq, function () { _pressSafety(def, seq); });
             }
         } else {
+            _restoreViewBase();
             _go(def.section);
         }
         // 점검으로 막힌 화면이면 탭이 바뀌지 않는다(index2_patch.js 가 안내 창만 띄운다) — 아무것도 바꾸지 않은 것으로 되돌린다
@@ -440,22 +469,55 @@
      * [연계] ← _openView() / → 원래 버튼 click · #ocean-accident-mode-toggle · #accident-source-toggle (accident_info.js)
      */
     function _pressSafety(def, seq) {
+        _restoreViewBase();
         var want = def.btns;
         _quiet(function () {
             var on = document.querySelectorAll('#ocean-overlay-controls .ocean-overlay-btn.active');
             for (var i = 0; i < on.length; i++) { if (want.indexOf(on[i].id) < 0 && _isActive(on[i])) on[i].click(); }
         });
         want.forEach(function (bid) { var b = document.getElementById(bid); if (b && !_isActive(b)) b.click(); });
-        if (def.accMode) _setAccident(def, seq, 0);
+        if (def.accMode) { _accLoading(true); _setAccident(def, seq, 0); } else _accLoading(false);
+        if (def.base) _applyViewBase(def.base, seq);
         _sync();
     }
 
     /** 사고정보의 분석/현황·선박/인명을 맞춘다 — 자료를 다 받은 뒤에야 전환 단추가 나타나므로 기다리며 시도한다 */
+    /**
+     * 그 화면 전용 배경지도로 바꾼다(바꾸기 전 배경을 적어 둔다). 위성지도 인증을 못 받으면 빈 화면 대신 기본맵으로.
+     * 예: 갯벌 수위 예측 [보기] → 위성지도 / 다른 [보기]나 [끄기] → _restoreViewBase() 가 원래 배경으로
+     * [연계] ← _pressSafety() / → window.oceanSetBasemap·oceanVworldReady (ocean_map.js — 위험예측과 같은 방식)
+     */
+    function _applyViewBase(base, seq) {
+        if (typeof window.oceanGetBasemap !== 'function' || typeof window.oceanSetBasemap !== 'function') return;
+        if (_viewBasePrev === null) _viewBasePrev = window.oceanGetBasemap();
+        if (window.oceanGetBasemap() !== base) window.oceanSetBasemap(base);
+        if (base === 'vworld' && typeof window.oceanVworldReady === 'function') {
+            window.oceanVworldReady().then(function (ok) {
+                if (ok || seq !== _viewSeq || window.oceanGetBasemap() !== 'vworld') return;
+                window.oceanSetBasemap('rltm');
+            });
+        }
+    }
+    function _restoreViewBase() {
+        if (_viewBasePrev === null) return;
+        var prev = _viewBasePrev; _viewBasePrev = null;
+        if (typeof window.oceanSetBasemap === 'function' && window.oceanGetBasemap && window.oceanGetBasemap() !== prev) window.oceanSetBasemap(prev);
+    }
+
+    /** 사고 자료를 받는 동안 화면 가운데 「불러오는 중입니다...」를 띄우고 내린다(천기와 같은 표시 — 2026-11-23 사용자).
+     *  @param {boolean} on  [연계] ← _pressSafety()·_setAccident()·_afterNav() */
+    function _accLoading(on) {
+        var box = document.getElementById('om-loading');
+        if (!box) return;
+        if (on) { _loadSeq++; _accBusy = true; box.hidden = false; }
+        else if (_accBusy) { _accBusy = false; box.hidden = true; }
+    }
+
     function _setAccident(def, seq, tries) {
         if (seq !== _viewSeq) return;
         var tgl = document.getElementById('ocean-accident-mode-toggle');
         var ready = tgl && tgl.style.display !== 'none' && tgl.style.display !== '';
-        if (!ready) { if (tries < 80) setTimeout(function () { _setAccident(def, seq, tries + 1 || 1); }, 250); return; }
+        if (!ready) { if (tries < 80) setTimeout(function () { _setAccident(def, seq, tries + 1 || 1); }, 250); else _accLoading(false); return; }
         var mBtn = tgl.querySelector('button[data-mode="' + def.accMode + '"]');
         // ⚠이미 그 모드면 누르지 않는다 — 같은 모드를 다시 누르면 필터 줄이 접힌다(accident_info.js)
         var okMode = !mBtn || _isActive(mBtn);
@@ -470,6 +532,7 @@
         }
         // 선박/인명의 눌린 표시는 자료를 다 받은 뒤에야 바뀐다 — 연달아 눌렀을 때 어긋나지 않게 맞을 때까지 다시 본다
         if ((!okMode || !okSrc) && tries < 80) setTimeout(function () { _setAccident(def, seq, tries + 1); }, 350);
+        else _accLoading(false);     // 분석/현황·선박/인명이 다 맞았다(또는 끝내 못 맞췄다) — 로딩 표시를 내린다
     }
 
     /**
@@ -480,6 +543,7 @@
     function _closeView() {
         if (!_view && _tab() !== 'ocean-life-group') return;
         _viewSeq++;
+        _restoreViewBase();
         if (typeof window.switchMainTab === 'function') window.switchMainTab('ocean-map-section');
     }
 
@@ -488,13 +552,16 @@
         var p = _pending;
         _pending = null; _applyPendingOnOcean = false;
         if (!p) return;
+        // 믿을 수 없는 값(p.blind)이면 사용자가 [보기] 중에 직접 바꾼 스위치만 반영한다 — 나머지는 지난번 저장값대로 켜진 그대로 둔다
+        var skip = function (id) { return p.blind && !(p.touched && p.touched[id]); };
         Object.keys(SWITCHES).forEach(function (id) {
-            if (id === 'wx' || id === 'typh') return;
+            if (id === 'wx' || id === 'typh' || skip(id)) return;
             if (_liveOn(id) !== !!p[id]) _setLive(id, !!p[id]);
         });
         var tb = $(SWITCHES.typh.sel);
-        if (tb && _isActive(tb) !== !!p.typh && !_typhDisabled()) _quiet(function () { tb.click(); });
-        if (p.wx) {
+        if (!skip('typh') && tb && _isActive(tb) !== !!p.typh && !_typhDisabled()) _quiet(function () { tb.click(); });
+        if (skip('wx')) { /* 그대로 둔다 */ }
+        else if (p.wx) {
             _wxOpen = true; _probeWx();
             var sel = p.wxSel && _wxItemEl(p.wxSel);
             if (sel && !_isActive(sel)) _quiet(function () { sel.click(); });
@@ -541,6 +608,7 @@
     function _afterNav(pre) {
         if (!_mode) return;
         var tab = _tab();
+        if (tab !== 'ocean-life-group' || !_safetyShown()) { _accLoading(false); _restoreViewBase(); }
         if (tab === 'ocean-life-group') {
             // 우리 [보기]가 아닌 길로 들어온 경우에도, 들어오기 직전의 스위치 상태(pre)를 미뤄 둔 값으로 삼는다
             if (!_pending) _pending = pre || _snapshotPending();
@@ -596,19 +664,20 @@
         wrap.innerHTML =
             '<div id="om-banner" role="status" hidden><span class="om-banner-text"></span>' +
                 '<button type="button" class="om-banner-off" data-om="off">끄기</button></div>' +
-            '<button type="button" id="om-menu-btn" class="ocean-overlay-btn" aria-label="메뉴 열기" aria-expanded="false" data-om="open">' +
-                '<i class="fa-solid fa-bars" aria-hidden="true"></i><span class="ocean-overlay-label">메뉴</span>' +
+            '<button type="button" id="om-menu-btn" aria-label="전체 메뉴 열기" aria-expanded="false" data-om="open">' +
+                '<i class="fa-solid fa-bars" aria-hidden="true"></i><span class="om-menu-label">전체 메뉴</span>' +
                 '<span class="om-count" hidden></span></button>' +
             '<div id="om-subs" hidden></div>' +
+            '<div id="om-loading" role="status" hidden><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i><span>불러오는 중입니다...</span></div>' +
             '<div id="om-backdrop" data-om="close" hidden></div>' +
             '<aside id="om-sidebar" aria-label="해양종합정보 메뉴" aria-hidden="true">' +
                 '<button type="button" class="om-handle" data-om="close" aria-label="메뉴 접기">' +
-                    '<i class="fa-solid fa-chevron-right" aria-hidden="true"></i><span>접<br>기</span></button>' +
+                    '<i class="fa-solid fa-chevron-right" aria-hidden="true"></i><span>접<br>기</span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>' +
                 '<div class="om-head"><span>해양종합정보 메뉴</span>' +
                     '<button type="button" class="om-x" data-om="close" aria-label="닫기"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>' +
                 '<div class="om-body">' +
                     '<div class="om-viewbox" hidden><p class="om-viewbox-text"></p>' +
-                        '<button type="button" class="om-viewbox-off" data-om="off">끄기</button></div>' +
+                        '<button type="button" class="om-viewbox-off" data-om="off">화면 끄기</button></div>' +
                     '<div class="om-folders"></div>' +
                 '</div>' +
             '</aside>';
@@ -654,13 +723,20 @@
         var b = document.createElement('button');
         b.type = 'button'; b.id = 'om-acc-filter-head'; b.className = 'om-acc-filter-head';
         b.setAttribute('aria-expanded', 'false');
-        b.innerHTML = '<span>필터</span><i class="fa-solid fa-chevron-down" aria-hidden="true"></i>';
+        b.innerHTML = '<span>필터 선택</span><i class="fa-solid fa-chevron-down" aria-hidden="true"></i>';
         b.addEventListener('click', function (e) {
             e.stopPropagation();
             bar.classList.toggle('om-open');
             _syncFilterHead();
         });
         bar.insertBefore(b, bar.firstChild);
+        // 「선택 초기화」를 누르면 필터도 접는다(새 모드에서만 — 2026-11-23 사용자 「선택 초기화를 누르면 필터는 자동으로 접히도록」)
+        var reset = document.getElementById('accident-filter-reset-btn');
+        if (reset) reset.addEventListener('click', function () {
+            if (!_mode) return;
+            bar.classList.remove('om-open');
+            _syncFilterHead();
+        });
     }
     function _syncFilterHead() {
         var bar = document.getElementById('accident-filter-bar'), b = document.getElementById('om-acc-filter-head');
@@ -736,6 +812,7 @@
         Object.keys(SWITCHES).forEach(function (id) { if (_shownOn(id)) n++; });
         var cnt = $('#om-menu-btn .om-count');
         if (cnt) { cnt.textContent = String(n); cnt.hidden = n === 0; }
+        _fitNames();
     }
 
     /** [메뉴] 아래 버튼 줄 — 천기를 켰을 때 7개(자료 없는 것은 회색 + 맨 뒤) / 바다낚시를 볼 때 갯바위·선상 */
@@ -745,7 +822,9 @@
         if (_view === 'fish') {
             ['갯바위', '선상'].forEach(function (g) {
                 var orig = $('#ls-rail .ls-gubun-item[data-gubun="' + g + '"]');
-                html += '<button type="button" class="ocean-overlay-btn om-sub' + (_isActive(orig) ? ' active' : '') + '" data-om="gubun" data-id="' + g + '">' +
+                // 왼쪽 버튼(기본맵 등)과 같은 크기 + 선 그림(산·배) — 2026-11-23 사용자 「라안이 좋겠어」(시안 6차)
+                html += '<button type="button" class="ocean-overlay-btn om-sub om-gubun' + (_isActive(orig) ? ' active' : '') + '" data-om="gubun" data-id="' + g + '">' +
+                    '<i class="fa-solid ' + (g === '갯바위' ? 'fa-mountain' : 'fa-ship') + '" aria-hidden="true"></i>' +
                     '<span class="ocean-overlay-label">' + g + '</span></button>';
             });
         } else if (!_view && _wxOpen) {
@@ -753,12 +832,63 @@
             var list = WX_SUBS.filter(function (s) { return _wxAvail[s.id] !== false; }).concat(WX_SUBS.filter(function (s) { return _wxAvail[s.id] === false; }));
             list.forEach(function (s) {
                 var dead = _wxAvail[s.id] === false;
+                // 원래 버튼(#ocean-other-wx-popup 안)의 아이콘·이름을 그대로 베낀다 — 지금 앱의 버튼과 같은 크기·모양
+                var orig = _wxItemEl(s.id);
+                var inner = orig ? orig.innerHTML : '<span class="ocean-overlay-label">' + s.label.join('') + '</span>';
                 html += '<button type="button" class="ocean-overlay-btn om-sub' + (cur === s.id ? ' active' : '') + (dead ? ' om-sub-dead' : '') + '" data-om="wx" data-id="' + s.id + '"' +
-                    (dead ? ' aria-disabled="true"' : '') + '><span class="ocean-overlay-label">' + s.label.join('<br>') + '</span></button>';
+                    (dead ? ' aria-disabled="true"' : '') + '>' + inner + '</button>';
             });
         }
         if (box.innerHTML !== html) box.innerHTML = html;
         box.hidden = !html;
+    }
+
+    /**
+     * 진북 고정(North up fixed) — 새 모드에서는 「진북 정렬」 버튼을 없애고 지도를 늘 북쪽이 위로 고정해 둔다.
+     * 2026-11-23 사용자 「진북정렬이라는 버튼은 삭제하고, 기본 진북 fix로 적용되어있도록 하자」.
+     * 버튼(#ocean-northup-btn)은 CSS 로 감추고, 그 버튼을 대신 눌러 「고정」 상태(.northup-locked)까지 넘긴다
+     * (자유 → 정렬 → 고정 3단 — ocean_northup.js). 끄면 켜기 전 상태로 되돌린다. 지도가 아직 안 만들어졌으면 잠깐 뒤 다시 한다.
+     * @param {boolean} on  켜기/끄기
+     * @param {number} [tries]  다시 해 본 횟수(안에서만 쓴다)  [연계] ← _setMode() → #ocean-northup-btn (ocean-map/map/ocean_northup.js)
+     */
+    function _lockNorth(on, tries) {
+        var btn = document.getElementById('ocean-northup-btn');
+        if (!btn) return;
+        var stateOf = function () { return btn.classList.contains('northup-locked') ? 'locked' : (btn.classList.contains('northup-aligned') ? 'aligned' : 'free'); };
+        var want = on ? 'locked' : _northPrev;
+        if (on && _northPrev === null) _northPrev = stateOf();
+        if (!want) return;
+        _quiet(function () { for (var k = 0; k < 3 && stateOf() !== want; k++) btn.click(); });
+        if (stateOf() !== want) {
+            // 지도가 아직 준비 전이라 버튼이 듣지 않는다 — 조금 뒤 다시
+            if ((tries || 0) < 12 && _mode === on) setTimeout(function () { _lockNorth(on, (tries || 0) + 1); }, 500);
+            else if (!on) _northPrev = null;
+            return;
+        }
+        if (!on) _northPrev = null;
+        // 「고정」은 원래 휴대폰에 저장돼 다음 실행에도 남는다 — 새 모드는 앱을 껐다 켜면 원래대로여야 하니, 우리가 건 고정은 저장에서 뺀다
+        else if (_northPrev !== 'locked') { try { localStorage.removeItem('oceanMap.northUp.locked'); } catch (e) { /* 저장이 막혀 있어도 화면은 그대로 돈다 */ } }
+    }
+
+    /**
+     * 사이드바 줄 이름이 한 줄에 안 들어가면 자간을 줄이고, 그래도 넘치면 글자를 조금 줄인다(글자 크게 설정 대비).
+     * 예: 폭 216px 사이드바 + 글자 크게 → 「출입통제·낚시금지」 자간 -0.1em
+     * [연계] ← _renderRows()·_setOpen() / CSS: #om-sidebar .om-name { white-space: nowrap; overflow: hidden }
+     */
+    function _fitNames() {
+        if (!_open) return;
+        var els = document.querySelectorAll('#om-sidebar .om-name');
+        for (var i = 0; i < els.length; i++) {
+            var el = els[i];
+            el.style.letterSpacing = ''; el.style.fontSize = '';
+            if (el.clientWidth <= 0) continue;
+            var steps = ['-0.06em', '-0.1em'];
+            for (var k = 0; k < steps.length && el.scrollWidth > el.clientWidth + 1; k++) el.style.letterSpacing = steps[k];
+            if (el.scrollWidth > el.clientWidth + 1) {
+                var size = parseFloat(getComputedStyle(el).fontSize) || 13;
+                el.style.fontSize = Math.max(size * 0.74, size * el.clientWidth / el.scrollWidth) + 'px';
+            }
+        }
     }
 
     /** 안내 줄·사이드바 안내·탭 표시·몸통 클래스를 지금 상태로 맞춘다. */
@@ -775,6 +905,8 @@
         var msg = viewing ? '<b>' + _esc(_viewLabel(_view)) + '</b> 화면 표출 중 해양기상정보는 표시되지 않습니다.' : '';
         banner.hidden = !viewing; vbox.hidden = !viewing;
         if (viewing) { banner.querySelector('.om-banner-text').innerHTML = msg; vbox.querySelector('.om-viewbox-text').innerHTML = msg; }
+        // 좁은 화면에서 안내 글이 두 줄이 되면 글자 간격을 좁혀 한 줄로(한도를 넘으면 두 줄 그대로) — shared/ui/text_fit.js
+        if (viewing && window.textFitOneLine) window.textFitOneLine(banner.querySelector('.om-banner-text'));
         var h = viewing ? banner.offsetHeight : 0;
         var prev = body.style.getPropertyValue('--om-banner-h');
         if (prev !== h + 'px') {
@@ -806,7 +938,7 @@
             if (open) window.PopupStack.push('om-sidebar', function () { _setOpen(false); });
             else window.PopupStack.remove('om-sidebar');
         }
-        if (open) { _renderRows(); }
+        if (open) { _renderRows(); setTimeout(_fitNames, 320); }
     }
 
     function _onClick(e) {
@@ -839,21 +971,23 @@
     }
 
     // ========================================================================
-    // 7. 새 모드 켜고 끄기 — 「해양종합정보」 탭 10번 누르기
+    // 7. 새 메뉴 화면 켜고 끄기 — 앱이 뜨면 바로 켠다
     // ========================================================================
 
     /**
-     * 새 모드를 켜거나 끈다(저장하지 않는다 — 앱을 껐다 켜면 평소 화면).
+     * 새 메뉴 화면을 켜거나 끈다. 앱이 뜰 때 늘 켠다(2026-11-23) — 끄는 것은 옛 화면을 보는 시험만 쓴다.
      * 예: _setMode(true) → body.om-mode + [메뉴] 버튼 / _setMode(false) → 보던 화면을 닫고 평소 화면
-     * [연계] ← _bindTrigger() · window.OceanMenu.setMode(시험)
+     * @param {boolean} on  @param {boolean} [silent] 안내 토스트를 띄우지 않는다(앱이 뜰 때)
+     * [연계] ← DOMContentLoaded(아래) · window.OceanMenu.setMode(시험)
      */
-    function _setMode(on) {
+    function _setMode(on, silent) {
         on = !!on;
         if (_mode === on) return;
         if (!on) {
             if (_tab() === 'ocean-life-group') _closeView();
             _setOpen(false);
-            _pending = null; _view = ''; _wxOpen = false;
+            _pending = null; _view = ''; _wxOpen = false; _loadSeq++; _accBusy = false;
+            var lb = document.getElementById('om-loading'); if (lb) lb.hidden = true;
             // 평소 화면은 「해안도가 아니면 파고·풍향·유향을 켜 두지 않는다」 — 새 모드에서만 가능한 조합을 남기지 않는다
             if ((_liveOn('wav') || _liveOn('wind') || _liveOn('cur')) && typeof window.oceanGetBasemap === 'function' &&
                 window.oceanGetBasemap() !== 'coast' && typeof window.oceanSetBasemap === 'function') window.oceanSetBasemap('coast');
@@ -867,6 +1001,7 @@
             _wxOpen = !!_wxActiveSub();
         }
         document.body.classList.toggle('om-mode', on);
+        _lockNorth(on);
         if (!on) { document.body.classList.remove('om-here', 'om-view', 'om-open'); document.body.style.removeProperty('--om-banner-h'); }
         // 이미 그려진 특보 색칠·관제구역이 새 무늬·새 색으로 다시 그려지게 한다
         try { if (window.OceanWarnActive && window.OceanWarnActive.refresh) window.OceanWarnActive.refresh(); } catch (e) { /* 특보 층이 아직 없으면 켤 때 새 무늬로 그려진다 */ }
@@ -877,28 +1012,19 @@
         }
         _sync();
         try { window.dispatchEvent(new Event('resize')); } catch (e2) { /* 위와 같다 */ }
-        if (typeof window._showOceanToast === 'function') {
+        if (!silent && typeof window._showOceanToast === 'function') {
             window._showOceanToast(on ? '새 메뉴 화면으로 바뀌었습니다' : '원래 화면으로 돌아왔습니다', 'bottom', 1800);
         }
     }
 
-    /** 아래 「해양종합정보」 탭을 3초 안에 10번 누르면 새 모드를 켜고 끈다. */
-    function _bindTrigger() {
-        var btn = $('.tab-btn[data-target="ocean-map-section"]');
-        if (!btn) return;
-        btn.addEventListener('click', function () {
-            _tapCount++;
-            clearTimeout(_tapTimer);
-            _tapTimer = setTimeout(function () { _tapCount = 0; }, TAP_RESET_MS);
-            if (_tapCount >= TAP_THRESHOLD) { _tapCount = 0; clearTimeout(_tapTimer); _setMode(!_mode); }
-        });
-        var others = document.querySelectorAll('.tab-btn:not([data-target="ocean-map-section"])');
-        for (var i = 0; i < others.length; i++) others[i].addEventListener('click', function () { _tapCount = 0; });
-    }
-
+    // 2026-11-23 사용자 「이제 트리거없이 메인화면에 그대로 반영되도록 하자」 — 앱이 뜨면 바로 새 메뉴 화면이다.
+    //   (그 전에는 「해양종합정보」 탭을 10번 눌러야 켜졌다. 그 누름 장치는 없앴다.)
+    //   옛 화면(오른쪽 버튼 줄 · 해양안전생활 탭)의 자리·누름을 재는 시험은 페이지가 뜨기 전에
+    //   window.__SEAGNAL_OLD_OCEAN_SCREEN = true 를 넣어 옛 화면으로 띄운다(앱 화면에는 이 값을 넣는 곳이 없다).
+    //   새 화면은 그 옛 버튼·옛 화면을 대신 누르는 구조라, 옛 화면 시험은 그 밑바탕이 멀쩡한지를 계속 지킨다.
     document.addEventListener('DOMContentLoaded', function () {
         _wrapTabSwitchers();
-        _bindTrigger();
+        if (!window.__SEAGNAL_OLD_OCEAN_SCREEN) _setMode(true, true);
     });
 
     /** 시험·점검용 창구 — 화면 코드는 쓰지 않는다. */
