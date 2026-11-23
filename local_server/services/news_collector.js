@@ -287,6 +287,7 @@ function createNews({ dir = path.join(DATA, 'news'), configFile = path.join(DATA
                         const main = members[0];
                         // 카드 머리는 묶음에서 가장 최근 기사로(「사고 보도의 경우 새소식」이 묻히지 않게 — 판정 단계의 같은 날 새 소식 규칙과 같다)
                         const newest = members.slice().sort((x, y) => y.rep.pubMs - x.rep.pubMs)[0];
+                        const reps = members.map((m) => ({ rep: m.rep, score: m.score }));   // 머리를 바꾸기 전 각 카드의 대표 기사
                         if (newest !== main && newest.rep.pubMs > main.rep.pubMs) {
                             Object.assign(main, { title: newest.title, summary: newest.summary, summaryFixed: newest.summaryFixed, cat: newest.cat, rep: newest.rep, image: newest.image, site: newest.site });
                             if (fresh.has(newest)) fresh.add(main);
@@ -297,11 +298,16 @@ function createNews({ dir = path.join(DATA, 'news'), configFile = path.join(DATA
                             main.score = Math.max(main.score || 0, other.score || 0);
                             moves.push([d + '/' + other.id, d + '/' + main.id]);
                             days[d].cards = days[d].cards.filter((c) => c !== other);
-                            const r = other.rep;
-                            days[d].rejected.push({ title: r.title, desc: r.desc, link: r.originallink || r.link, source: r.host, pubMs: r.pubMs, score: other.score, reason: '같은 사건으로 합침 → 「' + main.title + '」' });
                             if (fresh.has(other) && other.addedAt === new Date(t0).toISOString()) st.added--;   // 이번에 새로 실었다가 합친 카드는 「새 카드」에서 뺀다
                             fresh.delete(other);
                             st.deduped = (st.deduped || 0) + 1;
+                        }
+                        // 「AI 가 뺀 기사」에는 합친 뒤 화면에 안 보이게 된 대표 기사만 남긴다 — 머리가 된 기사는 넣지 않는다
+                        //   (종전: 빠진 카드의 기사를 넣어, 머리가 그 기사로 바뀐 경우 「같은 사건으로 합침 → 자기 자신」이 되고 [싣기]하면 같은 기사가 두 장 — 운영 2026-11-23 관리자 화면)
+                        for (const x of reps) {
+                            if (x.rep === main.rep) continue;
+                            const r = x.rep;
+                            days[d].rejected.push({ title: r.title, desc: r.desc, link: r.originallink || r.link, source: r.host, pubMs: r.pubMs, score: x.score, reason: '같은 사건으로 합침 → 「' + main.title + '」' });
                         }
                     }
                 }
