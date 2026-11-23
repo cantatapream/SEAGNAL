@@ -15,12 +15,13 @@
 [연계]
   - 읽는 것: client/tide_data/Raw_tide_data/<연도>_hghlw/_stations.txt (예보지점 코드, 한 줄에 하나 —
             API 활용가이드의 「예보지점 목록」 166곳)
-  - 쓰는 것: 같은 폴더의 <코드>.csv (관측소코드,관측소명,날짜시간,조위(cm),고저구분 — 기존 Raw_tide_data 와 같은 칸)
+  - 쓰는 것: 같은 폴더의 _part/<코드>.json (받는 도중의 날짜 — 다 받으면 지워진다) · <코드>.csv (관측소코드,관측소명,날짜시간,조위(cm),고저구분 — 기존 Raw_tide_data 와 같은 칸)
             · _nodata.csv (그 날 자료가 없다고 답한 지점·날짜) · _coords.csv (지점 이름·위도·경도)
   - 다음 단계: 이 CSV 들을 합쳐 client/tide_data/tide_data_<연도>.js 를 만든다(client/tide.js 가 읽는 파일).
 """
 import csv
 import datetime
+import json
 import os
 import sys
 import threading
@@ -104,16 +105,40 @@ def fetch_day(keys, code, ymd):
             print(f'  ⚠ 키 {k[:6]}… 응답 {rc} {head.get("resultMsg")} → 이 키는 그만 쓴다', flush=True)
             keys.kill(k)
             continue
-        raise RuntimeError(f'{code} {ymd}: 응답 {rc} {head.get("resultMsg")}')
+        # 머리말이 없거나 모르는 코드 — 포털이 가끔 엉뚱한 답을 준다. 원문을 찍고 다시 부른다.
+        net_fail += 1
+        print(f'  ? {code} {ymd}: 모르는 응답({rc}) {r.text[:160]!r} — 다시 부름 {net_fail}', flush=True)
+        if net_fail > 6:
+            raise RuntimeError(f'{code} {ymd}: 응답 {rc} {head.get("resultMsg")}')
+        time.sleep(2 * net_fail)
 
 
 def collect_station(keys, code, days, out_dir):
-    """한 지점의 1년치를 받아 <코드>.csv 로 쓴다. 365일을 다 받았을 때만 파일을 만든다
-    (중간에 한도가 끝나면 그 지점은 버리고 다음 날 처음부터 — 반쪽 파일을 남기지 않으려고)."""
+    """한 지점의 1년치를 받아 <코드>.csv 로 쓴다. 365일을 다 받았을 때만 CSV 를 만든다.
+    받는 도중의 날짜는 _part/<코드>.json 에 쌓아 두고, 끊기면 다음 실행이 그 날짜부터 이어받는다
+    (2026-11-23: 처음엔 끊기면 지점을 통째로 버렸더니 24곳이 300번씩 헛돌았다)."""
     rows, nodata, coord = [], [], None
+    part = os.path.join(out_dir, '_part', code + '.json')   # {날짜: [item…] 또는 'nodata'}
+    got = json.load(open(part, encoding='utf-8')) if os.path.exists(part) else {}
+
+    def save_part():
+        os.makedirs(os.path.dirname(part), exist_ok=True)
+        with open(part + '.tmp', 'w', encoding='utf-8') as f:
+            json.dump(got, f, ensure_ascii=False)
+        os.replace(part + '.tmp', part)
+
+    try:
+        for n, ymd in enumerate(d for d in days if d not in got):
+            kind, val = fetch_day(keys, code, ymd)
+            got[ymd] = 'nodata' if kind == 'nodata' else val
+            if n % 40 == 39:
+                save_part()
+    finally:
+        save_part()   # 한도·오류로 끊겨도 받은 날짜는 남긴다
+
     for ymd in days:
-        kind, val = fetch_day(keys, code, ymd)
-        if kind == 'nodata':
+        val = got[ymd]
+        if val == 'nodata':
             nodata.append(ymd)
             continue
         for it in val:
@@ -128,6 +153,7 @@ def collect_station(keys, code, days, out_dir):
         w.writerow(['관측소코드', '관측소명', '날짜시간', '조위(cm)', '고저구분'])
         w.writerows(rows)
     os.replace(tmp, os.path.join(out_dir, code + '.csv'))
+    os.remove(part)
     return code, len(rows), nodata, coord
 
 
