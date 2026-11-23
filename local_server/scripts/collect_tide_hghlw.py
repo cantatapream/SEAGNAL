@@ -16,7 +16,7 @@
   - 읽는 것: client/tide_data/Raw_tide_data/<연도>_hghlw/_stations.txt (예보지점 코드, 한 줄에 하나 —
             API 활용가이드의 「예보지점 목록」 166곳)
   - 쓰는 것: 같은 폴더의 <코드>.csv (관측소코드,관측소명,날짜시간,조위(cm),고저구분 — 기존 Raw_tide_data 와 같은 칸)
-            · _nodata.csv (그 날 자료가 없다고 답한 지점·날짜)
+            · _nodata.csv (그 날 자료가 없다고 답한 지점·날짜) · _coords.csv (지점 이름·위도·경도)
   - 다음 단계: 이 CSV 들을 합쳐 client/tide_data/tide_data_<연도>.js 를 만든다(client/tide.js 가 읽는 파일).
 """
 import csv
@@ -24,6 +24,7 @@ import datetime
 import os
 import sys
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 import requests
@@ -31,7 +32,7 @@ import requests
 URL = 'https://apis.data.go.kr/1192136/tideFcstHghLw/GetTideFcstHghLwApiService'
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'client', 'tide_data', 'Raw_tide_data')
 DAILY_LIMIT = 10000   # 키 하나의 하루 한도(포털 「일일 트래픽」)
-WORKERS = 6           # 동시에 부르는 수
+WORKERS = 12          # 동시에 받는 지점 수(호출 한 번에 1.7초쯤 걸린다 — 2026-11-23 실측)
 
 
 class QuotaOut(Exception):
@@ -67,7 +68,7 @@ class Keys:
 def fetch_day(keys, code, ymd):
     """한 지점·하루치를 받는다.
     @returns ('ok', [item…]) | ('nodata', 응답코드)
-    한도·인증 오류면 그 키를 빼고 다른 키로, 접속 오류면 3번까지 다시 부른다.
+    한도·인증 오류면 그 키를 빼고 다른 키로, 접속 오류면 6번까지 다시 부른다.
     """
     net_fail = 0
     while True:
@@ -87,8 +88,9 @@ def fetch_day(keys, code, ymd):
                 keys.kill(k)
                 continue
             net_fail += 1
-            if net_fail > 3:
-                raise RuntimeError(f'{code} {ymd}: 접속 오류 4번 — {e} {text[:120]!r}')
+            if net_fail > 6:
+                raise RuntimeError(f'{code} {ymd}: 접속 오류 7번 — {e} {text[:120]!r}')
+            time.sleep(2 * net_fail)   # 중계 서버가 연결을 끊는 일이 있다 — 잠깐 쉬고 다시
             continue
         head = j.get('header') or (j.get('response') or {}).get('header') or {}
         body = j.get('body') or (j.get('response') or {}).get('body') or {}
@@ -108,7 +110,7 @@ def fetch_day(keys, code, ymd):
 def collect_station(keys, code, days, out_dir):
     """한 지점의 1년치를 받아 <코드>.csv 로 쓴다. 365일을 다 받았을 때만 파일을 만든다
     (중간에 한도가 끝나면 그 지점은 버리고 다음 날 처음부터 — 반쪽 파일을 남기지 않으려고)."""
-    rows, nodata = [], []
+    rows, nodata, coord = [], [], None
     for ymd in days:
         kind, val = fetch_day(keys, code, ymd)
         if kind == 'nodata':
@@ -118,15 +120,15 @@ def collect_station(keys, code, days, out_dir):
             lv = it.get('predcTdlvVl')
             lv = str(int(lv)) if float(lv) == int(float(lv)) else str(lv)
             rows.append([code, it.get('obsvtrNm'), it.get('predcDt'), lv,
-                         '고조' if str(it.get('extrSe')) in ('1', '3') else '저조',
-                         it.get('extrSe'), it.get('lat'), it.get('lot')])
+                         '고조' if str(it.get('extrSe')) in ('1', '3') else '저조'])
+            coord = (it.get('obsvtrNm'), it.get('lat'), it.get('lot'))
     tmp = os.path.join(out_dir, code + '.csv.tmp')
     with open(tmp, 'w', encoding='utf-8-sig', newline='') as f:
         w = csv.writer(f, quoting=csv.QUOTE_ALL)
-        w.writerow(['관측소코드', '관측소명', '날짜시간', '조위(cm)', '고저구분', '극치구분', '위도', '경도'])
+        w.writerow(['관측소코드', '관측소명', '날짜시간', '조위(cm)', '고저구분'])
         w.writerows(rows)
     os.replace(tmp, os.path.join(out_dir, code + '.csv'))
-    return code, len(rows), nodata
+    return code, len(rows), nodata, coord
 
 
 def main():
@@ -151,13 +153,16 @@ def main():
         futs = {ex.submit(collect_station, keys, c, days, out_dir): c for c in todo}
         for fut, c in futs.items():
             try:
-                code, n, nodata = fut.result()
+                code, n, nodata, coord = fut.result()
             except QuotaOut:
                 continue
             except Exception as e:
                 print(f'  ✗ {c}: {e}', flush=True)
                 continue
             done += 1
+            if coord:   # API 가 알려 준 지점 이름·위도·경도(표준항 가려내기에 쓴다)
+                with open(os.path.join(out_dir, '_coords.csv'), 'a', encoding='utf-8') as f:
+                    f.write(f'{code},{coord[0]},{coord[1]},{coord[2]}\n')
             if nodata:
                 with open(os.path.join(out_dir, '_nodata.csv'), 'a', encoding='utf-8') as f:
                     for ymd in nodata:
