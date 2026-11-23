@@ -64,7 +64,7 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'coast-day-'));if(SHOTS)fs.mkdirS
  browser=await chromium.launch({...((process.env.PW_CHROME||process.env.SIM_CHROMIUM||process.env.CHROMIUM_EXECUTABLE)?{executablePath:process.env.PW_CHROME||process.env.SIM_CHROMIUM||process.env.CHROMIUM_EXECUTABLE}:{}),headless:true,args:['--no-sandbox']});
  let page,errors=[];
  /** 앱을 새로 띄워 해양안전 → 위험예측(한 번 누름 — 2026-10-18 일반 공개로 잠금 없음)까지 켠다. 시험 서버에 공지 등이 없어 뜨는 「서버 연결 불가」 팝업은 시험 화면에서 지운다(위험예측과 무관). @param {number} width @returns {Promise<void>} */
- async function boot(width){if(page)await page.context().close();const ctx=await browser.newContext({viewport:{width,height:width<600?780:800}});page=await ctx.newPage();page.on('pageerror',e=>errors.push(e.message));
+ async function boot(width){if(page)await page.context().close();const ctx=await browser.newContext({viewport:{width,height:width<600?780:800}});/* 2026-11-23 새 메뉴 화면이 기본이 됐다 — 이 시험은 옛 화면(해양안전생활 탭·오른쪽 버튼 줄)의 자리·누름을 재므로 옛 화면으로 띄운다(ocean_menu.js) */ await ctx.addInitScript(() => { window.__SEAGNAL_OLD_OCEAN_SCREEN = true; });page=await ctx.newPage();page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/*',r=>r.request().url().startsWith(base)?r.continue():r.abort());
   await page.goto(base+'/');await page.waitForFunction(()=>typeof window.switchMainTab==='function'&&document.getElementById('ocean-risk-forecast-toggle-btn'));await page.waitForTimeout(600);
   await page.evaluate(()=>document.querySelector('.main-tabs .tab-btn[data-target="ocean-life-group"]').click());await page.waitForTimeout(600);

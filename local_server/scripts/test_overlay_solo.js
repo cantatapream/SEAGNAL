@@ -184,7 +184,7 @@ function serverUp() {
  */
 async function run(browser, ids) {
     const ctx = await browser.newContext({ viewport: { width: 430, height: 900 } });
-    const p = await ctx.newPage();
+    /* 2026-11-23 새 메뉴 화면이 기본이 됐다 — 이 시험은 옛 화면(해양안전생활 탭·오른쪽 버튼 줄)의 자리·누름을 재므로 옛 화면으로 띄운다(ocean_menu.js) */ await ctx.addInitScript(() => { window.__SEAGNAL_OLD_OCEAN_SCREEN = true; }); const p = await ctx.newPage();
     // ★날아다니는 요청 수를 센다 — 화면이 아니라 **네트워크**가 조용해야 다 온 것이다.
     let inFlight = 0;
     p.on('request', () => { inFlight++; });
@@ -240,7 +240,7 @@ async function run(browser, ids) {
 async function checkNoDeadButtons(browser) {
     const W = 375, H = 667;   // 시트가 가장 높이 올라오는 작은 화면
     const ctx = await browser.newContext({ viewport: { width: W, height: H }, hasTouch: true, isMobile: true });
-    const p = await ctx.newPage();
+    /* 2026-11-23 새 메뉴 화면이 기본이 됐다 — 이 시험은 옛 화면(해양안전생활 탭·오른쪽 버튼 줄)의 자리·누름을 재므로 옛 화면으로 띄운다(ocean_menu.js) */ await ctx.addInitScript(() => { window.__SEAGNAL_OLD_OCEAN_SCREEN = true; }); const p = await ctx.newPage();
     try {
         await p.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
         await p.waitForTimeout(3500);
@@ -420,7 +420,7 @@ async function checkRecoversAfterNetworkDrop(browser) {
     const COUNT = FEATURE_COUNT;
     for (const c of CASES) {
         const ctx = await browser.newContext({ viewport: { width: 430, height: 900 } });
-        const p = await ctx.newPage();
+        /* 2026-11-23 새 메뉴 화면이 기본이 됐다 — 이 시험은 옛 화면(해양안전생활 탭·오른쪽 버튼 줄)의 자리·누름을 재므로 옛 화면으로 띄운다(ocean_menu.js) */ await ctx.addInitScript(() => { window.__SEAGNAL_OLD_OCEAN_SCREEN = true; }); const p = await ctx.newPage();
         try {
             await p.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
             await p.waitForTimeout(3500);

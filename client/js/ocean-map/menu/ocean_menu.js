@@ -238,8 +238,9 @@
         var on = !_shownOn(id);
         if (_pending) {
             if (id === 'typh' && _typhDisabled()) return;
-            if (on && EXCLUSIVE.indexOf(id) >= 0) EXCLUSIVE.forEach(function (x) { _pending[x] = false; });
-            _pending[id] = on;
+            var touched = _pending.touched || (_pending.touched = {});
+            if (on && EXCLUSIVE.indexOf(id) >= 0) EXCLUSIVE.forEach(function (x) { _pending[x] = false; touched[x] = true; });
+            _pending[id] = on; touched[id] = true;
             if (id === 'wx' && !on) _pending.wxSel = '';
             _renderRows();
             return;
@@ -410,6 +411,9 @@
     function _snapshotPending() {
         var p = { wxSel: _wxActiveSub() };
         Object.keys(SWITCHES).forEach(function (id) { p[id] = _liveOn(id); });
+        // 지도가 아직 안 만들어졌으면(앱을 켜고 해양종합정보 지도를 한 번도 안 연 채 다른 길로 [보기] 화면에 들어온 경우)
+        //   버튼들이 지난번 저장값을 아직 되살리지 않아 전부 「꺼짐」으로 읽힌다 — 이 값은 믿을 수 없다고 적어 둔다(_applyPending 이 건너뛴다).
+        p.blind = !(typeof window.getOceanMap === 'function' && window.getOceanMap());
         return p;
     }
 
@@ -548,13 +552,16 @@
         var p = _pending;
         _pending = null; _applyPendingOnOcean = false;
         if (!p) return;
+        // 믿을 수 없는 값(p.blind)이면 사용자가 [보기] 중에 직접 바꾼 스위치만 반영한다 — 나머지는 지난번 저장값대로 켜진 그대로 둔다
+        var skip = function (id) { return p.blind && !(p.touched && p.touched[id]); };
         Object.keys(SWITCHES).forEach(function (id) {
-            if (id === 'wx' || id === 'typh') return;
+            if (id === 'wx' || id === 'typh' || skip(id)) return;
             if (_liveOn(id) !== !!p[id]) _setLive(id, !!p[id]);
         });
         var tb = $(SWITCHES.typh.sel);
-        if (tb && _isActive(tb) !== !!p.typh && !_typhDisabled()) _quiet(function () { tb.click(); });
-        if (p.wx) {
+        if (!skip('typh') && tb && _isActive(tb) !== !!p.typh && !_typhDisabled()) _quiet(function () { tb.click(); });
+        if (skip('wx')) { /* 그대로 둔다 */ }
+        else if (p.wx) {
             _wxOpen = true; _probeWx();
             var sel = p.wxSel && _wxItemEl(p.wxSel);
             if (sel && !_isActive(sel)) _quiet(function () { sel.click(); });
@@ -1012,10 +1019,12 @@
 
     // 2026-11-23 사용자 「이제 트리거없이 메인화면에 그대로 반영되도록 하자」 — 앱이 뜨면 바로 새 메뉴 화면이다.
     //   (그 전에는 「해양종합정보」 탭을 10번 눌러야 켜졌다. 그 누름 장치는 없앴다.)
-    //   옛 화면(오른쪽 버튼 줄 · 해양안전생활 탭)을 전제로 한 시험은 window.OceanMenu.setMode(false) 로 끄고 본다.
+    //   옛 화면(오른쪽 버튼 줄 · 해양안전생활 탭)의 자리·누름을 재는 시험은 페이지가 뜨기 전에
+    //   window.__SEAGNAL_OLD_OCEAN_SCREEN = true 를 넣어 옛 화면으로 띄운다(앱 화면에는 이 값을 넣는 곳이 없다).
+    //   새 화면은 그 옛 버튼·옛 화면을 대신 누르는 구조라, 옛 화면 시험은 그 밑바탕이 멀쩡한지를 계속 지킨다.
     document.addEventListener('DOMContentLoaded', function () {
         _wrapTabSwitchers();
-        _setMode(true, true);
+        if (!window.__SEAGNAL_OLD_OCEAN_SCREEN) _setMode(true, true);
     });
 
     /** 시험·점검용 창구 — 화면 코드는 쓰지 않는다. */
