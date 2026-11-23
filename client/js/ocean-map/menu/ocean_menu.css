@@ -60,7 +60,7 @@ body.om-mode.om-here #om-menu-btn {
     color: rgba(255, 255, 255, 0.6);
     font-family: inherit;
     font-size: 12px;
-    font-weight: 400;
+    font-weight: 700;   /* 2026-11-23 사용자 「전체 메뉴 버튼을 볼드처리해줘. 텍스트를」 */
     letter-spacing: 0.05em;
     white-space: nowrap;
     cursor: pointer;
