@@ -818,7 +818,9 @@
         if (_view === 'fish') {
             ['갯바위', '선상'].forEach(function (g) {
                 var orig = $('#ls-rail .ls-gubun-item[data-gubun="' + g + '"]');
-                html += '<button type="button" class="ocean-overlay-btn om-sub' + (_isActive(orig) ? ' active' : '') + '" data-om="gubun" data-id="' + g + '">' +
+                // 왼쪽 버튼(기본맵 등)과 같은 크기 + 선 그림(산·배) — 2026-11-23 사용자 「라안이 좋겠어」(시안 6차)
+                html += '<button type="button" class="ocean-overlay-btn om-sub om-gubun' + (_isActive(orig) ? ' active' : '') + '" data-om="gubun" data-id="' + g + '">' +
+                    '<i class="fa-solid ' + (g === '갯바위' ? 'fa-mountain' : 'fa-ship') + '" aria-hidden="true"></i>' +
                     '<span class="ocean-overlay-label">' + g + '</span></button>';
             });
         } else if (!_view && _wxOpen) {

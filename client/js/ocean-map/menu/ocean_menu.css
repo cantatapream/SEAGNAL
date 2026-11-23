@@ -101,6 +101,8 @@ body.om-mode.om-here #om-subs:not([hidden]) {
 }
 body.om-mode.om-here.ls-life #om-subs:not([hidden]) { top: calc(env(safe-area-inset-top, 20px) + 60px + var(--om-banner-h, 0px)); }
 #om-subs .om-sub-dead { opacity: 0.38; }
+/* 바다낚시의 갯바위·선상 — 왼쪽 위 버튼과 같은 크기(48×42) */
+#om-subs .om-gubun { width: 48px; height: 42px; box-sizing: border-box; justify-content: center; }
 /* 지점 팝업(바텀시트)이 떠 있는 동안은 기존 버튼 줄과 같이 비켜 준다 */
 body.om-mode.ls-sheet-open #om-subs { display: none !important; }
 /* 천기 그림을 받는 동안 — 항행경보의 로딩 표시(.navwarn-loading)와 같은 모양 */

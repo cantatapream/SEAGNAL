@@ -233,6 +233,8 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
     await check('⑦ 바다낚시 [보기] — 활동 화면 · 갯바위(먼저)·선상 버튼 · 지도 섹션이 안내 줄만큼 내려감', async () => {
       await click('#om-menu-btn'); await wait(300); await view('fish'); await wait(1500); const s = await S();
       assert.equal(s.sec, 'fishing-section'); assert.equal(s.view, 'fish'); assert.deepEqual(s.subs, ['갯바위●', '선상']);
+      assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#om-subs .om-gubun')].map(b => { const r = b.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height), b.querySelector('i').className.replace('fa-solid ', '')]; })),
+        [[48, 42, 'fa-mountain'], [48, 42, 'fa-ship']], '갯바위·선상 버튼 — 왼쪽 버튼과 같은 크기 + 선 그림');
       assert.ok(s.secTop === s.bannerH && s.bannerH > 30, 'secTop=' + s.secTop); assert.equal(s.lsRail, false); assert.equal(s.menuBtn, true);
       await click('#om-subs [data-om="gubun"][data-id="선상"]'); await wait(500); assert.deepEqual((await S()).subs, ['갯바위', '선상●']);
     });
