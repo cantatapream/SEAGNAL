@@ -673,7 +673,7 @@
                     '<button type="button" class="om-x" data-om="close" aria-label="닫기"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>' +
                 '<div class="om-body">' +
                     '<div class="om-viewbox" hidden><p class="om-viewbox-text"></p>' +
-                        '<button type="button" class="om-viewbox-off" data-om="off">끄기</button></div>' +
+                        '<button type="button" class="om-viewbox-off" data-om="off">화면 끄기</button></div>' +
                     '<div class="om-folders"></div>' +
                 '</div>' +
             '</aside>';

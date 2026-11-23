@@ -151,8 +151,9 @@ body.om-mode.om-view #om-banner:not([hidden]) {
     min-height: 30px;
     padding: 0 14px;
     border-radius: 8px;
-    border: 1px solid rgba(148, 163, 184, 0.5);
-    background: rgba(255, 255, 255, 0.06);
+    /* 눈에 띄게 파란색으로 채운다 — 2026-11-23 사용자 「가안이 좋겠어」(시안 5차) */
+    border: 0;
+    background: #2563eb;
     color: #fff;
     font: inherit;
     font-size: 0.78rem;
@@ -275,14 +276,13 @@ body.om-mode.om-here.om-open #om-sidebar { transition: transform 0.3s ease, visi
 #om-sidebar .om-viewbox-off {
     min-height: 40px;
     border-radius: 10px;
-    border: 1px solid rgba(148, 163, 184, 0.5);
-    background: rgba(255, 255, 255, 0.06);
+    border: 0;
+    background: #2563eb;          /* 위 안내 줄의 [끄기]와 같은 파랑 — 여기는 「화면 끄기」 */
     color: #fff;
     font: inherit;
     font-size: 0.9rem;
     font-weight: 700;
-    letter-spacing: 1.2em;
-    text-indent: 1.2em;
+    letter-spacing: 0.15em;
     cursor: pointer;
 }
 

@@ -191,6 +191,8 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
       assert.equal(s.banner, '위험지형 화면 표출 중 해양기상정보는 표시되지 않습니다.');
       assert.ok(s.bannerH > 30 && s.secTop === s.bannerH, 'secTop=' + s.secTop + ' bannerH=' + s.bannerH);
       assert.ok(s.on.includes('ocean-terrain-toggle-btn') && !s.on.includes('wind') && !s.on.includes('ocean-buoy-toggle-btn'), JSON.stringify(s.on));
+      assert.deepEqual(await page.evaluate(() => [document.querySelector('#om-banner .om-banner-off').textContent, document.querySelector('#om-sidebar .om-viewbox-off').textContent, getComputedStyle(document.querySelector('#om-banner .om-banner-off')).backgroundColor]),
+        ['끄기', '화면 끄기', 'rgb(37, 99, 235)'], '위는 「끄기」, 사이드바는 「화면 끄기」 — 파란색으로 채운 버튼');
       assert.equal(s.oceanTabOn, true); assert.deepEqual(s.tabs, ['특보정보', '해양종합정보', '뉴스·공지·어황']); assert.deepEqual(s.stack, ['om-view']);
       assert.equal(s.lsRail, false);
     });
