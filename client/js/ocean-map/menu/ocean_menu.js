@@ -143,6 +143,8 @@
     var _tapCount = 0, _tapTimer = null;
     var _viewSeq = 0;           // [보기]를 연달아 눌렀을 때 앞선 누름의 뒤처리가 끼어들지 않게 하는 번호
     var _arbTimers = [];
+    var _loadSeq = 0;           // 천기 로딩 표시 — 연달아 눌렀을 때 앞선 표시가 끼어들지 않게 하는 번호
+    var _northHome = null;      // 진북 정렬 버튼의 원래 자리 {parent, next} — 새 모드를 끌 때 되돌린다
 
     // ========================================================================
     // 작은 도구
@@ -337,9 +339,31 @@
         _noteFreeBase();
         // 천기 그림은 특보구역·현황과 함께 켤 수 없다(하나만) — 파고·풍향·유향은 원래 코드가 끈다
         if (!_isActive(el) && _liveOn('zone')) _setLive('zone', false);
+        var turningOn = !_isActive(el);
         el.click();
         _wxOpen = true;
+        if (turningOn) _showWxLoading();
         _arbitrateSoon(); _renderRows(); _renderSubs();
+    }
+
+    /**
+     * 천기 그림을 받는 동안 화면 가운데에 「불러오는 중입니다...」를 띄운다(항행경보의 로딩 표시와 같은 모양).
+     * 그림 층이 범례 자리에 「데이터를 불러오는 중…」을 적어 두는 동안을 받는 중으로 본다.
+     * [연계] ← _pickWx() / 읽는 곳: .shrt-fcst-legend-loading(shrt_forecast_layer.js) · .vsby-fcst-legend-loading(vsby_forecast_layer.js)
+     */
+    function _showWxLoading() {
+        var box = document.getElementById('om-loading');
+        if (!box) return;
+        var seq = ++_loadSeq, n = 0;
+        box.hidden = false;
+        (function tick() {
+            if (seq !== _loadSeq) return;
+            var lg = $('.shrt-fcst-legend-loading, .vsby-fcst-legend-loading');
+            var busy = !!lg && lg.textContent.indexOf('불러오는 중') >= 0 && lg.offsetParent !== null;
+            // 처음 0.4초는 범례가 아직 안 바뀌었을 수 있어 기다린다 · 최대 20초
+            if ((busy || n < 2) && n < 100 && _mode && !_view) { n++; setTimeout(tick, 200); }
+            else box.hidden = true;
+        })();
     }
 
     // ========================================================================
@@ -596,10 +620,11 @@
         wrap.innerHTML =
             '<div id="om-banner" role="status" hidden><span class="om-banner-text"></span>' +
                 '<button type="button" class="om-banner-off" data-om="off">끄기</button></div>' +
-            '<button type="button" id="om-menu-btn" class="ocean-overlay-btn" aria-label="메뉴 열기" aria-expanded="false" data-om="open">' +
-                '<i class="fa-solid fa-bars" aria-hidden="true"></i><span class="ocean-overlay-label">메뉴</span>' +
+            '<button type="button" id="om-menu-btn" aria-label="전체 메뉴 열기" aria-expanded="false" data-om="open">' +
+                '<i class="fa-solid fa-bars" aria-hidden="true"></i><span class="om-menu-label">전체 메뉴</span>' +
                 '<span class="om-count" hidden></span></button>' +
             '<div id="om-subs" hidden></div>' +
+            '<div id="om-loading" role="status" hidden><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i><span>불러오는 중입니다...</span></div>' +
             '<div id="om-backdrop" data-om="close" hidden></div>' +
             '<aside id="om-sidebar" aria-label="해양종합정보 메뉴" aria-hidden="true">' +
                 '<button type="button" class="om-handle" data-om="close" aria-label="메뉴 접기">' +
@@ -736,6 +761,7 @@
         Object.keys(SWITCHES).forEach(function (id) { if (_shownOn(id)) n++; });
         var cnt = $('#om-menu-btn .om-count');
         if (cnt) { cnt.textContent = String(n); cnt.hidden = n === 0; }
+        _fitNames();
     }
 
     /** [메뉴] 아래 버튼 줄 — 천기를 켰을 때 7개(자료 없는 것은 회색 + 맨 뒤) / 바다낚시를 볼 때 갯바위·선상 */
@@ -753,12 +779,54 @@
             var list = WX_SUBS.filter(function (s) { return _wxAvail[s.id] !== false; }).concat(WX_SUBS.filter(function (s) { return _wxAvail[s.id] === false; }));
             list.forEach(function (s) {
                 var dead = _wxAvail[s.id] === false;
+                // 원래 버튼(#ocean-other-wx-popup 안)의 아이콘·이름을 그대로 베낀다 — 지금 앱의 버튼과 같은 크기·모양
+                var orig = _wxItemEl(s.id);
+                var inner = orig ? orig.innerHTML : '<span class="ocean-overlay-label">' + s.label.join('') + '</span>';
                 html += '<button type="button" class="ocean-overlay-btn om-sub' + (cur === s.id ? ' active' : '') + (dead ? ' om-sub-dead' : '') + '" data-om="wx" data-id="' + s.id + '"' +
-                    (dead ? ' aria-disabled="true"' : '') + '><span class="ocean-overlay-label">' + s.label.join('<br>') + '</span></button>';
+                    (dead ? ' aria-disabled="true"' : '') + '>' + inner + '</button>';
             });
         }
         if (box.innerHTML !== html) box.innerHTML = html;
         box.hidden = !html;
+    }
+
+    /**
+     * 진북 정렬 버튼을 검색란 아래 버튼 줄로 옮긴다(끄면 원래 자리로) — 「기본맵, 진북정렬, 내위치, 안내 순」(2026-11-23 사용자).
+     * 버튼을 그대로 옮기므로 눌렀을 때 동작(ocean_northup.js)은 바뀌지 않는다. 순서는 CSS(order)가 정한다.
+     * @param {boolean} on  [연계] ← _setMode()
+     */
+    function _moveNorthBtn(on) {
+        var btn = document.getElementById('ocean-northup-btn'), row = document.getElementById('ocean-topleft-controls');
+        if (!btn || !row) return;
+        if (on) {
+            if (btn.parentNode === row) return;
+            _northHome = { parent: btn.parentNode, next: btn.nextSibling };
+            row.appendChild(btn);
+        } else if (_northHome && _northHome.parent) {
+            _northHome.parent.insertBefore(btn, _northHome.next && _northHome.next.parentNode === _northHome.parent ? _northHome.next : null);
+            _northHome = null;
+        }
+    }
+
+    /**
+     * 사이드바 줄 이름이 한 줄에 안 들어가면 자간을 줄이고, 그래도 넘치면 글자를 조금 줄인다(글자 크게 설정 대비).
+     * 예: 폭 216px 사이드바 + 글자 크게 → 「출입통제·낚시금지」 자간 -0.1em
+     * [연계] ← _renderRows()·_setOpen() / CSS: #om-sidebar .om-name { white-space: nowrap; overflow: hidden }
+     */
+    function _fitNames() {
+        if (!_open) return;
+        var els = document.querySelectorAll('#om-sidebar .om-name');
+        for (var i = 0; i < els.length; i++) {
+            var el = els[i];
+            el.style.letterSpacing = ''; el.style.fontSize = '';
+            if (el.clientWidth <= 0) continue;
+            var steps = ['-0.06em', '-0.1em'];
+            for (var k = 0; k < steps.length && el.scrollWidth > el.clientWidth + 1; k++) el.style.letterSpacing = steps[k];
+            if (el.scrollWidth > el.clientWidth + 1) {
+                var size = parseFloat(getComputedStyle(el).fontSize) || 13;
+                el.style.fontSize = Math.max(size * 0.74, size * el.clientWidth / el.scrollWidth) + 'px';
+            }
+        }
     }
 
     /** 안내 줄·사이드바 안내·탭 표시·몸통 클래스를 지금 상태로 맞춘다. */
@@ -806,7 +874,7 @@
             if (open) window.PopupStack.push('om-sidebar', function () { _setOpen(false); });
             else window.PopupStack.remove('om-sidebar');
         }
-        if (open) { _renderRows(); }
+        if (open) { _renderRows(); setTimeout(_fitNames, 320); }
     }
 
     function _onClick(e) {
@@ -853,7 +921,8 @@
         if (!on) {
             if (_tab() === 'ocean-life-group') _closeView();
             _setOpen(false);
-            _pending = null; _view = ''; _wxOpen = false;
+            _pending = null; _view = ''; _wxOpen = false; _loadSeq++;
+            var lb = document.getElementById('om-loading'); if (lb) lb.hidden = true;
             // 평소 화면은 「해안도가 아니면 파고·풍향·유향을 켜 두지 않는다」 — 새 모드에서만 가능한 조합을 남기지 않는다
             if ((_liveOn('wav') || _liveOn('wind') || _liveOn('cur')) && typeof window.oceanGetBasemap === 'function' &&
                 window.oceanGetBasemap() !== 'coast' && typeof window.oceanSetBasemap === 'function') window.oceanSetBasemap('coast');
@@ -867,6 +936,7 @@
             _wxOpen = !!_wxActiveSub();
         }
         document.body.classList.toggle('om-mode', on);
+        _moveNorthBtn(on);
         if (!on) { document.body.classList.remove('om-here', 'om-view', 'om-open'); document.body.style.removeProperty('--om-banner-h'); }
         // 이미 그려진 특보 색칠·관제구역이 새 무늬·새 색으로 다시 그려지게 한다
         try { if (window.OceanWarnActive && window.OceanWarnActive.refresh) window.OceanWarnActive.refresh(); } catch (e) { /* 특보 층이 아직 없으면 켤 때 새 무늬로 그려진다 */ }

@@ -2730,7 +2730,7 @@
     <link rel="stylesheet" href="js/marine-life/risk-forecast/risk_forecast.css?v=20261019beachui">
     <link rel="stylesheet" href="js/forecast/station-briefing/station_briefing.css?v=20261119wxGrid">
     <!-- 해양종합정보 「새 모드」(탭 10회 누르면 켜지는 통합 메뉴) — 전부 body.om-mode 아래라 평소 화면엔 영향 없음 -->
-    <link rel="stylesheet" href="js/ocean-map/menu/ocean_menu.css?v=20261122a">
+    <link rel="stylesheet" href="js/ocean-map/menu/ocean_menu.css?v=20261123b">
 </head>
 
 <body class="loading">
@@ -4253,9 +4253,6 @@
                             <label><input type="checkbox" id="tphn-ly-storm"> 폭풍반경</label>
                         </div>
                         <div id="tphn-legend" class="tphn-legend"></div>
-                        <div class="tphn-row" id="tphn-dbg-row" style="margin-top:4px;font-size:11px;opacity:0.85;">
-                            <label><input type="checkbox" id="tphn-dbg-korea"> 🐞 해역표출 강제(디버그)</label>
-                        </div>
                     </div>
 
                     <!-- 태풍 시 행동요령 팝업 (해양수산부·해경·기상청·수협·행안부 국민행동요령 기준) -->
@@ -5746,7 +5743,7 @@
     <script src="js/ocean-map/observation/ocean_buoy.js"></script>
     <script src="js/ocean-map/warnings/ocean_warn_zone.js"></script>
     <!-- 태풍 진로/예보 오버레이 + 재생 애니메이션 (의존: ocean_map.js + /api/typhoon) -->
-    <script src="js/typhoon/ocean_typhoon.js?v=OmMode_20261122"></script>
+    <script src="js/typhoon/ocean_typhoon.js?v=NoDebug_20261123"></script>
     <!-- 활성 특보 색칠 모듈 (5개 파일 분할, 의존: ocean_warn_zone.js + data.js + ocean_map.js) -->
     <script src="js/ocean-map/warnings/ocean_warn_active1.js"></script>
     <script src="js/ocean-map/warnings/ocean_warn_active2.js"></script>
@@ -5900,7 +5897,7 @@
     <script src="js/marine-life/risk-forecast/risk_forecast.js?v=20261019all"></script>
     <script src="js/marine-life/safety/life_safety.js?v=OmPair_20261122"></script>
     <!-- 해양종합정보 「새 모드」 통합 메뉴 — life_safety.js 가 감싼 탭 전환 위에 한 겹 더 얹으므로 반드시 그 뒤 -->
-    <script src="js/ocean-map/menu/ocean_menu.js?v=20261122a"></script>
+    <script src="js/ocean-map/menu/ocean_menu.js?v=20261123b"></script>
     <!-- 활동지점 안전 브리핑(해양예보 탭 아코디언, 설계서 §11) — 바로가기가 위험예측(risk_forecast.js)·탭 전환(life_safety.js)을,
          [기준 상세] 문안이 risk_basis_content.js 의 RiskBasisContent 를 쓰므로 그 뒤. 렌더 → 기준 문안 → 관할 고르기 탭(picker) → 본체 순서. -->
     <!-- 위험예측 배경 지도·바텀시트 부품(설계서 §11.10.24) — risk_*.js(RiskMapLayer·RiskSheet·RiskMarine) 뒤, 렌더 앞 -->

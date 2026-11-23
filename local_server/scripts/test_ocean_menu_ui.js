@@ -84,7 +84,7 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
         oceanTabOn: q('.tab-btn[data-target="ocean-map-section"]').classList.contains('active'),
         banner: vis(q('#om-banner')) ? q('#om-banner .om-banner-text').textContent : '', bannerH: q('#om-banner') ? q('#om-banner').offsetHeight : 0,
         sideX: q('#om-sidebar') ? Math.round(q('#om-sidebar').getBoundingClientRect().left) : null,
-        subs: [...document.querySelectorAll('#om-subs button')].map(b => b.textContent + (b.classList.contains('om-sub-dead') ? '×' : '') + (b.classList.contains('active') ? '●' : '')),
+        subs: [...document.querySelectorAll('#om-subs button')].map(b => b.textContent.replace(/\s+/g, '') + (b.classList.contains('om-sub-dead') ? '×' : '') + (b.classList.contains('active') ? '●' : '')),
         stack: (window.PopupStack && window.PopupStack.list ? window.PopupStack.list() : []).filter(x => /^om-/.test(x)),
         folders: [...document.querySelectorAll('#om-sidebar .om-folder')].map(f => f.querySelector('.om-folder-title').textContent + ':' + [...f.querySelectorAll('.om-row .om-name')].map(n => n.firstChild.textContent).join(',')),
         toast: (q('#locate-toast.visible .lt-text') || {}).textContent || ''
@@ -103,6 +103,31 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
       await tapOcean(1); await wait(500); const s = await S();
       assert.equal(s.mode, true); assert.equal(s.menuBtn, true); assert.equal(s.rail, false);
       assert.deepEqual(s.tabs, ['특보정보', '해양종합정보', '뉴스·공지·어황']);
+    });
+    await check('[2026-11-23] 위쪽 버튼 한 줄(기본맵→진북 정렬→내 위치→안내) · 넓은 [전체 메뉴](글자 크게 설정에도 같은 크기) · 사이드바 폭 60% · 이름 한 줄', async () => {
+      const m = () => page.evaluate(() => {
+        const r = (el) => { const b = el.getBoundingClientRect(); return { x: Math.round(b.left), y: Math.round(b.top), w: Math.round(b.width), h: Math.round(b.height) }; };
+        const q = (s) => document.querySelector(s);
+        return { base: r(q('#ocean-basemap-toggle')), north: r(q('#ocean-northup-btn')), my: r(q('#ocean-myloc-btn')), info: r(q('#ocean-info-btn')),
+          menu: r(q('#om-menu-btn')), menuText: q('#om-menu-btn .om-menu-label').textContent, northParent: q('#ocean-northup-btn').parentNode.id,
+          search: r(q('#ocean-map-section .ocean-search-container')) };
+      });
+      let g = await m();
+      assert.equal(g.northParent, 'ocean-topleft-controls'); assert.equal(g.menuText, '전체 메뉴');
+      assert.ok(g.base.x < g.north.x && g.north.x < g.my.x && g.my.x < g.info.x, JSON.stringify(g));
+      assert.ok(Math.abs(g.base.y - g.north.y) <= 2 && Math.abs(g.base.y - g.my.y) <= 2 && Math.abs(g.base.y - g.info.y) <= 2, '한 줄 ' + JSON.stringify(g));
+      assert.ok(g.base.y >= g.search.y + g.search.h, '검색란 아래'); assert.ok(g.menu.w >= 90 && g.menu.h <= 46 && Math.abs(g.menu.y - g.base.y) <= 4, JSON.stringify(g.menu));
+      assert.ok(g.info.x + g.info.w < g.menu.x, '안내 버튼과 [전체 메뉴]가 겹치지 않는다');
+      const before = g.menu;
+      await page.evaluate(() => { document.documentElement.setAttribute('data-font-size', 'large'); document.documentElement.style.fontSize = '18px'; }); await wait(300);
+      g = await m(); assert.deepEqual([g.menu.w, g.menu.h], [before.w, before.h], '글자 크게에도 [전체 메뉴] 크기 그대로');
+      await click('#om-menu-btn'); await wait(700);
+      const sb = await page.evaluate(() => ({ w: Math.round(document.getElementById('om-sidebar').getBoundingClientRect().width),
+        over: [...document.querySelectorAll('#om-sidebar .om-name')].filter(e => e.clientWidth && e.scrollWidth > e.clientWidth + 1).map(e => e.textContent),
+        twoLine: [...document.querySelectorAll('#om-sidebar .om-row')].filter(e => e.offsetHeight > 70).length,
+        pad: getComputedStyle(document.querySelector('#om-sidebar .om-folder[data-folder="wx"] .om-row')).paddingLeft }));
+      assert.equal(sb.w, Math.round(390 * 0.6)); assert.deepEqual(sb.over, []); assert.equal(sb.twoLine, 0); assert.equal(sb.pad, '10px');
+      await page.evaluate(() => { document.documentElement.removeAttribute('data-font-size'); document.documentElement.style.fontSize = ''; window.OceanMenu.close(); }); await wait(300);
     });
     await check('③ 사이드바 — 폴더·줄 순서(태풍·해수욕은 맨 뒤) · 바깥(지도)을 누르면 닫힘 · 뒤로가기로 닫힘', async () => {
       await click('#om-menu-btn'); await wait(450); let s = await S();
@@ -259,6 +284,14 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
       assert.equal(s.mode, false); assert.equal(s.tab, 'ocean-map-section'); assert.equal(s.menuBtn, false); assert.equal(s.rail, true);
       assert.deepEqual(s.tabs, ['특보정보', '해양종합정보', '해양안전생활', '뉴스·공지·어황']); assert.ok(!/om-/.test(s.cls), s.cls); assert.equal(s.secTop, 0);
       assert.ok(!s.on.includes('ocean-terrain-toggle-btn'), JSON.stringify(s.on));
+    });
+    await check('[2026-11-23] 새 모드를 끄면 진북 정렬 버튼이 원래 자리로 · 태풍 「해역표출 강제(디버그)」는 화면·코드에 없다 · 범례 아래 참고 문구는 유럽(ECMWF)·일본(JMA)만 남김', async () => {
+      const fs = require('fs');
+      assert.notEqual(await page.evaluate(() => document.getElementById('ocean-northup-btn').parentNode.id), 'ocean-topleft-controls');
+      assert.equal(await page.evaluate(() => !!document.getElementById('tphn-dbg-row')), false);
+      const src = fs.readFileSync(path.join(root, 'client/js/typhoon/ocean_typhoon.js'), 'utf8');
+      assert.ok(!/_debugKorea|tphn-dbg|해역표출 강제/.test(src) && !/tphn-dbg|해역표출 강제/.test(fs.readFileSync(path.join(root, 'client/index2.html'), 'utf8')));
+      assert.ok(src.includes("var KEEP_NOTE = { ecmwf: true, jma: true };") && src.includes("if (!KEEP_NOTE[_src] && !extra) { el.textContent = ''; el.style.display = 'none'; return; }"), '유럽(ECMWF)·일본(JMA)만 출처 줄을 남긴다');
     });
     await check('화면 오류 없음', async () => { assert.deepEqual(errors, []); });
   } catch (e) { console.error('❌ 시험 준비 실패', e.message); fail++; }
