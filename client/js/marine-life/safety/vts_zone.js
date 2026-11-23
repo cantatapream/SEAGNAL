@@ -62,18 +62,22 @@
      */
     function _zoneStyle(feature) {
         var on = (feature === _selected);
+        // [새 모드(body.om-mode) — 2026-11-22 사용자 「관제와 항로가 색상이 겹치는데 관제를 다른색으로 바꾸는게 좋겠어.
+        //   튀지 않는 색상으로」] 관제구역과 항로(자주색)를 한 지도에 함께 그리므로, 관제는 차분한 청록으로 바꾼다.
+        //   평소 화면은 종전 보라 그대로.
+        var om = document.body.classList.contains('om-mode');
         return new ol.style.Style({
             stroke: new ol.style.Stroke({
-                color: on ? 'rgba(240, 171, 252, 1)' : 'rgba(168, 85, 247, 0.9)',
+                color: on ? (om ? 'rgba(153, 246, 228, 1)' : 'rgba(240, 171, 252, 1)') : (om ? 'rgba(94, 170, 168, 0.9)' : 'rgba(168, 85, 247, 0.9)'),
                 width: on ? 4 : 2
             }),
             fill: new ol.style.Fill({
-                color: on ? 'rgba(240, 171, 252, 0.35)' : 'rgba(168, 85, 247, 0.14)'
+                color: on ? (om ? 'rgba(153, 246, 228, 0.30)' : 'rgba(240, 171, 252, 0.35)') : (om ? 'rgba(94, 170, 168, 0.12)' : 'rgba(168, 85, 247, 0.14)')
             }),
             text: new ol.style.Text({
                 text: feature.get('name') || '',
                 font: 'bold 11px "Pretendard", sans-serif',
-                fill: new ol.style.Fill({ color: on ? '#fdf4ff' : '#e9d5ff' }),
+                fill: new ol.style.Fill({ color: om ? (on ? '#f0fdfa' : '#ccfbf1') : (on ? '#fdf4ff' : '#e9d5ff') }),
                 stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.85)', width: 3 }),
                 overflow: true,
                 placement: 'point'
