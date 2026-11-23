@@ -9,7 +9,7 @@
  * ============================================================================ */
 
 /* ── 0. 평소에는 전부 없다 ─────────────────────────────────────────────── */
-#om-menu-btn, #om-subs, #om-banner, #om-backdrop, #om-sidebar, #om-acc-filter-head { display: none; }
+#om-menu-btn, #om-subs, #om-banner, #om-backdrop, #om-sidebar, #om-acc-filter-head, #om-loading { display: none; }
 
 /* ── 1. 새 모드에서 감추는 기존 요소 ───────────────────────────────────── */
 /* 지도 오른쪽 버튼 줄 — 보이지 않게만 한다(사이드바가 이 버튼들을 대신 누르므로 지우면 안 된다) */
@@ -22,22 +22,50 @@ body.om-mode #ocean-safety-sub-tabs { display: none !important; }
 /* 하위탭 줄이 없어진 만큼 지도 아래 여백도 없앤다 — 해양안전생활 화면에서만(특보정보 탭의 하위탭 줄은 그대로다) */
 body.om-mode[data-active-tab="ocean-life-group"] { --sub-tab-height: 0px; }
 
-/* ── 2. [메뉴] 버튼 · 그 아래 버튼 줄(천기 7개 / 갯바위·선상) ─────────── */
+/* ── 2. 위쪽 버튼 한 줄 · [전체 메뉴] 버튼 · 그 아래 버튼 줄(천기 7개 / 갯바위·선상) ─────
+ * 2026-11-23 사용자: 「기존의 기본맵, 안내, 내위치, 진북정렬을 검색란 아래 한줄로 … 순서는 기본맵, 진북정렬, 내위치, 안내」
+ * 「매뉴 버튼을 좀더 [(햄버거 아이콘) 전체 매뉴] 처럼 되도록 좀 더 넓게(한줄로)」「불필요하게 초록색 빛 … 」(→ 다른 버튼과 같은 남색) */
+/* 검색란 — 오른쪽에 있던 진북 정렬·버튼 줄 자리가 비었으므로 끝까지 편다 */
+body.om-mode #ocean-map-section.active .ocean-search-container { right: 12px; }
+/* 왼쪽 위 버튼들을 한 줄로: 기본맵(1) → 진북 정렬(2, ocean_menu.js 가 이 줄로 옮긴다) → 내 위치(3) → 안내(4) */
+body.om-mode #ocean-topleft-controls > #ocean-basemap-toggle-wrap { display: contents; }
+body.om-mode #ocean-topleft-controls .ocean-basemap-anchor { order: 1; pointer-events: auto; }
+body.om-mode #ocean-map-section.active #ocean-topleft-controls > #ocean-northup-btn {
+    order: 2; position: static !important; top: auto; right: auto; pointer-events: auto;
+}
+body.om-mode #ocean-topleft-controls #ocean-myloc-btn { order: 3; align-self: flex-start; pointer-events: auto; }
+body.om-mode #ocean-topleft-controls > #ocean-info-btn-wrap { order: 4; }
+/* [전체 메뉴] — 크기를 px 로 고정한다(글자 크기 설정을 「크게」로 해도 작아지거나 커지지 않게) */
 body.om-mode.om-here #om-menu-btn {
     display: flex;
+    align-items: center;
+    gap: 8px;
     position: fixed;
-    top: calc(env(safe-area-inset-top, 20px) + 10px + var(--om-banner-h, 0px));
+    top: calc(env(safe-area-inset-top, 20px) + 60px + var(--om-banner-h, 0px));
     right: 10px;
     z-index: 61;
-    width: 44px;
-    color: #e0f2fe;
-    background: rgba(12, 74, 110, 0.94);
-    box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.85), 0 2px 8px rgba(0, 0, 0, 0.35);
+    height: 42px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 10px;
+    background: rgba(15, 27, 51, 0.88);
+    color: #fff;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
+#om-menu-btn i { font-size: 15px; }
+/* 해양안전 지도(검색란 없음)·해양생활 활동 화면에서는 왼쪽 위 버튼 줄과 같은 높이에 */
+body.om-mode.om-here.ls-safety #om-menu-btn { top: calc(env(safe-area-inset-top, 20px) + 12px + var(--om-banner-h, 0px)); }
+body.om-mode.om-here.ls-life #om-menu-btn { top: calc(env(safe-area-inset-top, 20px) + 10px + var(--om-banner-h, 0px)); }
 #om-menu-btn .om-count {
     position: absolute;
     top: -7px;
-    right: -5px;      /* 왼쪽 옆 「진북 정렬」 버튼을 가리지 않게 오른쪽 위에 */
+    right: -5px;
     min-width: 18px;
     height: 18px;
     padding: 0 4px;
@@ -50,20 +78,42 @@ body.om-mode.om-here #om-menu-btn {
     line-height: 18px;
     text-align: center;
 }
+/* 버튼 줄 — 지금 앱의 오른쪽 버튼(.ocean-overlay-btn)과 같은 크기·모양(아이콘 + 이름) */
 body.om-mode.om-here #om-subs:not([hidden]) {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
     gap: 6px;
     position: fixed;
-    top: calc(env(safe-area-inset-top, 20px) + 66px + var(--om-banner-h, 0px));
-    right: 13px;
+    top: calc(env(safe-area-inset-top, 20px) + 110px + var(--om-banner-h, 0px));
+    right: 10px;
     z-index: 61;
 }
-#om-subs .om-sub .ocean-overlay-label { line-height: 1.2; text-align: center; }
+body.om-mode.om-here.ls-life #om-subs:not([hidden]) { top: calc(env(safe-area-inset-top, 20px) + 60px + var(--om-banner-h, 0px)); }
 #om-subs .om-sub-dead { opacity: 0.38; }
 /* 지점 팝업(바텀시트)이 떠 있는 동안은 기존 버튼 줄과 같이 비켜 준다 */
 body.om-mode.ls-sheet-open #om-subs { display: none !important; }
+/* 천기 그림을 받는 동안 — 항행경보의 로딩 표시(.navwarn-loading)와 같은 모양 */
+body.om-mode.om-here #om-loading:not([hidden]) {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1300;
+    padding: 14px 20px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(15, 23, 42, 0.92);
+    color: #fff;
+    font-size: 0.88rem;
+    font-weight: 700;
+    white-space: nowrap;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+#om-loading i { color: #dc2626; font-size: 1.1rem; }
 
 /* ── 3. 「○○ 화면 표출 중」 안내 줄 — 지도 밖 맨 위 ──────────────────── */
 body.om-mode.om-view #om-banner:not([hidden]) {
@@ -78,9 +128,9 @@ body.om-mode.om-view #om-banner:not([hidden]) {
     box-sizing: border-box;
     min-height: 42px;
     padding: 6px 10px 6px 12px;
-    background: #0c4a6e;
-    border-bottom: 1px solid rgba(56, 189, 248, 0.5);
-    color: #e0f2fe;
+    background: #0f1b33;          /* 앱의 남색(지도 위 버튼과 같은 계열) — 2026-11-23 사용자 */
+    border-bottom: 1px solid rgba(96, 165, 250, 0.35);
+    color: #cbd5e1;
     font-size: 0.74rem;
     line-height: 1.4;
 }
@@ -91,8 +141,8 @@ body.om-mode.om-view #om-banner:not([hidden]) {
     min-height: 30px;
     padding: 0 14px;
     border-radius: 8px;
-    border: 1px solid rgba(224, 242, 254, 0.55);
-    background: rgba(2, 6, 23, 0.25);
+    border: 1px solid rgba(148, 163, 184, 0.5);
+    background: rgba(255, 255, 255, 0.06);
     color: #fff;
     font: inherit;
     font-size: 0.78rem;
@@ -130,7 +180,7 @@ body.om-mode.om-here #om-sidebar {
     bottom: var(--main-tab-height, 68px);
     right: 0;
     z-index: 900;
-    width: min(80vw, 420px);
+    width: min(60vw, 360px);      /* 화면의 60% — 2026-11-23 사용자 */
     background: #111a2c;
     border-left: 1px solid rgba(148, 163, 184, 0.25);
     color: #e2e8f0;
@@ -171,7 +221,7 @@ body.om-mode.om-here.om-open #om-sidebar { transition: transform 0.3s ease, visi
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 8px 8px 16px;
+    padding: 12px 4px 8px 12px;
     font-size: 0.95rem;
     font-weight: 700;
     color: #fff;
@@ -189,7 +239,7 @@ body.om-mode.om-here.om-open #om-sidebar { transition: transform 0.3s ease, visi
 #om-sidebar .om-body {
     flex: 1;
     overflow-y: auto;
-    padding: 0 10px 14px;
+    padding: 0 6px 14px;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -207,16 +257,16 @@ body.om-mode.om-here.om-open #om-sidebar { transition: transform 0.3s ease, visi
     gap: 8px;
     padding: 10px 12px 12px;
     border-radius: 12px;
-    background: rgba(12, 74, 110, 0.6);
-    border: 1px solid rgba(56, 189, 248, 0.6);
+    background: #0f1b33;
+    border: 1px solid rgba(96, 165, 250, 0.4);
 }
-#om-sidebar .om-viewbox-text { margin: 0; font-size: 0.8rem; line-height: 1.5; color: #e0f2fe; word-break: keep-all; }
+#om-sidebar .om-viewbox-text { margin: 0; font-size: 0.8rem; line-height: 1.5; color: #cbd5e1; word-break: keep-all; }
 #om-sidebar .om-viewbox-text b { color: #fff; }
 #om-sidebar .om-viewbox-off {
     min-height: 40px;
     border-radius: 10px;
-    border: 1px solid rgba(224, 242, 254, 0.6);
-    background: rgba(2, 6, 23, 0.3);
+    border: 1px solid rgba(148, 163, 184, 0.5);
+    background: rgba(255, 255, 255, 0.06);
     color: #fff;
     font: inherit;
     font-size: 0.9rem;
@@ -234,8 +284,8 @@ body.om-mode.om-here.om-open #om-sidebar { transition: transform 0.3s ease, visi
     min-height: 46px;
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 0 12px;
+    gap: 6px;
+    padding: 0 10px;
     border: 0;
     background: rgba(148, 163, 184, 0.17);
     color: #fff;
@@ -244,7 +294,7 @@ body.om-mode.om-here.om-open #om-sidebar { transition: transform 0.3s ease, visi
     cursor: pointer;
 }
 #om-sidebar .om-fav-ico { color: #fbbf24; font-size: 0.85rem; }
-#om-sidebar .om-folder-title { font-size: 0.95rem; font-weight: 700; }
+#om-sidebar .om-folder-title { font-size: 0.95rem; font-weight: 700; white-space: nowrap; }
 #om-sidebar .om-folder-count { flex: 1; font-size: 0.74rem; color: #94a3b8; }
 #om-sidebar .om-chev { color: #cbd5e1; font-size: 0.78rem; transition: transform 0.28s ease; }
 #om-sidebar .om-folder.closed .om-chev { transform: rotate(-90deg); }
@@ -252,17 +302,17 @@ body.om-mode.om-here.om-open #om-sidebar { transition: transform 0.3s ease, visi
 #om-sidebar .om-folder-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 0.28s ease; }
 #om-sidebar .om-folder.closed .om-folder-body { grid-template-rows: 0fr; }
 #om-sidebar .om-folder-inner { overflow: hidden; min-height: 0; }
-#om-sidebar .om-empty { margin: 0; padding: 10px 12px 10px 26px; font-size: 0.74rem; color: #94a3b8; }
+#om-sidebar .om-empty { margin: 0; padding: 10px; font-size: 0.72rem; color: #94a3b8; }
 
 #om-sidebar .om-row {
     display: flex;
     align-items: center;
     gap: 6px;
     min-height: 46px;
-    padding: 0 4px 0 26px;            /* 폴더 제목(12px)보다 들여 쓴다 */
+    padding: 0 0 0 10px;              /* 들여쓰기 없음(2026-11-23 사용자) — 폴더 제목과는 굵기·크기·바탕으로 구분 */
     border-top: 1px solid rgba(148, 163, 184, 0.08);
 }
-#om-sidebar .om-row-sub { padding-left: 42px; }
+#om-sidebar .om-row-sub { padding-left: 20px; }   /* 「사고발생 이력 분석」 아래 두 줄만 살짝 */
 #om-sidebar .om-row-label .om-name { font-weight: 500; }
 #om-sidebar .om-main {
     flex: 1;
@@ -279,7 +329,8 @@ body.om-mode.om-here.om-open #om-sidebar { transition: transform 0.3s ease, visi
     text-align: left;
     cursor: pointer;
 }
-#om-sidebar .om-name { flex: 1; min-width: 0; font-size: 0.84rem; color: #e2e8f0; word-break: keep-all; }
+/* 이름은 한 줄 — 넘치면 ocean_menu.js _fitNames 가 자간을 줄이고, 그래도 넘치면 글자를 조금 줄인다 */
+#om-sidebar .om-name { flex: 1; min-width: 0; font-size: 0.84rem; color: #e2e8f0; white-space: nowrap; overflow: hidden; letter-spacing: -0.02em; }
 #om-sidebar .om-name small { display: block; font-size: 0.68rem; color: #94a3b8; }
 #om-sidebar .om-dead .om-name { color: #64748b; }
 #om-sidebar .om-sw {
@@ -308,8 +359,8 @@ body.om-mode.om-here.om-open #om-sidebar { transition: transform 0.3s ease, visi
 #om-sidebar .om-dead .om-sw::after { background: #475569; }
 #om-sidebar .om-view-btn {
     flex: none;
-    min-width: 48px;
-    padding: 5px 9px;
+    min-width: 40px;
+    padding: 5px 7px;
     border-radius: 8px;
     border: 1px solid rgba(148, 163, 184, 0.4);
     background: transparent;
@@ -323,7 +374,7 @@ body.om-mode.om-here.om-open #om-sidebar { transition: transform 0.3s ease, visi
 #om-sidebar .om-dead .om-view-btn { border-color: rgba(148, 163, 184, 0.15); color: #475569; }
 #om-sidebar .om-star {
     flex: none;
-    width: 38px;
+    width: 32px;
     height: 38px;
     border: 0;
     background: transparent;
@@ -399,17 +450,18 @@ body.om-mode.om-filter-open #ocean-topleft-controls > #accident-filter-reset-btn
 
 /* ── 7. 앱 배경 — 사선 무늬 없이 짙은 남색 바탕에 왼쪽 아래→오른쪽 위로 흐르는 푸른 빛 ────────────
  * 2026-11-23 사용자(그림 첨부): 「지금은 배경에 사선이 들어가있는데 사선 빼고 이 느낌으로만 반영코자 해」
+ * 톤: 처음 넣은 값이 「기존 스타일(남색) 대비 너무 밝」아 시안 2안(기존 남색에 가깝게, 은은한 빛만)으로 낮췄다(같은 날 사용자 「배경은 2안」).
  * 다른 변경과 같이 새 모드에서만 보인다(「모두 숨기자」) — 기본으로 바꿀 때 style.css 의 body::before 와
  * .nhub-head.stuck(같은 무늬를 쓰는 고정 머리)로 옮긴다. */
 body.om-mode::before {
-    background-color: #01063a;
+    background-color: #0a101f;
     background-image:
-        radial-gradient(ellipse at 50% 50%, transparent 35%, rgba(0, 3, 40, 0.55) 100%),
-        linear-gradient(135deg, #01063a 0%, #021260 30%, #04309c 55%, #021467 75%, #01063a 100%);
+        radial-gradient(ellipse at 50% 50%, transparent 35%, rgba(6, 10, 22, 0.6) 100%),
+        linear-gradient(135deg, #0a101f 0%, #0c1730 32%, #11244d 55%, #0d1936 76%, #0a101f 100%);
 }
 body.om-mode .nhub-head.stuck {
-    background-color: #01063a;
+    background-color: #0a101f;
     background-image:
-        radial-gradient(ellipse at 50% 50%, transparent 35%, rgba(0, 3, 40, 0.55) 100%),
-        linear-gradient(135deg, #01063a 0%, #021260 30%, #04309c 55%, #021467 75%, #01063a 100%);
+        radial-gradient(ellipse at 50% 50%, transparent 35%, rgba(6, 10, 22, 0.6) 100%),
+        linear-gradient(135deg, #0a101f 0%, #0c1730 32%, #11244d 55%, #0d1936 76%, #0a101f 100%);
 }
