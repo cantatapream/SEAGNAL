@@ -1,0 +1,415 @@
+/* ============================================================================
+ * 파일명: client/js/ocean-map/menu/ocean_menu.css
+ * 역할  : 해양종합정보 「새 모드」(body.om-mode)의 모양 — [메뉴] 버튼 · 오른쪽 사이드바 ·
+ *         「○○ 화면 표출 중」 안내 줄 · 그 모드에서 감추거나 바꿔 보이는 기존 요소.
+ *         ★모든 규칙이 body.om-mode 아래에 있다 — 평소 화면에는 아무 영향이 없어야 한다.
+ * [연계] js/ocean-map/menu/ocean_menu.js(클래스 om-mode·om-here·om-view·om-open·om-filter-open 을 붙인다) ·
+ *        index2.html(<link> — risk_forecast.css·station_briefing.css 다음) ·
+ *        index2.html 안 <style> 의 #ocean-map-section·활동 섹션 top 규칙(안내 줄 높이만큼 아래로 민다)
+ * ============================================================================ */
+
+/* ── 0. 평소에는 전부 없다 ─────────────────────────────────────────────── */
+#om-menu-btn, #om-subs, #om-banner, #om-backdrop, #om-sidebar, #om-acc-filter-head { display: none; }
+
+/* ── 1. 새 모드에서 감추는 기존 요소 ───────────────────────────────────── */
+/* 지도 오른쪽 버튼 줄 — 보이지 않게만 한다(사이드바가 이 버튼들을 대신 누르므로 지우면 안 된다) */
+body.om-mode #ocean-overlay-controls { visibility: hidden !important; pointer-events: none !important; }
+/* 해양생활 활동 버튼 줄 — 사이드바의 [보기]가 대신한다 */
+body.om-mode #ls-rail { display: none !important; }
+/* 아래 탭: 해양안전생활 탭과 그 하위탭 줄을 감춘다 → 탭 3개 */
+body.om-mode .tab-btn[data-target="ocean-life-group"] { display: none !important; }
+body.om-mode #ocean-safety-sub-tabs { display: none !important; }
+/* 하위탭 줄이 없어진 만큼 지도 아래 여백도 없앤다 — 해양안전생활 화면에서만(특보정보 탭의 하위탭 줄은 그대로다) */
+body.om-mode[data-active-tab="ocean-life-group"] { --sub-tab-height: 0px; }
+
+/* ── 2. [메뉴] 버튼 · 그 아래 버튼 줄(천기 7개 / 갯바위·선상) ─────────── */
+body.om-mode.om-here #om-menu-btn {
+    display: flex;
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 20px) + 10px + var(--om-banner-h, 0px));
+    right: 10px;
+    z-index: 61;
+    width: 44px;
+    color: #e0f2fe;
+    background: rgba(12, 74, 110, 0.94);
+    box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.85), 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+#om-menu-btn .om-count {
+    position: absolute;
+    top: -7px;
+    right: -5px;      /* 왼쪽 옆 「진북 정렬」 버튼을 가리지 않게 오른쪽 위에 */
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    box-sizing: border-box;
+    border-radius: 999px;
+    background: #f97316;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+}
+body.om-mode.om-here #om-subs:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 20px) + 66px + var(--om-banner-h, 0px));
+    right: 13px;
+    z-index: 61;
+}
+#om-subs .om-sub .ocean-overlay-label { line-height: 1.2; text-align: center; }
+#om-subs .om-sub-dead { opacity: 0.38; }
+/* 지점 팝업(바텀시트)이 떠 있는 동안은 기존 버튼 줄과 같이 비켜 준다 */
+body.om-mode.ls-sheet-open #om-subs { display: none !important; }
+
+/* ── 3. 「○○ 화면 표출 중」 안내 줄 — 지도 밖 맨 위 ──────────────────── */
+body.om-mode.om-view #om-banner:not([hidden]) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: fixed;
+    top: env(safe-area-inset-top, 20px);
+    left: 0;
+    right: 0;
+    z-index: 62;
+    box-sizing: border-box;
+    min-height: 42px;
+    padding: 6px 10px 6px 12px;
+    background: #0c4a6e;
+    border-bottom: 1px solid rgba(56, 189, 248, 0.5);
+    color: #e0f2fe;
+    font-size: 0.74rem;
+    line-height: 1.4;
+}
+#om-banner .om-banner-text { flex: 1; min-width: 0; word-break: keep-all; }
+#om-banner .om-banner-text b { color: #fff; }
+#om-banner .om-banner-off {
+    flex: none;
+    min-height: 30px;
+    padding: 0 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(224, 242, 254, 0.55);
+    background: rgba(2, 6, 23, 0.25);
+    color: #fff;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+/* 안내 줄 높이만큼 지도 화면들을 아래에서 시작하게 한다(각 섹션이 top 을 직접 잡고 있어 하나씩 적는다) */
+body.om-mode.om-view #ocean-map-section.tab-content.active,
+body.om-mode.om-view #fishing-section.tab-content.active,
+body.om-mode.om-view #surfing-section.tab-content.active,
+body.om-mode.om-view #scuba-section.tab-content.active,
+body.om-mode.om-view #mudflat-section.tab-content.active,
+body.om-mode.om-view #ripcurrent-section.tab-content.active,
+body.om-mode.om-view #swell-section.tab-content.active,
+body.om-mode.om-view #swimming-section.tab-content.active {
+    top: calc(env(safe-area-inset-top, 20px) + var(--om-banner-h, 0px)) !important;
+}
+body.om-mode.om-view #ls-topleft-controls { top: calc(env(safe-area-inset-top, 20px) + 10px + var(--om-banner-h, 0px)); }
+/* 바다갈라짐은 지도가 아니라 표 화면(일반 흐름) — 위 여백으로 민다. 활동 버튼 가로 줄이 없으니 그 자리(7rem)는 줄인다 */
+body.om-mode.ls-mode.ls-life.ls-row #sea-parting-section.tab-content.active { padding-top: calc(3.6rem + var(--om-banner-h, 0px)); }
+
+/* ── 4. 사이드바 ───────────────────────────────────────────────────────── */
+body.om-mode.om-here #om-backdrop:not([hidden]) {
+    display: block;
+    position: fixed;
+    inset: 0 0 var(--main-tab-height, 68px) 0;
+    z-index: 899;
+    background: transparent;      /* 남은 지도는 어둡게 하지 않는다 — 누르면 닫히기만 한다 */
+}
+body.om-mode.om-here #om-sidebar {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: env(safe-area-inset-top, 20px);
+    bottom: var(--main-tab-height, 68px);
+    right: 0;
+    z-index: 900;
+    width: min(80vw, 420px);
+    background: #111a2c;
+    border-left: 1px solid rgba(148, 163, 184, 0.25);
+    color: #e2e8f0;
+    transform: translateX(calc(100% + 32px));
+    transition: transform 0.3s ease;
+    visibility: hidden;
+}
+body.om-mode.om-here.om-open #om-sidebar { transform: translateX(0); visibility: visible; }
+/* 닫히는 동안에도 미끄러지는 모습이 보이게 — 다 닫힌 뒤에 감춘다 */
+body.om-mode.om-here #om-sidebar { transition: transform 0.3s ease, visibility 0s linear 0.3s; }
+body.om-mode.om-here.om-open #om-sidebar { transition: transform 0.3s ease, visibility 0s; }
+
+#om-sidebar .om-handle {
+    position: absolute;
+    left: -26px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 26px;
+    height: 86px;
+    padding: 0;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-right: 0;
+    border-radius: 12px 0 0 12px;
+    background: #111a2c;
+    color: #cbd5e1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font: inherit;
+    font-size: 0.66rem;
+    line-height: 1.25;
+    cursor: pointer;
+}
+#om-sidebar .om-head {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 8px 8px 16px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #fff;
+}
+#om-sidebar .om-x {
+    width: 38px;
+    height: 38px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 1.05rem;
+    cursor: pointer;
+}
+#om-sidebar .om-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    scrollbar-width: none;            /* 스크롤은 되지만 막대는 보이지 않는다 */
+    -ms-overflow-style: none;
+    overscroll-behavior: contain;
+}
+#om-sidebar .om-body::-webkit-scrollbar { display: none; }
+
+/* [보기] 중 안내 — 즐겨찾기 위 */
+#om-sidebar .om-viewbox:not([hidden]) {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px 12px;
+    border-radius: 12px;
+    background: rgba(12, 74, 110, 0.6);
+    border: 1px solid rgba(56, 189, 248, 0.6);
+}
+#om-sidebar .om-viewbox-text { margin: 0; font-size: 0.8rem; line-height: 1.5; color: #e0f2fe; word-break: keep-all; }
+#om-sidebar .om-viewbox-text b { color: #fff; }
+#om-sidebar .om-viewbox-off {
+    min-height: 40px;
+    border-radius: 10px;
+    border: 1px solid rgba(224, 242, 254, 0.6);
+    background: rgba(2, 6, 23, 0.3);
+    color: #fff;
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 1.2em;
+    text-indent: 1.2em;
+    cursor: pointer;
+}
+
+/* 폴더 — 폴더끼리는 같은 모양, 안의 기능과는 굵기·크기·바탕으로 구분 */
+#om-sidebar .om-folders { display: flex; flex-direction: column; gap: 8px; }
+#om-sidebar .om-folder { flex: none; border-radius: 12px; overflow: hidden; border: 1px solid rgba(148, 163, 184, 0.14); }
+#om-sidebar .om-folder-head {
+    width: 100%;
+    min-height: 46px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    border: 0;
+    background: rgba(148, 163, 184, 0.17);
+    color: #fff;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+#om-sidebar .om-fav-ico { color: #fbbf24; font-size: 0.85rem; }
+#om-sidebar .om-folder-title { font-size: 0.95rem; font-weight: 700; }
+#om-sidebar .om-folder-count { flex: 1; font-size: 0.74rem; color: #94a3b8; }
+#om-sidebar .om-chev { color: #cbd5e1; font-size: 0.78rem; transition: transform 0.28s ease; }
+#om-sidebar .om-folder.closed .om-chev { transform: rotate(-90deg); }
+/* 접고 펴기 — 높이를 몰라도 부드럽게 움직이게 격자 행 높이(1fr ↔ 0fr)를 바꾼다 */
+#om-sidebar .om-folder-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 0.28s ease; }
+#om-sidebar .om-folder.closed .om-folder-body { grid-template-rows: 0fr; }
+#om-sidebar .om-folder-inner { overflow: hidden; min-height: 0; }
+#om-sidebar .om-empty { margin: 0; padding: 10px 12px 10px 26px; font-size: 0.74rem; color: #94a3b8; }
+
+#om-sidebar .om-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 46px;
+    padding: 0 4px 0 26px;            /* 폴더 제목(12px)보다 들여 쓴다 */
+    border-top: 1px solid rgba(148, 163, 184, 0.08);
+}
+#om-sidebar .om-row-sub { padding-left: 42px; }
+#om-sidebar .om-row-label .om-name { font-weight: 500; }
+#om-sidebar .om-main {
+    flex: 1;
+    min-width: 0;
+    min-height: 46px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+#om-sidebar .om-name { flex: 1; min-width: 0; font-size: 0.84rem; color: #e2e8f0; word-break: keep-all; }
+#om-sidebar .om-name small { display: block; font-size: 0.68rem; color: #94a3b8; }
+#om-sidebar .om-dead .om-name { color: #64748b; }
+#om-sidebar .om-sw {
+    flex: none;
+    position: relative;
+    width: 36px;
+    height: 21px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.32);
+    transition: background 0.18s;
+}
+#om-sidebar .om-sw::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 17px;
+    height: 17px;
+    border-radius: 50%;
+    background: #fff;
+    transition: left 0.18s;
+}
+#om-sidebar .om-sw.on { background: #0ea5e9; }
+#om-sidebar .om-sw.on::after { left: 17px; }
+#om-sidebar .om-dead .om-sw { background: rgba(148, 163, 184, 0.14); }
+#om-sidebar .om-dead .om-sw::after { background: #475569; }
+#om-sidebar .om-view-btn {
+    flex: none;
+    min-width: 48px;
+    padding: 5px 9px;
+    border-radius: 8px;
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    background: transparent;
+    color: #e2e8f0;
+    font: inherit;
+    font-size: 0.74rem;
+    text-align: center;
+    cursor: pointer;
+}
+#om-sidebar .om-view-btn.on { border-color: #0ea5e9; background: #0ea5e9; color: #fff; font-weight: 700; }
+#om-sidebar .om-dead .om-view-btn { border-color: rgba(148, 163, 184, 0.15); color: #475569; }
+#om-sidebar .om-star {
+    flex: none;
+    width: 38px;
+    height: 38px;
+    border: 0;
+    background: transparent;
+    color: #64748b;
+    font-size: 0.95rem;
+    cursor: pointer;
+}
+#om-sidebar .om-star.on { color: #fbbf24; }
+#om-sidebar button:focus-visible, #om-menu-btn:focus-visible, #om-banner button:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+
+/* ── 5. 특보구역·현황 — 경보는 ✕ 격자(범례도 같게) ──────────────────────── */
+body.om-mode tr[data-type="wave"] .wal-swatch[data-stage="warn"] {
+    background: repeating-linear-gradient(135deg, transparent 0 8.5px, rgba(248, 113, 113, 0.55) 8.5px 9.75px),
+                repeating-linear-gradient(45deg, transparent 0 8.5px, rgba(248, 113, 113, 0.55) 8.5px 9.75px),
+                rgba(34, 197, 94, 0.55);
+}
+body.om-mode tr[data-type="typhoon"] .wal-swatch[data-stage="warn"] {
+    background: repeating-linear-gradient(135deg, transparent 0 8.5px, rgba(248, 113, 113, 0.55) 8.5px 9.75px),
+                repeating-linear-gradient(45deg, transparent 0 8.5px, rgba(248, 113, 113, 0.55) 8.5px 9.75px),
+                rgba(220, 38, 38, 0.55);
+}
+
+/* ── 6. 사고발생 이력 분석 — 지도 위 전환 단추는 사이드바가 대신한다 · 필터는 아코디언 ── */
+/* 분석/현황 단추: 자리 계산(accident_info.js positionFilterBar)이 이 요소를 재므로 지우지 않고 높이 0 으로 만든다 */
+body.om-mode #ocean-topleft-controls > #ocean-accident-mode-toggle {
+    visibility: hidden !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    margin-top: 0 !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
+}
+body.om-mode #accident-source-toggle { display: none !important; }
+body.om-mode #accident-filter-bar {
+    width: 62px;
+    max-height: 46px;
+    gap: 5px;
+    padding: 0 6px 6px;
+    overflow: hidden;
+    transition: max-height 0.25s ease, width 0.25s ease;
+}
+body.om-mode #accident-filter-bar.om-open { width: 150px; max-height: 340px; }
+body.om-mode #om-acc-filter-head {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    width: 100%;
+    height: 46px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #e2e8f0;
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+body.om-mode #om-acc-filter-head i { color: #7dd3fc; font-size: 0.7rem; transition: transform 0.25s ease; }
+body.om-mode #accident-filter-bar.om-open #om-acc-filter-head i { transform: rotate(180deg); }
+/* 선택 초기화 — 필터 버튼 바로 오른쪽(접힘 62px / 펼침 150px 옆) */
+body.om-mode #ocean-topleft-controls > #accident-filter-reset-btn { left: 70px; transition: left 0.25s ease; }
+body.om-mode.om-filter-open #ocean-topleft-controls > #accident-filter-reset-btn { left: 158px; }
+
+@media (prefers-reduced-motion: reduce) {
+    body.om-mode #om-sidebar, #om-sidebar .om-folder-body, #om-sidebar .om-chev,
+    body.om-mode #accident-filter-bar, body.om-mode #om-acc-filter-head i { transition: none !important; }
+}
+
+/* ── 7. 앱 배경 — 사선 무늬 없이 짙은 남색 바탕에 왼쪽 아래→오른쪽 위로 흐르는 푸른 빛 ────────────
+ * 2026-11-23 사용자(그림 첨부): 「지금은 배경에 사선이 들어가있는데 사선 빼고 이 느낌으로만 반영코자 해」
+ * 다른 변경과 같이 새 모드에서만 보인다(「모두 숨기자」) — 기본으로 바꿀 때 style.css 의 body::before 와
+ * .nhub-head.stuck(같은 무늬를 쓰는 고정 머리)로 옮긴다. */
+body.om-mode::before {
+    background-color: #01063a;
+    background-image:
+        radial-gradient(ellipse at 50% 50%, transparent 35%, rgba(0, 3, 40, 0.55) 100%),
+        linear-gradient(135deg, #01063a 0%, #021260 30%, #04309c 55%, #021467 75%, #01063a 100%);
+}
+body.om-mode .nhub-head.stuck {
+    background-color: #01063a;
+    background-image:
+        radial-gradient(ellipse at 50% 50%, transparent 35%, rgba(0, 3, 40, 0.55) 100%),
+        linear-gradient(135deg, #01063a 0%, #021260 30%, #04309c 55%, #021467 75%, #01063a 100%);
+}

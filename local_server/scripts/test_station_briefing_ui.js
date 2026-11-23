@@ -146,7 +146,11 @@ function makeBriefings() {
         const afState = { lastRun: null, runs: [], prs: [], tokenConfigured: true, prError: null, saveError: null }, afMerges = [];
         const autofixFake = { started() {}, done: async () => ({ ok: true }), refresh: async () => {}, status: () => JSON.parse(JSON.stringify(afState)),
             mergeNow: async (n) => { afMerges.push(n); const p = afState.prs.find((x) => x.number === n); if (!p || !p.canMerge) return { ok: false, status: 409, why: '검사 진행 중' }; Object.assign(p, { status: 'merged', mergedBy: '관리자(앱)', mergedAt: '2026-10-17T10:05:00+09:00', canMerge: false }); return { ok: true, state: 'merged' }; },
-            dismiss: (n) => { afState.prs = afState.prs.filter((x) => x.number !== n); return { ok: true }; } };
+            dismiss: (n) => { afState.prs = afState.prs.filter((x) => x.number !== n); return { ok: true }; },
+            // §11.10.62 결정 답 — 시험이 afState.decisions 를 넣고 afAnswers 로 보낸 것을 본다
+            answer: (id, choice, text) => { afAnswers.push([id, choice, text]); const d = (afState.decisions || []).find((x) => x.id === id); if (!d) return { ok: false, status: 404, error: '없는 결정' }; d.answer = { choice, text, at: '2026-10-17T10:06:00+09:00' }; if (choice === 'block') { d.handledAt = '2026-10-17T10:06:00+09:00'; d.result = 'block'; } return { ok: true, decision: d, close: null }; },
+            brief: () => ({ pendingFix: [], decisions: [] }) };
+        const afAnswers = [];
         const sbRouter = createRouter({ service, autofix: autofixFake, isAdminDevice: (id) => id === 'admin-push-token', verifyToken: (t) => t === 'admin-login',
             authorize: (req, res, next) => req.get('X-Admin-Token') === 'admin-login' ? next() : res.status(401).json({ ok: false, error: '관리자 인증 필요' }),
             clock: () => clock.now,   // nextPublishAt(§11.10.9 ⑦)도 가짜 시계로
@@ -1280,7 +1284,7 @@ function makeBriefings() {
             await page.waitForSelector('[data-sb-next]'); assert.equal(await page.$eval('[data-sb-next]', (e) => e.textContent), '다음 판17:3016:50부터 만들기');
             assert.deepEqual(await page.$eval('[data-sb-admin] .sba-head', (e) => [e.querySelector('h2').textContent, e.querySelector('.sba-title-sub').textContent, [...e.querySelectorAll('.sba-head-acts > *')].map((x) => x.getAttribute('aria-label') || x.textContent)]),
                 ['연안 안전 브리핑', '07:30 · 17:30 · 23:00 공개 · 각 40분 전부터 만들기', ['대기 중', '새로고침', '지금 다시 만들기']], '머리 — 제목 한 줄 · 상태 알약 · [↻] · [지금 다시 만들기](위로 옮김)');
-            assert.deepEqual(await page.$$eval('[data-sb-admin] > .admin-card', (e) => e.map((x) => [...x.attributes].map((a) => a.name).find((n) => n.startsWith('data-sb-')))), ['data-sb-status', 'data-sb-errcard', 'data-sb-autofix', 'data-sb-edition-times', 'data-sb-config', 'data-sb-preview'], '카드 순서(§11.10.59 오류 자동 처리 칸은 오류 카드 다음) · 다른 관리자 탭과 같은 .admin-card');
+            assert.deepEqual(await page.$$eval('[data-sb-admin] > .admin-card', (e) => e.map((x) => [...x.attributes].map((a) => a.name).find((n) => n.startsWith('data-sb-')))), ['data-sb-status', 'data-sb-autofix', 'data-sb-edition-times', 'data-sb-config', 'data-sb-preview', 'data-sb-errcard'], '카드 순서(2026-11-23 오류 카드는 맨 끝 — 「정하실 것」이 있는 오류 자동 처리 칸이 위로) · 다른 관리자 탭과 같은 .admin-card');
             assert.deepEqual(await page.$eval('[data-sb-status]', (e) => { const c = getComputedStyle(e); return [c.backgroundColor, c.borderRadius]; }), ['rgba(30, 41, 59, 0.5)', '16px'], '카드 색·둥글기 = 다른 관리자 탭(.admin-card)');
             assert.ok(!(await page.$eval('[data-sb-admin]', (e) => e.textContent)).includes('저장된 날짜'), '「저장된 날짜」 뺌');
             assert.deepEqual(await page.$eval('[data-sb-errcard]', (e) => [...e.querySelectorAll('[data-sb-err-tab]')].map((b) => [b.dataset.sbErrTab, b.getAttribute('aria-selected')])), [['open', 'true'], ['run', 'false']], '오류 카드 기본 탭 = 처리 안 된 오류');
@@ -1559,14 +1563,14 @@ function makeBriefings() {
             assert.ok(/지명 오판 1유형 고침/.test(await page.textContent('[data-sb-autofix-summary]')));
             assert.ok(/검사 기다리는 중 — 통과하면 자동 머지/.test(await page.textContent('[data-sb-autofix-pr="9"]')));
             const r8 = await page.textContent('[data-sb-autofix-pr="8"]');   // 독립 검토 (E) — 무엇을 보고 누르는지
-            assert.ok(/지명 오판 유형 하나를 고쳤습니다/.test(r8) && /결정 필요 1 · 「동해 쪽 먼바다」를 허용할까요/.test(r8) && /자동 범위 밖 파일: local_server\/routes\/station_briefing\.js/.test(r8), r8);
+            assert.ok(/지명 오판 유형 하나를 고쳤습니다/.test(r8) && /확인 필요 1 · 「동해 쪽 먼바다」를 허용할까요/.test(r8) && /자동 범위 밖 파일: local_server\/routes\/station_briefing\.js/.test(r8), r8);
             assert.equal(await page.$('[data-sb-autofix-stale]'), null, '하루 안이면 경고 없음');
             assert.deepEqual(await page.$$eval('[data-sb-autofix-merge]', (bs) => bs.map((b) => b.getAttribute('data-sb-autofix-merge') + ':' + b.disabled)), ['9:true', '8:false'], '검사 초록(canMerge)일 때만 눌림');
             const w = await page.evaluate(() => { const c = document.querySelector('[data-sb-autofix]'); return [c.scrollWidth, c.clientWidth]; }); assert.ok(w[0] <= w[1] + 1, '넘침 없음 ' + w);
             let dlg = ''; page.once('dialog', (d) => { dlg = d.message(); d.accept(); });
             await page.click('[data-sb-autofix-merge="8"]');
             await page.waitForSelector('[data-sb-autofix-dismiss="8"]');
-            assert.deepEqual(afMerges, [8]); assert.ok(/지명 오판 유형 하나를 고쳤습니다/.test(dlg) && /결정 필요 1건/.test(dlg), '확인창에 요약·결정 필요 ' + dlg);
+            assert.deepEqual(afMerges, [8]); assert.ok(/지명 오판 유형 하나를 고쳤습니다/.test(dlg) && /확인 필요 1건/.test(dlg), '확인창에 요약·확인 필요(§11.10.62 — 「결정 필요」는 「정하실 것」 카드로 옮김) ' + dlg);
             assert.ok(/머지했습니다 — 배포/.test(await page.textContent('[data-sb-autofix]')), '다시 그려도 머지 안내가 남음');
             assert.ok(/머지됨/.test(await page.textContent('[data-sb-autofix-pr="8"]')) && /처리 안 된 오류」가 자동으로 줄어듭니다/.test(await page.textContent('[data-sb-autofix-pr="8"]')));
             await page.click('[data-sb-autofix-dismiss="8"]'); await page.waitForFunction(() => !document.querySelector('[data-sb-autofix-pr="8"]'));
@@ -1574,6 +1578,33 @@ function makeBriefings() {
             await page.evaluate(() => document.querySelector('[data-sb-refresh]').click()); await page.waitForSelector('[data-sb-autofix-stale]');
             assert.ok(/2일 넘게 결과를 보내지 않았습니다/.test(await page.textContent('[data-sb-autofix-stale]')));
             afState.lastRun = null; afState.prs = [];
+        });
+        await check('[§11.10.62] 「정하실 것」 카드 — 제목·배경·실제 문장·맞다면·아니다면·추천 · 고르기 전 [보내기] 꺼짐 · 기타는 글 없으면 안 보냄 · 맞다 보내면 「다음 새벽 05:48 세션이 반영」 · 아니다는 확인 뒤 끝 · 360px 넘침 없음', async () => {
+            afState.decisions = [{ id: 'd1', at: '2026-10-17T05:58:10+09:00', export_id: 'E1', group: 'G04', title: '띄어 쓰지 않은 「몽돌해변」을 통과시킬지', background: '거제남부 글이 지명 검사에 걸렸습니다.', example: '저녁에는 몽돌해변과 전망대 아래 갯바위 주변 연안 활동에 유의해야 합니다.', allow: '통과시킵니다.', block: '지금처럼 막습니다.', recommend: 'block', why: '같은 이름의 실제 관광지가 있습니다.', answer: null, handledAt: null, deferredAt: null },
+                { id: 'd2', at: '2026-10-17T05:58:10+09:00', export_id: 'E1', group: 'G05', title: '「남동쪽 연안바다」를 통과시킬지', background: '성산 글.', example: '남동쪽 연안바다는 …', allow: '조건부 통과.', block: '막습니다.', recommend: 'allow', why: '실제 구역 줄임.', answer: null, handledAt: null, deferredAt: null }];
+            await page.evaluate(() => document.querySelector('[data-sb-refresh]').click());
+            await page.waitForFunction(() => document.querySelectorAll('[data-sb-decision]').length === 2);
+            const c1 = await page.textContent('[data-sb-decision="d1"]');
+            for (const t of ['정하실 것 1 · 띄어 쓰지 않은 「몽돌해변」을 통과시킬지', '배경 거제남부 글이', '실제 문장 「저녁에는 몽돌해변과', '맞다(허용)면 통과시킵니다.', '아니다(막기)면 지금처럼 막습니다.', '추천 아니다 — 막기 · 같은 이름의 실제 관광지가 있습니다.', '아니다 — 막기 (추천)']) assert.ok(c1.includes(t), t + ' — ' + c1);
+            assert.ok(/정하실 것 2건/.test(await page.textContent('[data-sb-decisions]')));
+            assert.equal(await page.$eval('[data-sb-decision="d1"] [data-sb-decision-send]', (b) => b.disabled), true, '고르기 전에는 보내기 꺼짐');
+            // 기타 — 글 없으면 안 보냄
+            await page.click('[data-sb-decision="d2"] [data-sb-decision-pick="other"]'); await page.click('[data-sb-decision="d2"] [data-sb-decision-send]');
+            assert.ok(/글을 적어 주세요/.test(await page.textContent('[data-sb-decision="d2"]'))); assert.equal(afAnswers.length, 0);
+            // 맞다 — 보내면 세션 몫
+            await page.click('[data-sb-decision="d2"] [data-sb-decision-pick="allow"]'); await page.click('[data-sb-decision="d2"] [data-sb-decision-send]');
+            await page.waitForFunction(() => /다음 새벽 05:48 세션이 반영/.test((document.querySelector('[data-sb-decision="d2"] [data-sb-decision-state]') || {}).textContent || ''));
+            assert.deepEqual(afAnswers[0].slice(0, 2), ['d2', 'allow']);
+            // 아니다 — 확인 뒤 끝(카드는 끝난 결정으로, 버튼 없음)
+            let dlg = ''; page.once('dialog', (d) => { dlg = d.message(); d.accept(); });
+            await page.click('[data-sb-decision="d1"] [data-sb-decision-pick="block"]'); await page.click('[data-sb-decision="d1"] [data-sb-decision-send]');
+            await page.waitForFunction(() => /처리 완료로 닫았습니다/.test((document.querySelector('[data-sb-decision="d1"]') || {}).textContent || ''));
+            assert.ok(/바로 끝나고/.test(dlg), dlg); assert.equal(await page.$('[data-sb-decision="d1"] [data-sb-decision-send]'), null, '끝난 결정은 버튼 없음');
+            assert.ok(/정하실 것 — 답을 모두 보냈습니다/.test(await page.textContent('[data-sb-decisions]')));
+            await page.setViewportSize({ width: 360, height: 800 });
+            const w = await page.evaluate(() => { const c = document.querySelector('[data-sb-autofix]'); return [c.scrollWidth, c.clientWidth]; }); assert.ok(w[0] <= w[1] + 1, '360px 넘침 없음 ' + w);
+            await page.setViewportSize({ width: 1280, height: 900 });
+            afState.decisions = [];
         });
         await page.context().close();
 

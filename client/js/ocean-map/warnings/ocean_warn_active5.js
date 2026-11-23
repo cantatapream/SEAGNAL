@@ -402,6 +402,9 @@
         // active 모드 아닐 때는 절대 처리 안 함 → 기존 바텀시트 흐름 유지
         if (!state.active) return false;
         if (!evt || !evt.pixel) return false;
+        // [새 모드(body.om-mode) — 2026-11-22 사용자 「폴리곤을 누르면 … 팝업이 있었는데 그것은 삭제하도록하고,
+        //   폴리곤을 눌러도 해당 해점에 해당하는 바텀시트가 올라오도록」] 특보 박스를 띄우지 않고 바텀시트 흐름으로 넘긴다.
+        if (document.body.classList.contains('om-mode')) return false;
 
         // [닫기 의도 가드] 외부 클릭으로 박스가 막 닫힌 click 이면 후속 동작 차단
         // 윈도우 400ms — pointerdown → singleclick 통상 100ms 이내라 충분히 여유

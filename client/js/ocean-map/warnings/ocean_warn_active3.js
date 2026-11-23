@@ -57,9 +57,9 @@
     // ────────────────────────────────────────────────────────────────────
     var _patternCache = {};
 
-    function _stripeFillPattern(baseRgba, stripeRgba) {
+    function _stripeFillPattern(baseRgba, stripeRgba, cross) {
         var dpr = window.devicePixelRatio || 1;
-        var key = baseRgba + '|' + stripeRgba + '|' + dpr;
+        var key = baseRgba + '|' + stripeRgba + '|' + dpr + (cross ? '|x' : '');
         if (_patternCache[key]) return _patternCache[key];
 
         var TILE_CSS = 14;     // 타일 변 길이 (CSS px)
@@ -88,6 +88,17 @@
         x.lineTo(TILE_CSS, 0);
         x.moveTo(TILE_CSS - 3, TILE_CSS + 3);     // 우하단 모서리 보정 (다음 타일 시작)
         x.lineTo(TILE_CSS + 3, TILE_CSS - 3);
+        // 3) [새 모드 · 경보] 반대 방향(\ : 좌상단 → 우하단) 빗금을 하나 더 그어 ✕ 격자로 만든다.
+        //    2026-11-22 사용자 「주의보와 경보가 … 거의 동일해서 잘 안보임 … 경보는 추가로 좌측 상단에서
+        //    우측 하단으로 내려오는 대각선이 있으면 좋겠어 … (태풍 경보도 동일하게 반영)」
+        if (cross) {
+            x.moveTo(-3, TILE_CSS - 3);               // 좌하단 모서리 보정
+            x.lineTo(3, TILE_CSS + 3);
+            x.moveTo(0, 0);                           // 메인선
+            x.lineTo(TILE_CSS, TILE_CSS);
+            x.moveTo(TILE_CSS - 3, -3);               // 우상단 모서리 보정
+            x.lineTo(TILE_CSS + 3, 3);
+        }
         x.stroke();
 
         var pattern = x.createPattern(c, 'repeat');
@@ -182,8 +193,10 @@
         //   넘김 (OL Fill 은 string·CanvasPattern 둘 다 지원).
         var baseRgba = 'rgba(' + rgb + ',' + fillAlpha + ')';
         var stripeRgba = ns._const.STAGE_STRIPE_RGBA[info.stage];
+        // 경보의 ✕ 격자는 새 모드(body.om-mode)에서만 — 평소 화면은 종전 한 방향 빗금 그대로
+        var crossHatch = info.stage === 'warn' && document.body.classList.contains('om-mode');
         var fillColorOrPattern = stripeRgba
-            ? _stripeFillPattern(baseRgba, stripeRgba)
+            ? _stripeFillPattern(baseRgba, stripeRgba, crossHatch)
             : baseRgba;
         var fill = new ol.style.Fill({ color: fillColorOrPattern });
 
