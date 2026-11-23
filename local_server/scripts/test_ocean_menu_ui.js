@@ -284,15 +284,52 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
       await sw('buoy'); await wait(2200); assert.equal((await S()).base, 'enc');
       await sw('buoy'); await wait(300); await page.evaluate(() => { window.oceanSetBasemap('coast'); window.OceanMenu.close(); }); await wait(300);
     });
-    await check('⑪ 새 모드 — 특보 현황이 켜져 있어도 지도 누름을 특보 상자가 가로채지 않는다', async () => {
+    await check('⑪ 특보 현황이 켜져 있어도 특보가 없는 자리를 누르면 특보 상자가 가로채지 않는다(바텀시트 흐름으로)', async () => {
       const r = await page.evaluate(() => {
         if (!window.OceanWarnActive || !window.OceanWarnActive.tryHandleClick) return 'no-module';
         const st = window.OceanWarnActive._state || (window.OceanWarnActive.state);
         const was = st ? st.active : null; if (st) st.active = true;
-        const out = window.OceanWarnActive.tryHandleClick(window.getOceanMap && window.getOceanMap(), { pixel: [100, 300] });
+        const m = window.getOceanMap && window.getOceanMap();
+        const out = window.OceanWarnActive.tryHandleClick(m, { pixel: [100, 300], coordinate: m ? m.getCoordinateFromPixel([100, 300]) : [0, 0] });
         if (st) st.active = was; return st ? out : 'no-state';
       });
       assert.ok(r === false || r === 'no-state' || r === 'no-module', String(r));
+    });
+    await check('[2026-11-23 특보 팝업] 특보 해역 팝업 — 화면 가운데 · 뱃지 ▲ · 발표시각/발효시각/해제예정 · 다가오는 특보 · [해당 해점 기상정보 보기] → 팝업 닫고 바텀시트 · 뒤로가기로 닫힘 · 격상/격하 세모 규칙', async () => {
+      const r = await page.evaluate(() => {
+        const ns = window.OceanWarnActive; if (!ns || !ns._state || !ns._showBox) return 'no-module';
+        const st = ns._state, A = (type, level, pre) => ({ warnType: type, level, isPreliminary: !!pre, tmFc: '2026년 11월 23일 오전 11시', tmEf: '2026년 11월 23일 오후 03시', tmCc: '2026년 11월 25일 오전 06시' });
+        const T = (cur, ups) => ns._zoneTrendOf('시험해역', { allCurrents: cur, allUpcomings: ups });
+        const trends = [T([A('풍랑', '주의보')], [A('풍랑', '경보', 1)]), T([A('풍랑', '경보')], [A('풍랑', '주의보', 1)]), T([A('풍랑', '주의보')], []), T([A('강풍', '주의보'), A('풍랑', '주의보')], [A('태풍', '주의보', 1)]), T([A('풍랑', '경보')], [A('풍랑', '예비', 1)])];
+        const calls = [], origSheet = window.showOceanBottomSheet, origHas = window.hasOceanGridData;
+        window.showOceanBottomSheet = (lat, lon) => calls.push([lat, lon]); window.hasOceanGridData = () => true;
+        const keep = st.activeMap['시험해역'];
+        st.activeMap['시험해역'] = { allCurrents: [A('풍랑', '주의보')], allUpcomings: [A('풍랑', '경보', 1)] };
+        st.omClick = { lat: 34.5, lon: 128.2, coord: [0, 0] };
+        ns._showBox('시험해역', [10, 10]);
+        const b = document.querySelector('.warn-active-box'), mapR = document.getElementById('ocean-map').getBoundingClientRect(), br = b.getBoundingClientRect();
+        const out = { trends, om: b.classList.contains('warn-om-pop'), text: b.innerText.replace(/\s+/g, ' '), badge: (b.querySelector('.warn-om-badge') || {}).textContent, tri: !!b.querySelector('.warn-om-badge .badge-trend-up'),
+          // 나타나는 움직임(0.22초) 중이라 화면 자리 대신 놓인 값으로 본다: 가로 가운데(left 50% + 제 폭의 절반만큼 당김) · 세로는 지도 가운데
+          centered: Math.abs(parseFloat(getComputedStyle(b).left) - innerWidth / 2) <= 1 && Math.abs(parseFloat(b.style.top) - (mapR.top + mapR.height / 2)) <= 1 && /warnOmPop/.test(getComputedStyle(b).animationName), inView: br.width <= innerWidth - 40,
+          btn: (b.querySelector('.warn-om-sheet-btn') || {}).textContent, stack: window.PopupStack.list().includes('warn-om-pop') };
+        b.querySelector('.warn-om-sheet-btn').click();
+        out.afterBtn = { box: !!document.querySelector('.warn-active-box'), calls: calls.slice(), stack: window.PopupStack.list().includes('warn-om-pop') };
+        ns._showBox('시험해역', [10, 10]); window.PopupStack.popLast(); out.afterBack = !!document.querySelector('.warn-active-box');
+        // 육지처럼 자료가 없는 자리면 버튼이 없다
+        window.hasOceanGridData = () => false; ns._showBox('시험해역', [10, 10]); out.noDataBtn = !!document.querySelector('.warn-om-sheet-btn'); ns._hideBox();
+        if (keep) st.activeMap['시험해역'] = keep; else delete st.activeMap['시험해역'];
+        window.showOceanBottomSheet = origSheet; window.hasOceanGridData = origHas; st.omClick = null;
+        return out;
+      });
+      if (r === 'no-module') throw new Error('특보 현황 모듈이 없다');
+      assert.deepEqual(r.trends, ['up', 'down', '', 'up', ''], '세모: 높은 특보가 다가오면 ▲ · 낮은 특보면 ▼ · 없으면 없음 · 강풍은 견주지 않음 · 예비특보는 견주지 않음');
+      assert.ok(r.om && r.centered && r.inView, '화면(지도) 가운데 ' + JSON.stringify(r));
+      assert.equal(r.badge.replace(/\s+/g, ' ').trim(), '풍랑 주의보 ▲'); assert.equal(r.tri, true);
+      for (const w of ['시험해역', '풍랑주의보 발효', '발표시각', '발효시각', '해제예정', '다가오는 특보', '풍랑경보 발표', '해당 해점 기상정보 보기']) assert.ok(r.text.includes(w), '팝업에 「' + w + '」 — ' + r.text);
+      assert.ok(!/변경 가능성/.test(r.text), '경보가 이미 발표됐으면 「경보 변경 가능성」 상자는 없다');
+      assert.equal(r.btn, '해당 해점 기상정보 보기'); assert.equal(r.stack, true);
+      assert.deepEqual(r.afterBtn, { box: false, calls: [[34.5, 128.2]], stack: false }, '버튼 → 팝업 닫힘 + 그 지점 바텀시트');
+      assert.equal(r.afterBack, false, '뒤로가기로 닫힌다'); assert.equal(r.noDataBtn, false, '자료 없는 자리에는 버튼이 없다');
     });
     await check('⑩ 즐겨찾기·접은 폴더는 저장된다 — 앱을 다시 열어도 그대로', async () => {
       await click('#om-menu-btn'); await wait(300);

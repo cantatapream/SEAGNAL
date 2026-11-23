@@ -50,7 +50,8 @@
 |---|---|
 | `ocean-map/map/ocean_map.js` `switchBaseLayer` | 배경이 해안도가 아니어도 파고·풍향·유향을 끄지 않는다 |
 | `ocean-map/warnings/ocean_warn_active3.js` | 경보 빗금을 ✕ 격자로(범례는 `ocean_menu.css`) |
-| `ocean-map/warnings/ocean_warn_active5.js` `tryHandleClick` | 특보 상자를 띄우지 않고 해점 바텀시트로 넘긴다 |
+| `ocean-map/warnings/ocean_warn_active5.js` `tryHandleClick` → `_omHandleClick` | (2026-11-23 다시 바꿈) 특보가 있는 해역: 누른 지점이 화면 가운데로 온 뒤 **가운데 팝업**(발효 중 · 다가오는 특보 · 격상 가능성 상자 · [해당 해점 기상정보 보기] → 바텀시트). 특보가 없는 해역: 바로 바텀시트 |
+| `ocean-map/warnings/ocean_warn_active3.js` `_zoneTrendOf` · `ocean_warn_zone.js` `_onlyStrokeAndText` | 지도 구역 이름 오른쪽에 격상 ▲(빨강)·격하 ▼(초록) — 첫 화면 특보 카드와 같은 규칙 |
 | `marine-life/safety/life_safety.js` | 관제구역 + 항로·해역은 서로 끄지 않는다(`_isOmPair`) · `_lsDropParkedSafety` |
 | `marine-life/safety/vts_zone.js` · `seaway.js` | 관제구역 색을 청록으로 · 항로 이름 글자를 그리지 않는다 |
 | `marine-life/safety/accident_info.js` | 「선택 초기화」는 필터가 걸렸을 때만 |
