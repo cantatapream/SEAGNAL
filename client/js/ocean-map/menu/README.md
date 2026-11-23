@@ -43,7 +43,7 @@
 | `_afterNav(pre)` | 탭이 바뀔 때마다 우리 상태를 실제 화면에 맞춤(다른 길로 들어온 경우 포함) |
 | `_probeWx()` · `_pickWx(id)` | 천기 버튼별 자료 유무 확인 · 버튼 누름(자료 없으면 알림) |
 | `_fetchBeach()` · `_anyBeachOpen(json)` | 개장 해수욕장 유무(해양종합정보 탭에 들어올 때 받아 둠) |
-| `window.OceanMenu` | 시험·점검용 창구(`setMode`·`state` 등) |
+| `window.OceanMenu` | 시험·점검용 창구(`setMode`·`state` 등). 화면 코드로는 PC 화면(`js/pc-layout/pc_layout.js`)이 켤 때 `close()` 한 가지만 부른다 |
 
 ## 기존 파일에 넣은 「새 모드」 분기 (전부 `body.om-mode` 일 때만)
 | 파일 | 분기 |

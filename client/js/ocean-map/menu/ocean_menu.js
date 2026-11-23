@@ -43,6 +43,7 @@
  *                    이 파일이 body 끝에 만드는 #om-menu-btn · #om-subs · #om-banner · #om-backdrop · #om-sidebar
  *  - 스타일        : js/ocean-map/menu/ocean_menu.css (전부 body.om-mode 아래)
  *  - 나를 쓰는 곳  : 없음 — 앱이 뜰 때 스스로 켠다. 시험: local_server/scripts/test_ocean_menu_ui.js
+ *                    js/pc-layout/pc_layout.js — PC 화면을 켤 때 window.OceanMenu.close() 만 부른다
  * [로드 순서] js/marine-life/safety/life_safety.js 다음(그 파일이 감싼 switchMainTab/switchSubTab 위에 한 겹 더 얹는다)
  *             · 순서 변경 금지
  * ============================================================================
@@ -1088,7 +1089,7 @@
         if (!window.__SEAGNAL_OLD_OCEAN_SCREEN) _setMode(true, true);
     });
 
-    /** 시험·점검용 창구 — 화면 코드는 쓰지 않는다. */
+    /** 시험·점검용 창구. 화면 코드로는 PC 화면(js/pc-layout/pc_layout.js)이 켤 때 close() 한 가지만 부른다. */
     window.OceanMenu = {
         isOn: function () { return _mode; },
         setMode: _setMode,

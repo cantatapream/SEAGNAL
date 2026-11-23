@@ -8,6 +8,7 @@
  *  - 서버 API      : GET /api/ocean/zone-forecasts
  *  - 마크업        : index2.html #ocean-bottom-sheet, .ocean-sheet-handle, #ocean-sheet-typhoon-eta, #ocean-timeline-slider
  *  - 나를 쓰는 곳  : window.showOceanBottomSheet — ocean_map.js(handleMapClick)·ocean_markers.js·ocean_buoy.js·ocean_cctv.js·assistant_deeplink.js
+ *                    (js/pc-layout/ — PC 화면(body.pc-mode)에서는 열린 시트를 닫고 새 지점으로 다시 연다)
  * ============================================================================
  *
  * [설명]
@@ -377,7 +378,8 @@
         // ocean_map.js click handler 외에도 ocean_markers.js, ocean_buoy.js 가 직접
         // showOceanBottomSheet 를 호출 가능 → 여기서 통합 차단. 토스트 X.
         if (sheet.style.display !== 'none' && sheet.classList.contains('open')) {
-            return;
+            if (!document.body.classList.contains('pc-mode')) return;   // 평소 화면: 지금처럼 조용히 무시
+            OS.closeSheet();                                             // [PC 화면] 닫고 이어서 연다(아래가 닫기 타이머를 지운다) — js/pc-layout/pc_layout.js
         }
 
         // [close→재오픈 race 차단] 직전 closeSheet 의 fade-out 타이머가 살아있으면 캔슬.

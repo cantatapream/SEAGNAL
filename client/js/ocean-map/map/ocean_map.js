@@ -17,6 +17,8 @@
  * - ocean_overlay.js → 캔버스 오버레이
  * - ocean_timeline.js → 타임라인 슬라이더
  * - js/settings.js → 히든 탭 진입 메커니즘
+ * - 나를 쓰는 곳: js/pc-layout/pc_layout.js(window.getOceanMap — ＋−) · js/pc-layout/pc_alert_map.js(window.oceanCreateKhoaLayer — 배경지도)
+ *   지도 클릭의 「시트 열림 가드」는 body.pc-mode(PC 화면)일 때 건너뛴다
  * ============================================================================
  */
 
@@ -1265,7 +1267,8 @@
         // showOceanBottomSheet 진입에도 동일 가드 있음 — 여기서는 빠른 early-return.
         const _sheetEl = document.getElementById('ocean-bottom-sheet');
         if (_sheetEl && _sheetEl.style.display !== 'none' &&
-            _sheetEl.classList.contains('open')) {
+            _sheetEl.classList.contains('open') &&
+            !document.body.classList.contains('pc-mode')) {      // [PC 화면] 지도가 가려지지 않으므로 다른 지점을 누르면 바뀐다(js/pc-layout/pc_layout.js)
             return;
         }
 

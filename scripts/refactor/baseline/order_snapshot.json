@@ -147,6 +147,8 @@
     "risk_forecast.js",
     "life_safety.js",
     "ocean_menu.js",
+    "pc_alert_map.js",
+    "pc_layout.js",
     "station_briefing_riskmap.js",
     "station_briefing_render.js",
     "station_briefing_basis.js",

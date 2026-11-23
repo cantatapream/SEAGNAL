@@ -1,0 +1,151 @@
+/* ============================================================================
+ * 파일명: client/js/pc-layout/pc_layout.css
+ * 역할  : PC 화면(A안 · 지도 중심형)의 배치 전부. 넓은 PC 창에서 「해양종합정보」 탭을 10번 누르면
+ *         body.pc-mode 가 붙고, 그때만 이 규칙들이 걸린다(위 막대 56px · 왼쪽 메뉴 · 가운데 지도 · 오른쪽 칸).
+ *         ★첫 규칙(새 요소 숨김) 한 줄을 빼면 모든 선택자가 body.pc-mode 로 시작한다 — 평소 화면에는 아무 영향이 없다.
+ *         :root 변수 · @keyframes · @font-face · @media 를 쓰지 않는다(켜고 끄는 판정은 pc_layout.js 한 곳).
+ * [연계] js/pc-layout/pc_layout.js(body.pc-mode 를 붙이고 #pc-* 요소를 만든다) ·
+ *        js/pc-layout/pc_alert_map.js(#pc-alert-map·#pc-alert-legend·#pc-alert-note 를 만든다) ·
+ *        js/ocean-map/menu/ocean_menu.css(통합 메뉴 — om-mode·om-here·om-view 클래스, 그 규칙을 PC 자리로 다시 놓는다) ·
+ *        index2.html(<link> — ocean_menu.css 바로 다음 · 안의 <style> 규칙들을 PC 자리로 다시 놓는다) · style.css
+ * [설계] js/pc-layout/pc_layout.design.md
+ * ============================================================================ */
+
+/* ── 0. 새 요소는 평소 화면에 없다(유일한 예외 줄) ─────────────────────────── */
+#pc-pill, #pc-exit, #pc-side-hint, #pc-zoom, #pc-read-hint, #pc-news-refresh, #pc-alert-map, #pc-alert-legend, #pc-alert-note { display: none; }
+
+/* ── 1. 뼈대 — 변수와 바탕 ─────────────────────────────────────────────── */
+body.pc-mode {
+    --pc-top: 56px; --pc-menu: 280px; --pc-alert: 400px;
+    --pc-side: max(440px, 23.5rem);          /* 지점 창 필요 폭 실측 387/410/433(글자 작게/보통/크게) → 440/440/470 */
+    --pc-panel: #111a2c;                      /* 통합 메뉴 바탕(ocean_menu.css 사이드바와 같은 색) */
+    --main-tab-height: 0px; --sub-tab-height: 0px;
+    overflow: hidden;
+}
+body.pc-mode .app-container { max-width: none; box-shadow: none; }
+body.pc-mode .tab-content { animation: none !important; }      /* settings.js 가 넣는 fadeIn 의 transform 이 고정 자식의 기준을 0.3초 흔든다 */
+
+/* ── 2. 위 막대(56px) = 기존 머리 줄 + 기존 탭 줄 ──────────────────────────
+ * 순서(왼쪽부터): 로고(그 아래 「기능개선 작업 중」 배지) · 탭 3개 · 빈칸 · 알약 · 방문자 수 · ✉ · ⚙ · [원래 화면으로] */
+body.pc-mode.om-mode .main-header { display: flex !important; position: fixed !important; top: 0; left: 0; right: 0; height: 56px; padding: 0 16px !important; align-items: center; z-index: 100; background: #0f1524; background-image: none; box-sizing: border-box; }
+body.pc-mode.om-mode .main-header .header-content { display: flex !important; flex: none; width: auto; order: -1; padding: 0; }
+body.pc-mode.om-mode .main-header .logo-subtitle { display: none; }
+body.pc-mode.om-mode .main-header .logo-text { font-size: 1.35rem; line-height: 1.1; }
+/* 「기능개선 작업 중」 배지는 로고 아래로 쌓는다 — 옆에 두면 첫 탭을 덮는다 */
+body.pc-mode.om-mode .main-header .h1-wrapper > div { flex-direction: column !important; align-items: flex-start !important; gap: 0 !important; }   /* 그 div 는 인라인 display:flex;align-items:center;gap:10px */
+body.pc-mode.om-mode #work-mode-badge { padding: 0 8px !important; margin-top: 2px; line-height: 1.4; }
+body.pc-mode.om-mode .main-header .title-section { width: auto !important; padding: 0 !important; }
+body.pc-mode.om-mode .main-header .header-utility-bar { display: flex !important; position: static; flex-direction: row; align-items: center; gap: 12px; margin-left: auto; }
+body.pc-mode.om-mode #bottom-tab-bar { top: 0 !important; bottom: auto !important; left: 184px !important; right: auto !important; width: auto !important; height: 56px; background: transparent !important; border: 0 !important; z-index: 101; backdrop-filter: none; -webkit-backdrop-filter: none; padding: 0 !important; }
+body.pc-mode.om-mode #bottom-tab-bar .tab-btn { flex: none; flex-direction: row !important; gap: 6px !important; padding: 0 16px !important; min-height: 0; height: 56px; border-top: 0; border-bottom: 3px solid transparent !important; white-space: nowrap; }
+body.pc-mode.om-mode #bottom-tab-bar .tab-btn.active { border-bottom-color: var(--accent-blue, #448aff) !important; }
+body.pc-mode.om-mode #bottom-tab-bar .tab-btn .tab-btn-icon { font-size: 15px; }
+/* 요약 알약 — 특보정보 머리의 요약 배지를 그대로 베낀 것(pc_layout.js _copyPill). 누르면 특보정보 */
+body.pc-mode #pc-pill { display: inline-flex; align-items: center; gap: 5px; max-width: 200px; height: 30px; padding: 0 10px; overflow: hidden; white-space: nowrap; border: 1px solid rgba(255, 255, 255, .14); border-radius: 999px; background: rgba(255, 255, 255, .06); font: inherit; cursor: pointer; }
+/* [원래 화면으로] */
+body.pc-mode #pc-exit { display: inline-flex; align-items: center; width: 112px; height: 32px; justify-content: center; border: 1px solid rgba(148, 163, 184, .4); border-radius: 8px; background: transparent; color: #cbd5e1; font: inherit; font-size: 0.74rem; cursor: pointer; white-space: nowrap; }
+
+/* ── 3. 해양종합정보 · 공통 지도 틀 — 왼쪽 메뉴 280 · 가운데 지도 · 오른쪽 칸 ─── */
+body.pc-mode.om-mode.om-here #om-sidebar { left: 0; right: auto; top: var(--pc-top); bottom: 0; width: var(--pc-menu); transform: none !important; visibility: visible !important; transition: none; border-left: 0; border-right: 1px solid rgba(148, 163, 184, .25); }
+body.pc-mode #om-menu-btn, body.pc-mode #om-backdrop, body.pc-mode #om-sidebar .om-handle, body.pc-mode #om-sidebar .om-x { display: none !important; }
+body.pc-mode #om-sidebar .om-row, body.pc-mode #om-sidebar .om-main { min-height: 38px; }
+body.pc-mode #om-sidebar .om-folder-head { min-height: 40px; }
+body.pc-mode #om-sidebar .om-name { text-overflow: ellipsis; }
+body.pc-mode #om-sidebar .om-body { scrollbar-width: thin; }
+body.pc-mode #om-sidebar .om-body::-webkit-scrollbar { display: block; width: 8px; }
+body.pc-mode.om-mode.om-here #ocean-map-section.tab-content.active { top: calc(var(--pc-top) + var(--om-banner-h, 0px)) !important; left: var(--pc-menu) !important; right: var(--pc-side) !important; bottom: 0 !important; width: auto !important; }
+/* 오른쪽 칸 = 기존 지점 창 */
+body.pc-mode.om-mode #ocean-map-section.tab-content.active .ocean-bottom-sheet { top: var(--pc-top); bottom: 0 !important; left: auto; right: 0; width: var(--pc-side); max-height: none; border-radius: 0; transform: none; transition: none; box-shadow: none; overflow-x: hidden; }
+body.pc-mode .ocean-bottom-sheet:not(.open) { visibility: hidden; }
+body.pc-mode .ocean-bottom-sheet .ocean-sheet-stickytop { border-radius: 0; }
+body.pc-mode .ocean-sheet-handle { display: none; }
+/* 지점 창 머리 — ✕(오른쪽 위 고정, 폭 30px — style.css .ocean-sheet-close)가 ☆ 를 덮지 않게 날짜 줄 오른쪽을 ✕ 폭 + 8px 비운다 */
+body.pc-mode .ocean-bottom-sheet .ocean-sheet-header-row1 { padding-right: 38px; }
+/* 빈 안내 — 오른쪽 칸이 비어 있을 때 보인다(지점 창·오른쪽 창이 위에 덮는다) */
+body.pc-mode.om-here #pc-side-hint { display: flex; position: fixed; top: var(--pc-top); right: 0; bottom: 0; width: var(--pc-side); z-index: 0; box-sizing: border-box; padding: 24px; align-items: flex-start; background: var(--pc-panel); border-left: 1px solid rgba(148, 163, 184, .25); color: #94a3b8; font-size: 0.84rem; line-height: 1.6; }
+body.pc-mode #pc-side-hint .pc-hint-view { display: none; }
+body.pc-mode[data-active-tab="ocean-life-group"] #pc-side-hint .pc-hint-main { display: none; }
+body.pc-mode[data-active-tab="ocean-life-group"] #pc-side-hint .pc-hint-view { display: inline; }
+/* ＋− (해양종합정보 지도에만) */
+body.pc-mode[data-active-tab="ocean-map-section"] #pc-zoom { display: flex; flex-direction: column; gap: 1px; position: absolute; top: 60px; right: 10px; z-index: 61; }
+body.pc-mode #pc-zoom button { width: 40px; height: 40px; padding: 0; border: 0; border-radius: 10px; background: rgba(15, 27, 51, .85); color: rgba(255, 255, 255, .8); font: inherit; font-size: 20px; line-height: 1; cursor: pointer; }
+/* 지도 왼쪽 위 버튼 이름 — 평소 9px 은 PC 에서 너무 작다. 13px(설계서)이면 4글자 배경 이름(위성지도·전자해도)이 55px 로
+ * 48px 버튼을 넘어 옆 버튼 이름에 붙는다(실측) → 12px */
+body.pc-mode #ocean-topleft-controls .ocean-overlay-label { font-size: 12px !important; }
+
+/* 화면에 고정으로 붙는 기존 요소 — 지도 칸 기준으로 다시 놓는다(원 규칙에 !important 가 있으면 여기도 붙인다) */
+body.pc-mode.om-mode #ocean-map-section.tab-content.active .ocean-legend { left: var(--pc-menu) !important; right: var(--pc-side) !important; }
+body.pc-mode.om-mode #ocean-fav-bar { left: var(--pc-menu); right: var(--pc-side); }
+body.pc-mode.om-mode.ocean-map-active.ocean-sheet-open #ocean-fav-bar:not(.empty) { display: flex !important; }   /* PC 는 지점 창이 지도를 안 덮는다 */
+body.pc-mode.om-mode .ol-scale-line { right: calc(var(--pc-side) + 8px) !important; }
+body.pc-mode.om-mode.ls-mode.ls-safety .ol-attribution { left: calc(var(--pc-menu) + 8px) !important; }
+body.pc-mode.om-mode #ocean-topleft-controls > .accident-grid-legend,
+body.pc-mode.om-mode .rf-color-legend { left: calc(var(--pc-menu) + 8px); }
+body.pc-mode.om-mode .rf-marine-timebar,
+body.pc-mode.om-mode.ls-mode.ls-safety #mudflat-slider-bar { left: var(--pc-menu); right: var(--pc-side); }
+body.pc-mode.om-mode #mudflat-legend { left: calc(var(--pc-menu) + 8px); }
+body.pc-mode.om-mode.om-view #om-banner:not([hidden]) { top: var(--pc-top); left: var(--pc-menu); right: var(--pc-side); }
+body.pc-mode.om-mode.om-here #om-subs:not([hidden]) { right: calc(var(--pc-side) + 10px); top: calc(var(--pc-top) + 156px + var(--om-banner-h, 0px)); }
+body.pc-mode.om-mode.om-here.ls-life #om-subs:not([hidden]) { top: calc(var(--pc-top) + 10px + var(--om-banner-h, 0px)); }
+body.pc-mode.om-mode.om-here.ls-sheet-open #om-subs:not([hidden]) { display: flex !important; }
+body.pc-mode.om-mode.om-here #ls-topleft-controls { left: calc(var(--pc-menu) + 12px); top: calc(var(--pc-top) + 10px + var(--om-banner-h, 0px)); }
+
+/* ── 4. [보기] — 해양생활 활동(각자 지도가 있는 섹션 7개) · 바다갈라짐 · 오른쪽 칸의 창 ─── */
+body.pc-mode.om-mode.om-here #fishing-section.tab-content.active,
+body.pc-mode.om-mode.om-here #surfing-section.tab-content.active,
+body.pc-mode.om-mode.om-here #scuba-section.tab-content.active,
+body.pc-mode.om-mode.om-here #mudflat-section.tab-content.active,
+body.pc-mode.om-mode.om-here #ripcurrent-section.tab-content.active,
+body.pc-mode.om-mode.om-here #swell-section.tab-content.active,
+body.pc-mode.om-mode.om-here #swimming-section.tab-content.active { top: calc(var(--pc-top) + var(--om-banner-h, 0px)) !important; left: var(--pc-menu) !important; right: var(--pc-side) !important; bottom: 0 !important; width: auto !important; }
+/* 바다갈라짐(표) — 오른쪽 칸 없이 넓게 */
+body.pc-mode.om-mode #sea-parting-section.tab-content.active { position: fixed; top: calc(var(--pc-top) + var(--om-banner-h, 0px)); left: var(--pc-menu); right: 0; bottom: 0; overflow-y: auto; margin: 0; padding: 24px max(24px, calc((100vw - var(--pc-menu) - 760px) / 2)) !important; box-sizing: border-box; background: var(--pc-panel); z-index: 46; }
+/* 오른쪽 칸에 오는 창 — 위험예측 · 사고 통계 · 생활 지점 창 둘 */
+body.pc-mode .rf-sheet, body.pc-mode .accident-stats-sheet,
+body.pc-mode .fishing-bottomsheet, body.pc-mode .surfing-popup { top: calc(var(--pc-top) + var(--om-banner-h, 0px)); bottom: 0; left: auto; right: 0; width: var(--pc-side); max-width: none; max-height: none; border-radius: 0; transform: none !important; transition: none; }
+body.pc-mode .accident-stats-sheet { font-size: 13.5px; height: auto; }       /* em 으로 짠 한 덩어리 — clamp(…vw…) 가 창 전체 폭을 잰다. height:auto: 원 규칙 80vh 가 top+bottom 을 이겨 칸 아래가 빈다 */
+body.pc-mode .accident-stats-sheet:not(.open) { visibility: hidden; }   /* 이 창은 닫힘이 transform 뿐이다 — 위에서 transform 을 없앴으므로 이 줄이 없으면 닫힌 창이 오른쪽 칸을 늘 덮는다 */
+body.pc-mode .accident-stats-sheet .accident-sheet-handle { display: none; }
+body.pc-mode .fishing-bottomsheet, body.pc-mode .surfing-popup { top: calc(var(--pc-top) + var(--om-banner-h, 0px)) !important; max-height: none !important; }   /* index2_patch.js 가 끼워 넣는 <style> 이 top:50% !important · max-height:65vh !important 다 */
+body.pc-mode .fishing-bottomsheet-overlay, body.pc-mode .surfing-popup-overlay { display: none !important; }
+
+/* ── 5. 특보정보 — 「특보 및 전망」: 왼쪽 400 목록 · 가운데 전용 지도 · 오른쪽 칸 ─── */
+body.pc-mode[data-active-tab="weather-group"] .content-area { padding: 0 !important; }
+/* 오른쪽 칸 = 섹션 자체: 기상정보 머리 + 기상청 바로가기 → 해상 기상 전망 → AI 연안 안전 브리핑(지금 노출 조건) → 해역별 기상현황 */
+body.pc-mode #weather-alert-section.tab-content.active { position: fixed; top: var(--pc-top); right: 0; bottom: 0; width: var(--pc-side); overflow-y: auto; overflow-x: hidden; padding: 16px; margin: 0; box-sizing: border-box; background: var(--pc-panel); z-index: 40; }
+/* 왼쪽 칸 맨 위 44px = 하위탭 줄 */
+body.pc-mode #weather-sub-tabs { display: none !important; }
+body.pc-mode[data-active-tab="weather-group"] #weather-sub-tabs { display: flex !important; position: fixed !important; top: var(--pc-top) !important; bottom: auto !important; left: 0 !important; right: auto !important; width: var(--pc-alert); height: 44px; max-height: none !important; opacity: 1 !important; visibility: visible; transform: none; z-index: 65; }
+/* 왼쪽 칸 = 「해역별 특보현황」 머리 + 몸통(늘 펼침).
+ * 머리 높이는 정하지 않는다 — settings.js 가 넣는 전역 규칙(height:auto !important · flex-wrap:wrap !important)이라
+ * 요약 배지가 많으면 두 줄이 된다. 몸통은 머리 바로 아래에서 시작한다: pc_layout.js 가 머리 높이를 재어 --pc-acc-h 로 준다. */
+body.pc-mode #weather-alert-section.active #main-accordion-header { position: fixed !important; top: calc(var(--pc-top) + 44px); left: 0; width: var(--pc-alert); min-height: 56px; margin: 0; border-radius: 0; box-sizing: border-box; z-index: 41; pointer-events: none; }   /* !important: 점검으로 막히면 머리에 인라인 position:relative 가 걸린다 */
+body.pc-mode #weather-alert-section.active #main-accordion-header button,
+body.pc-mode #weather-alert-section.active #main-accordion-header .feature-block-overlay { pointer-events: auto !important; }   /* 점검 덮개는 머리 안에 끼워 넣는 div.feature-block-overlay(인라인 pointer-events:none — 그래서 !important) — 누르면 머리의 onclick(점검 안내)까지 올라간다 */
+body.pc-mode #main-accordion-icon { display: none; }
+/* ★몸통에 display 를 쓰지 않는다 — 점검으로 막히면 인라인 display:none 이 걸린다(덮으면 막은 목록이 PC 에서만 보인다) */
+body.pc-mode #weather-alert-section.active #main-accordion-body,
+body.pc-mode #weather-alert-section.active #main-accordion-body.collapsed { position: fixed; top: calc(var(--pc-top) + 44px + var(--pc-acc-h, 56px)); left: 0; width: var(--pc-alert); bottom: 0; margin: 0; padding: 12px; box-sizing: border-box; max-height: none; opacity: 1; overflow-y: auto; background: var(--pc-panel); border-right: 1px solid rgba(148, 163, 184, .25); z-index: 41; }
+/* 가운데 = 전용 지도(pc_alert_map.js) */
+body.pc-mode #pc-alert-map { display: block; position: fixed; top: var(--pc-top); left: var(--pc-alert); right: var(--pc-side); bottom: 0; z-index: 41; background: #0c1a3a; }
+body.pc-mode #pc-alert-legend { display: block; position: fixed; left: calc(var(--pc-alert) + 12px); bottom: 44px; z-index: 42; pointer-events: none; padding: 8px 10px; border-radius: 8px; background: rgba(255, 255, 255, .88); color: #1f2937; font-size: 11px; }   /* 44px: 전역 .ol-attribution 이 이 지도의 왼쪽 아래 8px 에 선다 */
+body.pc-mode #pc-alert-note:not([hidden]) { display: block; position: fixed; left: calc(var(--pc-alert) + 12px); top: calc(var(--pc-top) + 12px); z-index: 42; padding: 8px 12px; border-radius: 10px; background: rgba(15, 27, 51, .85); color: #f59e0b; font-size: 0.78rem; }
+/* AI 챗봇 둥근 버튼 — 지금 조건대로 보일 때만, 지도 칸 오른쪽 아래 */
+body.pc-mode.om-mode #nrya-overlays .nrya-fab { right: calc(var(--pc-side) + 16px); bottom: 16px; }
+/* 「해상일기도」 — 화면 전체 폭(가운데 최대 960px) */
+body.pc-mode #marine-chart-section.tab-content.active { position: fixed; top: calc(var(--pc-top) + 44px); left: 0; right: 0; bottom: 0; overflow-y: auto; padding: 16px max(16px, calc((100vw - 960px) / 2)) 24px; margin: 0; box-sizing: border-box; z-index: 40; }
+
+/* ── 6. 뉴스·공지·어황 — 왼쪽 220 갈래 · 가운데 480 목록 · 오른쪽 읽기 칸 ─────── */
+body.pc-mode #promo-section.tab-content.active { position: fixed; top: var(--pc-top); left: 0; right: 0; bottom: 0; z-index: 40; display: grid; grid-template-columns: 220px 480px 1fr; grid-template-rows: auto auto 1fr; margin: 0; padding: 0; max-width: none; overflow: hidden; background: var(--pc-panel); }
+body.pc-mode #promo-section .nhub-head { display: contents; }
+body.pc-mode #promo-section .section-header-with-info { grid-column: 1; grid-row: 1; padding: 16px 16px 8px; }
+body.pc-mode #promo-section #nhub-tabs { grid-column: 1; grid-row: 2 / span 2; align-self: start; flex-direction: column; margin: 0; border-bottom: 0; }
+body.pc-mode #promo-section .nhub-tab { flex: none; justify-content: flex-start; padding: 12px 16px; border-bottom: 0; border-left: 3px solid transparent; text-align: left; }
+body.pc-mode #promo-section .nhub-tab.active { border-left-color: var(--accent-blue, #448aff); }
+body.pc-mode #pc-news-refresh { display: inline-flex; align-items: center; position: absolute; left: 16px; bottom: 16px; margin: 0; height: 32px; padding: 0 12px; border: 1px solid rgba(148, 163, 184, .4); border-radius: 8px; background: transparent; color: #cbd5e1; font: inherit; font-size: 0.74rem; cursor: pointer; }
+body.pc-mode #promo-section #news-dateline { grid-column: 2; grid-row: 1; margin: 0; padding: 16px 16px 8px; }
+body.pc-mode #promo-section #nhub-ptr { grid-column: 2; grid-row: 2; }
+body.pc-mode #promo-section .nhub-panel { grid-column: 2; grid-row: 3; overflow-y: auto; min-height: 0; padding: 0 16px 24px; }
+body.pc-mode #pc-read-hint { display: block; grid-column: 3; grid-row: 1 / span 3; padding: 24px; color: #94a3b8; font-size: 0.84rem; line-height: 1.6; border-left: 1px solid rgba(148, 163, 184, .25); }
+body.pc-mode #promo-detail-modal, body.pc-mode #fishcond-detail-modal { position: fixed !important; top: var(--pc-top) !important; left: 700px !important; right: 0; bottom: 0; width: auto; height: auto !important; background: none; padding: 0; }
+body.pc-mode #promo-detail-modal .modal-content, body.pc-mode #fishcond-detail-modal .modal-content { width: 100%; max-width: none; height: 100%; max-height: none; border-radius: 0; }

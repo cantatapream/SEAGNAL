@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 138개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 140개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -192,6 +192,9 @@ client/js/
 │       ├── ocean_warn_zone.js
 ├── onboarding/
 │   ├── zone_setup.js
+├── pc-layout/
+│   ├── pc_alert_map.js
+│   └── pc_layout.js
 ├── push/  ← ⚡ 푸시 알림
 │   ├── alert_push.js
 ├── settings/  ← ⚡ 설정
@@ -209,7 +212,6 @@ client/js/
 │       ├── mappings.js
 │       ├── usage_keys.js
 │       ├── utils.js
-├── tutorial/
 └── typhoon/  ← ⚡ 태풍
     ├── location_alert_typhoon_runtime.js
     ├── ocean_typhoon.js
@@ -522,6 +524,13 @@ client/js/
 | 파일 | 역할 |
 |------|------|
 | `zone_setup.js` | 앱을 처음 켠 사람이 **관심 해역을 고르는 화면**입니다. |
+
+### `client/js/pc-layout/`
+
+| 파일 | 역할 |
+|------|------|
+| `pc_alert_map.js` | PC 화면 「특보 및 전망」 가운데 칸의 특보 전용 지도(해양종합정보 지도와 따로 논다). |
+| `pc_layout.js` | PC 화면(A안 · 지도 중심형)을 켜고 끈다 — 넓은 PC 브라우저에서 「해양종합정보」 탭을 10번 누르면 켜진다. |
 
 ### `client/js/push/`
 

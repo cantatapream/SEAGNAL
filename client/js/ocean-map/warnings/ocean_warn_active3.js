@@ -9,6 +9,7 @@
  *  - 서버 API      : 없음
  *  - 마크업        : 없음 (폴리곤 OL Style 만 반환)
  *  - 나를 쓰는 곳  : ns._styler — ocean_warn_active4.js _activate 가 OceanWarnZone.setActiveStyler(ns._styler)로 등록
+ *                    ns._styleAlways(켜짐 여부와 무관) — js/pc-layout/pc_alert_map.js(PC 화면 특보 전용 지도)
  * ============================================================================
  *
  * [등록 흐름]
@@ -353,12 +354,10 @@
      * @returns {ol.style.Style|ol.style.Style[]|null}
      *          truthy 반환 시 ocean_warn_zone.js 가 그 스타일 사용,
      *          null 반환 시 ocean_warn_zone.js 의 기본 outline 사용.
+     * [켜짐 여부와 무관하게 계산] 색칠 모드(_state.active)를 보지 않는다 — PC 화면의 특보 전용 지도
+     *          (js/pc-layout/pc_alert_map.js)가 쓴다. 해양종합정보 지도는 아래 _styler(켜졌을 때만)를 쓴다.
      */
-    ns._styler = function (feature, kind) {
-        // 토글 OFF 상태에선 절대 색칠 안 함 (안전망 — 보통 setActiveStyler(null) 로
-        // 이미 해제되어 있지만 race condition 대비)
-        if (!ns._state.active) return null;
-
+    ns._styleAlways = function (feature, kind) {
         // [자식(sub) feature 정책 — main S9-D 자체 색칠 + 우리 자식 라벨 결합]
         //
         // 두 개의 머지된 정책을 함께 적용:
@@ -424,5 +423,11 @@
         // 활성 zone 아님 (해제됐거나 처음부터 색칠 가능 특보 없음)
         // 메인은 옅은 회색 점선 + 라벨 → 활성 zone 을 시각적으로 부각
         return _dimmedOutlineStyle(kind, feature);
+    };
+
+    /** 색칠 모드가 켜져 있을 때만 색칠 스타일을 준다(해양종합정보 지도용 — 동작은 종전과 같다). [연계] ← ocean_warn_zone.js / → _styleAlways */
+    ns._styler = function (feature, kind) {
+        if (!ns._state.active) return null;
+        return ns._styleAlways(feature, kind);
     };
 })();

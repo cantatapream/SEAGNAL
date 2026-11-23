@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 176 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 177 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -447,6 +447,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_app_version_store` | 앱 최신 버전 정보가 「관리자 [적용]만으로」 바뀌고, 배포 뒤에도 남는지 검증 |
 | `test_push_route_auth` | 푸시 발송·발송 기록 삭제 주소가 「관리자 또는 서버 자신」만 받는지 검증 |
 | `test_push_auto_path_check` | [임시] 「자동 푸시 경로 점검」이 실제 사용자에게 절대 가지 않는지 검증 |
+| `test_pc_layout_ui` | PC 화면(A안 · 지도 중심형 — client/js/pc-layout/)을 실제 크로뮴으로 켜고 끄고 재 본다. |
 
 > 위 두 표는 **기계가 찍은 것**이다 — `verify_all.sh` 의 절 머리줄과 `SUITES` 배열,
 > 그리고 각 스위트 파일 머리 주석에서 그대로 뽑았다. 손으로 고치면 다음 실행에 사라진다.

@@ -14,7 +14,8 @@
  *                   #east-count 등 카운트 · #main-accordion-* · #marine-status-accordion-* ·
  *                   #alert-item-template · #alert-content · #alert-zone-settings-btn(관심해역 ⚙)
  *  - 나를 쓰는 곳  : forecast/alerts/data.js · settings/settings.js 가 renderApp() 호출 ·
- *                   index2.html #alert-zone-settings-btn → openAlertZoneSetup() → onboarding/zone_setup.js(openZoneSetup)
+ *                   index2.html #alert-zone-settings-btn → openAlertZoneSetup() → onboarding/zone_setup.js(openZoneSetup) ·
+ *                   js/pc-layout/pc_layout.js(.alert-card[data-zone] · .header-status 를 읽는다 — PC 화면)
  * ============================================================================
  *
  * [설명]
@@ -632,6 +633,7 @@ function createAlertElement(items) {
     const template = document.getElementById('alert-item-template');
     const clone = template.content.cloneNode(true);
     const card = clone.querySelector('.alert-card');
+    card.setAttribute('data-zone', zoneNameStr);   // [PC 화면] 카드를 누르면 특보 지도가 그 해역으로 간다(js/pc-layout/pc_layout.js)
 
     card.style.cssText = `
         padding: 10px 12px;

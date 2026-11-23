@@ -7,7 +7,8 @@
  *  - 서버 API      : GET /api/warn-zones, GET /api/warn-zones-sub
  *  - 마크업        : index2.html #ocean-warn-zone-toggle-btn
  *  - 나를 쓰는 곳  : window.OceanWarnZone(ocean_warn_active3~5.js), window.setWarnZoneVisible(forecast/alerts/render.js·
- *                    forecast/outlook/windy.js·ocean_warn_active4.js); 토글 버튼은 이 파일이 자체 바인딩
+ *                    forecast/outlook/windy.js·ocean_warn_active4.js); 토글 버튼은 이 파일이 자체 바인딩;
+ *                    js/pc-layout/pc_alert_map.js(OceanWarnZone.loadFeatures·onlyFill·onlyStrokeAndText — PC 화면 특보 전용 지도)
  * ============================================================================
  *
  * [개요]
@@ -113,6 +114,7 @@
     };
 
     var EXCLUDED_SUBZONE_CODES = { 'S2320600': true };
+    var MAIN_URL = '/api/warn-zones?v=20260521'; var SUB_URL = '/api/warn-zones-sub?v=20260521';
 
     // 부모 라벨과 좌표가 거의 같아 글자가 겹쳐 보이는 자식해역만 라벨을 픽셀 단위로 비킴.
     // 값은 [offsetX, offsetY] (양수 Y = 아래, 음수 Y = 위). 겹침이 추가로 발견되면 한 줄씩 등록.
@@ -457,7 +459,7 @@
         //   Cache-Control: max-age=86400 으로 클라이언트(앱 WebView) 에 24시간
         //   캐시되어 새 데이터 미적용 → URL 키 변경(?v=20260430) 으로 1회성 무력화.
         //   다음 GeoJSON 갱신이 필요해지면 v 값을 다시 올려 같은 방식으로 처리.
-        fetch('/api/warn-zones?v=20260521')
+        fetch(MAIN_URL)
             .then(function (res) {
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 return res.json();
@@ -484,7 +486,7 @@
         _subLoading = true;
         // [캐시 무력화 v=20260430] 자식 특보구역 GeoJSON 도 함께 1회 무력화
         //   (메인과 동일 사유 — 위 _loadMain 주석 참조)
-        fetch('/api/warn-zones-sub?v=20260521')
+        fetch(SUB_URL)
             .then(function (res) {
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 return res.json();
@@ -722,6 +724,24 @@
          * @returns {ol.style.Text|null}
          */
         buildSubZoneTextStyle: _buildSubZoneTextStyle,
+        /** [공개] fill 만 / 선+이름만 남긴 스타일로 쪼갠다(앱의 4층 구조와 같게 그리려는 다른 지도용). [연계] ← js/pc-layout/pc_alert_map.js */
+        onlyFill: _onlyFill,
+        onlyStrokeAndText: _onlyStrokeAndText,
+        /**
+         * [공개] 부모·자식 특보구역을 받아 OL feature 배열로 돌려준다 — 이 파일의 지도·층과 무관하다.
+         * 예: OceanWarnZone.loadFeatures().then(r => r.main.length)  // 44
+         * @returns {Promise<{main: ol.Feature[], sub: ol.Feature[]}>} 자식은 제외 코드(S2320600)를 뺀 것
+         * [연계] ← js/pc-layout/pc_alert_map.js / → GET /api/warn-zones · /api/warn-zones-sub (routes/weather.js)
+         */
+        loadFeatures: function () {
+            var read = function (url) {
+                return fetch(url).then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
+                    .then(function (g) { return new ol.format.GeoJSON().readFeatures(g, { dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857' }); });
+            };
+            return Promise.all([read(MAIN_URL), read(SUB_URL)]).then(function (a) {
+                return { main: a[0], sub: a[1].filter(function (f) { return !EXCLUDED_SUBZONE_CODES[f.get('WarnCode')]; }) };
+            });
+        },
         /** GeoJSON 두 종류 모두 로드 완료됐는지 — 데이터 의존 동작 트리거 전에 확인 */
         isLoaded: function () { return _loaded && _subLoaded; }
     };
