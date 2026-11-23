@@ -4,8 +4,8 @@
  * 역할  : 해양종합정보의 「새 모드」 — 지도 오른쪽 버튼 줄 대신 [메뉴] 버튼 하나와
  *         오른쪽에서 열리는 사이드바(즐겨찾기 · 해양기상정보 · 해양안전정보 · 해양생활지수)로
  *         모든 기능을 켜고 본다. 해양안전생활 탭의 화면들도 여기서 [보기]로 연다.
- *         평소에는 아무것도 하지 않고, 아래 「해양종합정보」 탭을 3초 안에 10번 누르면 켜진다
- *         (앱을 껐다 켜면 원래 화면 — 저장하지 않는다).
+ *         앱이 뜨면 바로 이 화면이다(2026-11-23 사용자 「이제 트리거없이 메인화면에 그대로 반영되도록 하자」).
+ *         그 전(2026-11-22~23)에는 「해양종합정보」 탭을 10번 눌러야 켜지는 숨은 화면이었다 — 아래 원문의 그 부분은 지난 결정이다.
  * ----------------------------------------------------------------------------
  * [사용자 확정 2026-11-22 — 원문]
  *  「수정한 화면에 대해서는 해양종합정보 탭 버튼을 10회 클릭하는 것으로 트리거가 작동하여 수정된 인터페이스가 나오도록」
@@ -42,7 +42,7 @@
  *                    #accident-filter-bar · .tab-btn[data-target="ocean-map-section"] ·
  *                    이 파일이 body 끝에 만드는 #om-menu-btn · #om-subs · #om-banner · #om-backdrop · #om-sidebar
  *  - 스타일        : js/ocean-map/menu/ocean_menu.css (전부 body.om-mode 아래)
- *  - 나를 쓰는 곳  : 없음 — 스스로 탭 버튼의 10회 누름을 듣는다. 시험: local_server/scripts/test_ocean_menu_ui.js
+ *  - 나를 쓰는 곳  : 없음 — 앱이 뜰 때 스스로 켠다. 시험: local_server/scripts/test_ocean_menu_ui.js
  * [로드 순서] js/marine-life/safety/life_safety.js 다음(그 파일이 감싼 switchMainTab/switchSubTab 위에 한 겹 더 얹는다)
  *             · 순서 변경 금지
  * ============================================================================
@@ -54,8 +54,6 @@
     // 상수 — 사이드바에 올리는 기능 목록(순서 = 사용자가 순서판에서 정한 순서)
     // ========================================================================
 
-    var TAP_THRESHOLD = 10;     // 「해양종합정보」 탭을 이만큼 누르면 새 모드가 켜지고 꺼진다
-    var TAP_RESET_MS = 3000;    // 이 시간 안에 이어 눌러야 센다
     var LS_FAV = 'seagnal_ocean_menu_fav_v1';        // 즐겨찾기한 기능 id 목록
     var LS_CLOSED = 'seagnal_ocean_menu_closed_v1';  // 접어 둔 폴더 id 목록(없으면 = 처음 = 모두 펼침)
 
@@ -141,7 +139,6 @@
     var _closed = [];           // 접어 둔 폴더 id
     var _freeBase = null;       // 배경을 정하는 기능이 하나도 안 켜졌을 때의 배경지도(= 사용자가 쓰던 것)
     var _forcedBase = false;    // 지금 배경을 우리가 정해 둔 상태인가
-    var _tapCount = 0, _tapTimer = null;
     var _viewSeq = 0;           // [보기]를 연달아 눌렀을 때 앞선 누름의 뒤처리가 끼어들지 않게 하는 번호
     var _arbTimers = [];
     var _viewBasePrev = null;   // [보기] 화면 전용 배경(VIEWS[].base)으로 바꾸기 전의 배경 — 그 화면을 떠날 때 되돌린다
@@ -967,15 +964,16 @@
     }
 
     // ========================================================================
-    // 7. 새 모드 켜고 끄기 — 「해양종합정보」 탭 10번 누르기
+    // 7. 새 메뉴 화면 켜고 끄기 — 앱이 뜨면 바로 켠다
     // ========================================================================
 
     /**
-     * 새 모드를 켜거나 끈다(저장하지 않는다 — 앱을 껐다 켜면 평소 화면).
+     * 새 메뉴 화면을 켜거나 끈다. 앱이 뜰 때 늘 켠다(2026-11-23) — 끄는 것은 옛 화면을 보는 시험만 쓴다.
      * 예: _setMode(true) → body.om-mode + [메뉴] 버튼 / _setMode(false) → 보던 화면을 닫고 평소 화면
-     * [연계] ← _bindTrigger() · window.OceanMenu.setMode(시험)
+     * @param {boolean} on  @param {boolean} [silent] 안내 토스트를 띄우지 않는다(앱이 뜰 때)
+     * [연계] ← DOMContentLoaded(아래) · window.OceanMenu.setMode(시험)
      */
-    function _setMode(on) {
+    function _setMode(on, silent) {
         on = !!on;
         if (_mode === on) return;
         if (!on) {
@@ -1007,28 +1005,17 @@
         }
         _sync();
         try { window.dispatchEvent(new Event('resize')); } catch (e2) { /* 위와 같다 */ }
-        if (typeof window._showOceanToast === 'function') {
+        if (!silent && typeof window._showOceanToast === 'function') {
             window._showOceanToast(on ? '새 메뉴 화면으로 바뀌었습니다' : '원래 화면으로 돌아왔습니다', 'bottom', 1800);
         }
     }
 
-    /** 아래 「해양종합정보」 탭을 3초 안에 10번 누르면 새 모드를 켜고 끈다. */
-    function _bindTrigger() {
-        var btn = $('.tab-btn[data-target="ocean-map-section"]');
-        if (!btn) return;
-        btn.addEventListener('click', function () {
-            _tapCount++;
-            clearTimeout(_tapTimer);
-            _tapTimer = setTimeout(function () { _tapCount = 0; }, TAP_RESET_MS);
-            if (_tapCount >= TAP_THRESHOLD) { _tapCount = 0; clearTimeout(_tapTimer); _setMode(!_mode); }
-        });
-        var others = document.querySelectorAll('.tab-btn:not([data-target="ocean-map-section"])');
-        for (var i = 0; i < others.length; i++) others[i].addEventListener('click', function () { _tapCount = 0; });
-    }
-
+    // 2026-11-23 사용자 「이제 트리거없이 메인화면에 그대로 반영되도록 하자」 — 앱이 뜨면 바로 새 메뉴 화면이다.
+    //   (그 전에는 「해양종합정보」 탭을 10번 눌러야 켜졌다. 그 누름 장치는 없앴다.)
+    //   옛 화면(오른쪽 버튼 줄 · 해양안전생활 탭)을 전제로 한 시험은 window.OceanMenu.setMode(false) 로 끄고 본다.
     document.addEventListener('DOMContentLoaded', function () {
         _wrapTabSwitchers();
-        _bindTrigger();
+        _setMode(true, true);
     });
 
     /** 시험·점검용 창구 — 화면 코드는 쓰지 않는다. */

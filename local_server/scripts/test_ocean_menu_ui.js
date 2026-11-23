@@ -1,13 +1,13 @@
 /**
  * ============================================================================
  * 파일명: local_server/scripts/test_ocean_menu_ui.js
- * 역할  : 해양종합정보 「새 모드」(탭 10번 누르면 켜지는 통합 메뉴)를 실제 브라우저로 눌러 본다.
+ * 역할  : 해양종합정보 새 메뉴 화면(통합 메뉴 — 2026-11-23 부터 앱이 뜨면 바로 이 화면)을 실제 브라우저로 눌러 본다.
  *         (초보자용: 사이드바 스위치·[보기]·[끄기]·안내 줄이 약속대로 움직이는지, 그리고
- *          새 모드를 켜지 않은 평소 화면은 그대로인지 확인한다.)
+ *          시험 창구로 끄면 옛 화면이 그대로 돌아오는지 확인한다.)
  * ----------------------------------------------------------------------------
  * [무엇을 보나 — 사용자 확정 2026-11-22]
- *  ① 평소 화면: [메뉴]·사이드바 없음, 아래 탭 4개, 오른쪽 버튼 줄 보임
- *  ② 「해양종합정보」 탭 10번 → 새 모드(탭 3개·버튼 줄 숨김·[메뉴]) / 9번으로는 안 켜짐 / 새로 열면 평소 화면
+ *  ① 앱이 뜨면 바로 새 메뉴 화면(탭 3개·버튼 줄 숨김·[전체 메뉴]) — 2026-11-23 「트리거없이 메인화면에」
+ *  ② 「해양종합정보」 탭을 10번 눌러도 꺼지지 않는다(예전 누름 장치 없음)
  *  ③ 사이드바: 폴더 4개(즐겨찾기·해양기상정보·해양안전정보·해양생활지수)와 줄 순서, 지도(바깥)를 누르면 닫힘, 뒤로가기 닫힘
  *  ④ 함께 켤 수 없는 묶음(특보구역·현황/파고/풍향/유향/천기) — 새로 켜면 먼저 켠 것이 꺼짐. 기상부이·해구기상은 함께
  *  ⑤ 배경지도: 파고=해안도, 해구기상을 함께 켜면 기본맵(파고는 그대로 켜져 있음), 끄면 해안도, 다 끄면 처음 배경
@@ -18,9 +18,9 @@
  *  ⑧ 사고발생 이력 분석: 사고이력[선박]/[인명]=현황+그 종류, 「필터」는 접힌 채 시작·누르면 펼침,
  *     「선택 초기화」는 필터가 걸렸을 때만 / 사고분석=분석+「전국 통계」
  *  ⑨ 태풍(활성 없음)은 맨 뒤·회색, 해수욕(개장 없음)은 맨 뒤·회색·「개장 해수욕장 없음」·눌러도 안 열림
- *  ⑩ 즐겨찾기·접은 폴더는 저장돼 다시 열어도 남는다(새 모드 자체는 저장 안 함)
+ *  ⑩ 즐겨찾기·접은 폴더는 저장돼 다시 열어도 남는다
  *  ⑪ 새 모드에서 특보 현황을 켠 채 지도를 누르면 특보 상자가 가로채지 않는다(tryHandleClick → false)
- *  ⑫ 다시 10번 → 평소 화면으로(보던 화면 닫힘)
+ *  ⑫ 시험 창구 setMode(false) → 옛 화면으로(보던 화면 닫힘)
  * [방법] 저장소의 client/ 를 그대로 올린 작은 서버 + 진짜 크로뮴. /api 는 404(해수욕지수만 가짜 자료),
  *        127.0.0.1 밖 요청은 모두 끊는다. 시각 의존 없음(해수욕 판정 함수는 오늘 날짜 키를 직접 만들어 넣는다).
  * [연계] → client/js/ocean-map/menu/ocean_menu.js(window.OceanMenu) · ocean_menu.css ·
@@ -92,17 +92,16 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
     });
 
     await load();
-    await check('① 평소 화면 — [메뉴]·사이드바 없음 · 아래 탭 4개 · 오른쪽 버튼 줄 보임', async () => {
-      await tapOcean(1); await wait(1200); const s = await S();
-      assert.equal(s.mode, false); assert.equal(s.menuBtn, false); assert.equal(s.rail, true);
-      assert.deepEqual(s.tabs, ['특보정보', '해양종합정보', '해양안전생활', '뉴스·공지·어황']);
-      assert.ok(!/om-/.test(s.cls), s.cls);
-    });
-    await check('② 9번으로는 안 켜지고(이미 1번 + 8번), 10번째에 켜진다 → 탭 3개 · 버튼 줄 숨김 · [메뉴]', async () => {
-      await tapOcean(8); await wait(200); assert.equal((await S()).mode, false);
-      await tapOcean(1); await wait(500); const s = await S();
+    await check('① 앱이 뜨면 바로 새 메뉴 화면 — [전체 메뉴] 보임 · 아래 탭 3개 · 오른쪽 버튼 줄 숨김 (2026-11-23 「트리거없이 메인화면에」)', async () => {
+      let s = await S(); assert.equal(s.mode, true, '누르기 전에 이미 켜져 있다'); assert.ok(/om-mode/.test(s.cls), s.cls);
+      await tapOcean(1); await wait(1200); s = await S();
       assert.equal(s.mode, true); assert.equal(s.menuBtn, true); assert.equal(s.rail, false);
       assert.deepEqual(s.tabs, ['특보정보', '해양종합정보', '뉴스·공지·어황']);
+      assert.equal(s.toast, '', '뜰 때는 안내 토스트 없음');
+    });
+    await check('② 「해양종합정보」 탭을 10번 눌러도 꺼지지 않는다(예전의 켜고 끄는 누름 장치는 없앴다)', async () => {
+      await tapOcean(10); await wait(500); const s = await S();
+      assert.equal(s.mode, true); assert.equal(s.menuBtn, true);
     });
     await check('[2026-11-23] 위쪽 버튼 한 줄(기본맵→내 위치→안내 · 「진북 정렬」 버튼은 없고 늘 진북 고정) · 넓은 [전체 메뉴](글자 크게 설정에도 같은 크기) · 사이드바 폭 60% · 이름 한 줄', async () => {
       const m = () => page.evaluate(() => {
@@ -295,18 +294,18 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
       });
       assert.ok(r === false || r === 'no-state' || r === 'no-module', String(r));
     });
-    await check('⑩ 즐겨찾기·접은 폴더는 저장된다 — 다시 열어 새 모드를 켜면 그대로(새 모드 자체는 꺼진 채 시작)', async () => {
+    await check('⑩ 즐겨찾기·접은 폴더는 저장된다 — 앱을 다시 열어도 그대로', async () => {
       await click('#om-menu-btn'); await wait(300);
       await click('#om-sidebar [data-om="fav"][data-id="wav"]'); await click('#om-sidebar [data-om="fav"][data-id="surf"]');
       await click('#om-sidebar .om-folder[data-folder="life"] .om-folder-head'); await wait(400);
       let s = await S(); assert.equal(s.folders[0], '즐겨찾기:파고·파향,서핑');
-      await load(); s = await S(); assert.equal(s.mode, false); assert.equal(s.menuBtn, false);
-      await tapOcean(10); await wait(700); await click('#om-menu-btn'); await wait(300); s = await S();
+      await load(); await tapOcean(1); await wait(1200); s = await S(); assert.equal(s.mode, true); assert.equal(s.menuBtn, true);
+      await click('#om-menu-btn'); await wait(300); s = await S();
       assert.equal(s.mode, true); assert.equal(s.folders[0], '즐겨찾기:파고·파향,서핑');
       const closed = await page.evaluate(() => [...document.querySelectorAll('#om-sidebar .om-folder.closed')].map(f => f.getAttribute('data-folder')));
       assert.deepEqual(closed, ['life']);
     });
-    await check('⑫ 다시 10번 → 평소 화면(보던 화면 닫힘 · 탭 4개 · 버튼 줄 다시 보임)', async () => {
+    await check('⑫ 시험 창구 setMode(false) → 옛 화면(보던 화면 닫힘 · 탭 4개 · 버튼 줄 다시 보임) — 옛 화면을 보는 다른 시험들이 쓰는 길', async () => {
       await view('terr'); await wait(1400); assert.equal((await S()).view, 'terr');
       await page.evaluate(() => window.OceanMenu.setMode(false)); await wait(900); const s = await S();
       assert.equal(s.mode, false); assert.equal(s.tab, 'ocean-map-section'); assert.equal(s.menuBtn, false); assert.equal(s.rail, true);
