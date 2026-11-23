@@ -202,6 +202,13 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
       assert.deepEqual(s.on, ['ocean-seaway-toggle-btn', 'ocean-vts-toggle-btn']); assert.equal(s.view, 'vts');
       assert.equal(s.banner, '관제구역·항로 화면 표출 중 해양기상정보는 표시되지 않습니다.');
     });
+    await check('[2026-11-23] 갯벌 수위 예측 [보기] — 배경이 위성지도(인증을 못 받는 시험 서버에서는 기본맵) · 다른 [보기]로 가면 그 화면의 배경으로', async () => {
+      await click('#om-menu-btn'); await wait(300); await view('mud'); await wait(1800); let s = await S();
+      assert.equal(s.view, 'mud'); assert.ok(s.base === 'vworld' || s.base === 'rltm', 'base=' + s.base);
+      const asked = await page.evaluate(() => { const o = window.oceanSetBasemap, seen = []; window.oceanSetBasemap = function (b) { seen.push(b); return o.apply(this, arguments); }; window.OceanMenu.openView('terr'); window.OceanMenu.openView('mud'); window.oceanSetBasemap = o; return seen; });
+      assert.ok(asked.includes('vworld'), '갯벌 수위 예측을 열 때 위성지도를 청한다 ' + JSON.stringify(asked));
+      await wait(1500); await click('#om-menu-btn'); await wait(300); await view('vts'); await wait(1400); s = await S(); assert.equal(s.base, 'enc');
+    });
     await check('⑧ 사고이력[인명] — 현황·인명사고 · 「필터」 접힌 채 시작 → 누르면 펼침 · 「선택 초기화」는 숨김 / 사고분석 — 「전국 통계」', async () => {
       await click('#om-menu-btn'); await wait(300); await view('accPerson');
       assert.equal(await page.evaluate(() => { const b = document.getElementById('om-loading'); return !b.hidden && getComputedStyle(b).display !== 'none'; }), true, '자료를 받는 동안 가운데 로딩 표시');

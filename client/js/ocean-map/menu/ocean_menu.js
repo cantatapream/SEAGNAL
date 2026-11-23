@@ -83,7 +83,8 @@
         accPerson: { label: '사고이력(인명)', screen: 'safety', btns: ['ocean-accident-toggle-btn'], accMode: 'status', accSrc: 'person' },
         accStat:   { label: '사고분석', screen: 'safety', btns: ['ocean-accident-toggle-btn'], accMode: 'analysis' },
         terr:      { label: '위험지형', screen: 'safety', btns: ['ocean-terrain-toggle-btn'] },
-        mud:       { label: '갯벌 수위 예측', screen: 'safety', btns: ['ocean-mudflat-toggle-btn'] },
+        // base: 그 화면을 보는 동안 쓰는 배경지도 — 물빠짐 기능은 배경을 바꾸지 않으므로 여기서 맞춘다(2026-11-23 사용자 「위성지도를 기본 배경으로」)
+        mud:       { label: '갯벌 수위 예측', screen: 'safety', btns: ['ocean-mudflat-toggle-btn'], base: 'vworld' },
         ban:       { label: '출입통제·낚시금지', screen: 'safety', btns: ['ocean-banzone-toggle-btn'] },
         vts:       { label: '관제구역·항로', screen: 'safety', btns: ['ocean-vts-toggle-btn', 'ocean-seaway-toggle-btn'] },
         fish:      { label: '바다낚시', screen: 'life', section: 'fishing-section' },
@@ -143,6 +144,7 @@
     var _tapCount = 0, _tapTimer = null;
     var _viewSeq = 0;           // [보기]를 연달아 눌렀을 때 앞선 누름의 뒤처리가 끼어들지 않게 하는 번호
     var _arbTimers = [];
+    var _viewBasePrev = null;   // [보기] 화면 전용 배경(VIEWS[].base)으로 바꾸기 전의 배경 — 그 화면을 떠날 때 되돌린다
     var _accBusy = false;       // 사고 자료를 받는 동안의 로딩 표시가 떠 있는가
     var _loadSeq = 0;           // 천기 로딩 표시 — 연달아 눌렀을 때 앞선 표시가 끼어들지 않게 하는 번호
     var _northHome = null;      // 진북 정렬 버튼의 원래 자리 {parent, next} — 새 모드를 끌 때 되돌린다
@@ -437,6 +439,7 @@
                 if (_tab() === 'ocean-life-group') _whenSafetyReady(seq, function () { _pressSafety(def, seq); });
             }
         } else {
+            _restoreViewBase();
             _go(def.section);
         }
         // 점검으로 막힌 화면이면 탭이 바뀌지 않는다(index2_patch.js 가 안내 창만 띄운다) — 아무것도 바꾸지 않은 것으로 되돌린다
@@ -465,6 +468,7 @@
      * [연계] ← _openView() / → 원래 버튼 click · #ocean-accident-mode-toggle · #accident-source-toggle (accident_info.js)
      */
     function _pressSafety(def, seq) {
+        _restoreViewBase();
         var want = def.btns;
         _quiet(function () {
             var on = document.querySelectorAll('#ocean-overlay-controls .ocean-overlay-btn.active');
@@ -472,10 +476,33 @@
         });
         want.forEach(function (bid) { var b = document.getElementById(bid); if (b && !_isActive(b)) b.click(); });
         if (def.accMode) { _accLoading(true); _setAccident(def, seq, 0); } else _accLoading(false);
+        if (def.base) _applyViewBase(def.base, seq);
         _sync();
     }
 
     /** 사고정보의 분석/현황·선박/인명을 맞춘다 — 자료를 다 받은 뒤에야 전환 단추가 나타나므로 기다리며 시도한다 */
+    /**
+     * 그 화면 전용 배경지도로 바꾼다(바꾸기 전 배경을 적어 둔다). 위성지도 인증을 못 받으면 빈 화면 대신 기본맵으로.
+     * 예: 갯벌 수위 예측 [보기] → 위성지도 / 다른 [보기]나 [끄기] → _restoreViewBase() 가 원래 배경으로
+     * [연계] ← _pressSafety() / → window.oceanSetBasemap·oceanVworldReady (ocean_map.js — 위험예측과 같은 방식)
+     */
+    function _applyViewBase(base, seq) {
+        if (typeof window.oceanGetBasemap !== 'function' || typeof window.oceanSetBasemap !== 'function') return;
+        if (_viewBasePrev === null) _viewBasePrev = window.oceanGetBasemap();
+        if (window.oceanGetBasemap() !== base) window.oceanSetBasemap(base);
+        if (base === 'vworld' && typeof window.oceanVworldReady === 'function') {
+            window.oceanVworldReady().then(function (ok) {
+                if (ok || seq !== _viewSeq || window.oceanGetBasemap() !== 'vworld') return;
+                window.oceanSetBasemap('rltm');
+            });
+        }
+    }
+    function _restoreViewBase() {
+        if (_viewBasePrev === null) return;
+        var prev = _viewBasePrev; _viewBasePrev = null;
+        if (typeof window.oceanSetBasemap === 'function' && window.oceanGetBasemap && window.oceanGetBasemap() !== prev) window.oceanSetBasemap(prev);
+    }
+
     /** 사고 자료를 받는 동안 화면 가운데 「불러오는 중입니다...」를 띄우고 내린다(천기와 같은 표시 — 2026-11-23 사용자).
      *  @param {boolean} on  [연계] ← _pressSafety()·_setAccident()·_afterNav() */
     function _accLoading(on) {
@@ -515,6 +542,7 @@
     function _closeView() {
         if (!_view && _tab() !== 'ocean-life-group') return;
         _viewSeq++;
+        _restoreViewBase();
         if (typeof window.switchMainTab === 'function') window.switchMainTab('ocean-map-section');
     }
 
@@ -576,7 +604,7 @@
     function _afterNav(pre) {
         if (!_mode) return;
         var tab = _tab();
-        if (tab !== 'ocean-life-group' || !_safetyShown()) _accLoading(false);
+        if (tab !== 'ocean-life-group' || !_safetyShown()) { _accLoading(false); _restoreViewBase(); }
         if (tab === 'ocean-life-group') {
             // 우리 [보기]가 아닌 길로 들어온 경우에도, 들어오기 직전의 스위치 상태(pre)를 미뤄 둔 값으로 삼는다
             if (!_pending) _pending = pre || _snapshotPending();
