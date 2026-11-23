@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-24 00:24 KST] ✅완료 — 특보구역·현황: 구역 이름 옆 격상·격하 세모 + 가운데 팝업 → [해당 해점 기상정보 보기]
+새 메뉴 화면에서 ①특보 해역을 누르면 누른 지점이 화면 가운데로 온 뒤 팝업(ocean_warn_active5.js _omHandleClick·_omDecorate): 머리 뱃지 ▲▼ · 발효 중(발표시각·발효시각·해제예정) · 다가오는 특보 · 「경보·태풍 변경 가능성」 상자(escalation.js 부품 그대로) · [해당 해점 기상정보 보기] → 팝업 닫고 바텀시트(지점은 위로). 특보 없는 해역은 바로 바텀시트. 뒤로가기·바깥 누름·× 로 닫힘 ②지도 구역 이름 오른쪽 세모(ocean_warn_active3.js _zoneTrendOf — 카드와 같은 규칙. 선·이름표 층 ocean_warn_zone.js _onlyStrokeAndText 가 세모 Style 을 함께 싣게 함) ③바텀시트가 열리면 특보 범례가 시트 뒤로(body.ocean-sheet-open) ④세모 크기 14px. 확인: verify_all 전체 — 스위트 175개 중 test_silent_catch 1개만 실패(product io 156>155, PR #1579 의 ai_compare_trial.js — 이 브랜치가 바꾼 파일의 io 증가 0, 사용자 「그대로 둬」). test_ocean_menu_ui 26/0. 실제 자료로 눌러 팝업→버튼→시트·범례·세모 캡처. 화면으로 못 본 것: 격상 가능성 상자·초록 ▼(지금 자료에 사례 없음 — 규칙은 자동 시험). PR #1582.
+
+
 ### [2026-11-24 14:46 KST] ✅완료 — 진북 고정이 풀리는 경우 수정
 원인(재현함): ocean_menu.js _lockNorth 가 지도가 없으면 500ms×12회(6초)만 다시 해 보고 포기했다. 지도는 「해양종합정보」 탭을 처음 열 때 만들어지므로, 앱을 켜고 6초 넘게 다른 탭에 있다 오면 고정이 안 걸려 두 손가락 회전이 살아 있었다(8초 뒤 탭을 열어 확인: 버튼 상태 고정 아님·회전 손짓 켜짐). 고침: ①켤 때는 횟수 제한 없이 지도가 만들어질 때까지 500ms 마다 다시 건다 ②탭이 바뀔 때마다(_afterNav) 다시 확인 ③둘째 겹 _guardNorth — 새 메뉴 화면인 동안 지도 각도가 0 이 아니게 되면 곧바로 0 으로. 확인: test_ocean_menu_ui 27/0(7.5초 뒤 탭을 열어도 고정·각도를 넣어도 0·다른 탭 왕복 뒤에도 고정 단언 추가) · test_safety_late_overlay 6/0 · test_life_safety_tab_keep 25/0 · test_tab_structure 42/0 · test_guide_tabs 77/0 · check_order. verify_all 전체는 돌리지 않았다. 실기기 확인은 못 했다.
 
