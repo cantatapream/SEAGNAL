@@ -305,6 +305,41 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
       const closed = await page.evaluate(() => [...document.querySelectorAll('#om-sidebar .om-folder.closed')].map(f => f.getAttribute('data-folder')));
       assert.deepEqual(closed, ['life']);
     });
+    await check('[2026-11-23 점검] 관리자가 막은 기능 — 사이드바 줄이 회색 + 「점검 중」 · 눌러도(스위치·[보기]·미뤄 둔 값) 켜지지 않고 안내 창 · 관리자 모드는 통과 · 풀면 원래대로', async () => {
+      // 사이드바가 열린 채 시작(⑩ 끝). 서버 /api 는 404 라 차단 목록은 화면의 적용 함수에 직접 넣는다(실제 앱은 /api/block-status 가 5분마다 넣는다)
+      const block = (list) => page.evaluate((l) => { window.applyFeatureBlocks ? window.applyFeatureBlocks(l) : applyFeatureBlocks(l); }, list);
+      const row = (id) => page.evaluate((i) => { const b = document.querySelector('#om-sidebar .om-folder:not([data-folder="fav"]) [data-id="' + i + '"]:not(.om-star)'); const r = b.closest('.om-row'); return { blocked: r.classList.contains('om-blocked'), text: r.textContent.replace(/\s+/g, ' ').trim() }; }, id);
+      const popup = () => page.evaluate(() => { const p = document.getElementById('blocked-feature-popup') || document.querySelector('.blocked-feature-popup, #feature-blocked-popup'); const shown = !!p && getComputedStyle(p).display !== 'none'; if (p) p.remove(); return shown; });
+      await page.evaluate(() => localStorage.removeItem('seagnal_admin_mode'));
+      let s = await S(); const wasOn = s.on.slice();
+      await block(['ov-wave', 'ov-warn-zone', 'sf-terrain', 'sf-vts', 'sf-accident', 'surfing', 'ls-gubun']); await wait(300);
+      for (const id of ['wav', 'zone', 'terr', 'vts', 'accStat', 'surf']) { const r = await row(id); assert.ok(r.blocked && /점검 중/.test(r.text), id + ' ' + JSON.stringify(r)); }
+      assert.equal((await row('wind')).blocked, false, '안 막은 줄은 그대로');
+      assert.equal(await page.evaluate(() => (window._blockedFeatures || []).includes('ov-warn-active') && window._blockedFeatures.includes('sf-seaway')), true, '한 줄로 합쳐진 항목은 원래 버튼 두 개를 함께 막는다');
+      // 끄는 것은 된다 — 켜져 있던 파고를 먼저 끄고, 다시 켜려 하면 막힌다
+      if (s.on.includes('wave')) { await sw('wav'); await wait(600); }
+      await sw('wav'); await wait(700); s = await S(); assert.ok(!s.on.includes('wave'), '막힌 파고는 켜지지 않는다 ' + JSON.stringify(s.on));
+      await sw('zone'); await wait(700); s = await S(); assert.ok(!s.on.includes('ocean-warn-zone-toggle-btn'), JSON.stringify(s.on));
+      for (const id of ['terr', 'vts', 'accStat', 'surf']) { await view(id); await wait(900); s = await S(); assert.equal(s.view, '', id + ' 는 열리지 않는다'); assert.equal(s.tab, 'ocean-map-section'); }
+      // [보기] 중(스위치는 미뤄 둠)에도 막힌 것은 미뤄 둔 값에 안 들어간다
+      await click('#om-menu-btn').catch(() => {}); await wait(200);
+      if (!(await S()).open) { await click('#om-menu-btn'); await wait(300); }
+      await view('navw'); await wait(1500); assert.equal((await S()).view, 'navw', '안 막은 [보기]는 열린다');
+      await click('#om-menu-btn'); await wait(300); await sw('wav'); await wait(300); s = await S(); assert.ok(!s.pending || !s.pending.wav, '막힌 스위치는 미뤄 둔 값에도 안 켜진다 ' + JSON.stringify(s.pending));
+      await page.evaluate(() => window.OceanMenu.closeView()); await wait(1300); s = await S(); assert.ok(!s.on.includes('wave'));
+      // 관리자 모드 기기는 다른 차단과 같이 그대로 쓴다
+      await page.evaluate(() => localStorage.setItem('seagnal_admin_mode', 'true')); await block(['ov-wave', 'sf-terrain']); await wait(300);
+      if (!(await S()).open) { await click('#om-menu-btn'); await wait(300); }
+      assert.equal((await row('wav')).blocked, false, '관리자 모드에서는 막힌 표시가 없다');
+      await page.evaluate(() => localStorage.removeItem('seagnal_admin_mode'));
+      // 풀면 원래대로
+      await block([]); await wait(300);
+      for (const id of ['wav', 'zone', 'terr', 'surf']) assert.equal((await row(id)).blocked, false, id + ' 풀림');
+      await sw('wav'); await wait(900); s = await S(); assert.ok(s.on.includes('wave'), '풀린 뒤에는 켜진다 ' + JSON.stringify(s.on));
+      await popup();
+      if (!(await S()).open) { await click('#om-menu-btn'); await wait(300); }
+      void wasOn;
+    });
     await check('⑫ 시험 창구 setMode(false) → 옛 화면(보던 화면 닫힘 · 탭 4개 · 버튼 줄 다시 보임) — 옛 화면을 보는 다른 시험들이 쓰는 길', async () => {
       await view('terr'); await wait(1400); assert.equal((await S()).view, 'terr');
       await page.evaluate(() => window.OceanMenu.setMode(false)); await wait(900); const s = await S();

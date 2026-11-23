@@ -342,7 +342,6 @@ const USAGE_CSV_LABELS = require('../../client/js/shared/utils/usage_keys.js');
 router.get('/api/stats/usage/csv', (req, res) => {
     try {
         const d = computeUsageAggregation(req.query);
-        const labelOf = k => USAGE_CSV_LABELS[k] || k;
         const periodLabel = d.period === 'monthly' ? '월별' : (d.period === 'yearly' ? '연별' : '일별');
         const esc = v => '"' + String(v === undefined || v === null ? '' : v).replace(/"/g, '""') + '"';
         const rows = [];
@@ -353,11 +352,22 @@ router.get('/api/stats/usage/csv', (req, res) => {
         rows.push([esc('총 정보제공 건수'), esc(d.totalEvents || 0)].join(','));
         rows.push('');
         rows.push(esc('[기능별 누적]'));
-        rows.push([esc('기능'), esc('key'), esc('건수'), esc('비중(%)')].join(','));
+        // [2026-11-23] 묶음(화면 자리) 칸을 넣고 묶음 순서 → 건수 순으로 적는다. 이름표 꼴은 「묶음 · 기능 · 한 일」(usage_keys.js).
+        rows.push([esc('묶음'), esc('기능'), esc('key'), esc('건수'), esc('비중(%)')].join(','));
+        const GROUPS = (USAGE_CSV_LABELS.__groups || []).concat(['이름표 없음']);
+        const groupOf = k => (USAGE_CSV_LABELS[k] ? USAGE_CSV_LABELS[k].split(' · ')[0] : '이름표 없음');
+        const shortOf = k => (USAGE_CSV_LABELS[k] ? USAGE_CSV_LABELS[k].split(' · ').slice(1).join(' · ') : k);
         const feat = Object.keys(d.byFeature).map(k => ({ key: k, count: d.byFeature[k] }));
-        feat.sort((a, b) => b.count - a.count);
+        feat.sort((a, b) => (GROUPS.indexOf(groupOf(a.key)) - GROUPS.indexOf(groupOf(b.key))) || (b.count - a.count));
         const grand = feat.reduce((s, r) => s + r.count, 0) || 1;
-        feat.forEach(r => rows.push([esc(labelOf(r.key)), esc(r.key), esc(r.count), esc(((r.count / grand) * 100).toFixed(1))].join(',')));
+        feat.forEach(r => rows.push([esc(groupOf(r.key)), esc(shortOf(r.key)), esc(r.key), esc(r.count), esc(((r.count / grand) * 100).toFixed(1))].join(',')));
+        rows.push('');
+        rows.push(esc('[묶음별 합계]'));
+        rows.push([esc('묶음'), esc('건수'), esc('비중(%)')].join(','));
+        GROUPS.forEach(g => {
+            const sum = feat.filter(r => groupOf(r.key) === g).reduce((s, r) => s + r.count, 0);
+            if (sum) rows.push([esc(g), esc(sum), esc(((sum / grand) * 100).toFixed(1))].join(','));
+        });
         rows.push('');
         rows.push(esc('[소속 분포]'));
         rows.push([esc('소속'), esc('건수')].join(','));

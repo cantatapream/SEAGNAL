@@ -4490,55 +4490,59 @@ async function renderMaintenanceFullTab(container) {
                 { id: 'mc-sst', label: '해수면온도' },
             ]},
         ]},
+        // [2026-11-23] 새 메뉴 화면(오른쪽 사이드바)이 기본이 되면서 그 폴더 순서대로 다시 짰다.
+        //   사용자 「통계나 점검의 기준이 예전에 머물러 있는 것 같아서 … 현재 상황에 맞게 수정」.
+        //   · 사이드바에서 한 줄인 것은 여기서도 한 항목이다 — 특보구역·현황(특보구역+활성특보 색칠) · 천기(천기+시정) ·
+        //     관제구역·항로(관제구역+항로·해역). 한 항목이 원래 버튼 두 개를 함께 막는다(index2.html applyFeatureBlocks).
+        //   · 없어진 것: 진북 정렬(버튼 삭제) · 「해양안전생활」 탭(아래 탭에서 빠짐 — 두 폴더로 나뉨).
+        //   · 새로 넣은 것: [전체 메뉴] 버튼 · 위험예측 · 너울.
+        //   · 막힌 줄은 사이드바에서 회색 + 「점검 중」으로 보인다(js/ocean-map/menu/ocean_menu.js _blocked).
         { id: 'main-ocean', label: '해양종합정보', children: [
-            { id: 'basemap-rltm', label: '배경지도 · 기본맵' },
-            { id: 'basemap-enc', label: '배경지도 · 전자해도' },
-            { id: 'basemap-coast', label: '배경지도 · 해안도' },
-            { id: 'basemap-osm', label: '배경지도 · 세계지도' },
-            { id: 'basemap-vworld', label: '배경지도 · 위성지도' },
-            { id: 'ov-current', label: '유향·유속' },
-            { id: 'ov-wind', label: '풍향·풍속' },
-            { id: 'ov-wave', label: '파고·파향' },
-            { id: 'ov-buoy', label: '기상부이', linked: ['weather-buoy'] },
-            { id: 'ov-warn-zone', label: '특보구역', linked: ['weather-alert'] },
-            { id: 'ov-warn-active', label: '활성특보 색칠' },
-            { id: 'ov-marine-zone', label: '해구도 (해구 전망표 포함)' },
-            { id: 'ov-other-wx', label: '천기' },
-            { id: 'ov-vsby', label: '시정' },
-            { id: 'ov-typhoon', label: '태풍' },
-            // ── 아래 6개는 해양안전(해양안전생활 지도)과 같은 버튼을 씀 → 막으면 두 화면 모두 막힘 ──
-            { id: 'ov-mudflat', label: '물빠짐 (해양안전 공용)' },
-            { id: 'ov-cctv', label: 'CCTV (해양안전 공용)' },
-            { id: 'ov-info', label: '안내 ⓘ (해양안전 공용)' },
-            { id: 'ov-gps', label: 'GPS · 내 위치 (해양안전 공용)' },
-            { id: 'ocean-bottomsheet', label: '해점 바텀시트 (해양안전 공용)' },
-            { id: 'ocean-search', label: '위치 검색창 (해양안전 공용)' },
-            { id: 'ov-northup', label: '진북 정렬' },
-            { id: 'ov-fav', label: '즐겨찾기' },
-        ]},
-        // [2026-09-10] 해양생활 → 해양안전생활 정식 전환에 맞춰 트리 갱신. 해양안전 8개 버튼 중
-        //   위험지형·사고정보·금지구역·항행경보·관제구역·항로해역은 이 화면 전용, 물빠짐·CCTV 는
-        //   위 해양종합정보 항목과 같은 버튼(공용).
-        { id: 'main-life', label: '해양안전생활', children: [
-            { id: 'ocean-safety', label: '해양안전 (지도 하위탭)', children: [
-                { id: 'sf-terrain', label: '위험지형 (노출암·간출암)' },
-                { id: 'sf-accident', label: '사고정보' },
-                { id: 'sf-banzone', label: '금지구역 (출입통제·낚시금지)' },
-                { id: 'sf-navwarn', label: '항행경보' },
-                { id: 'sf-vts', label: '관제구역' },
-                { id: 'sf-seaway', label: '항로·해역' },
+            { id: 'om-common', label: '지도 공통', children: [
+                { id: 'om-menu', label: '[전체 메뉴] 버튼 (사이드바 열기)' },
+                { id: 'basemap-rltm', label: '배경지도 · 기본맵' },
+                { id: 'basemap-enc', label: '배경지도 · 전자해도' },
+                { id: 'basemap-coast', label: '배경지도 · 해안도' },
+                { id: 'basemap-osm', label: '배경지도 · 세계지도' },
+                { id: 'basemap-vworld', label: '배경지도 · 위성지도' },
+                { id: 'ov-gps', label: '내 위치' },
+                { id: 'ov-info', label: '안내 ⓘ' },
+                { id: 'ocean-search', label: '위치 검색창' },
+                { id: 'ocean-bottomsheet', label: '해점 바텀시트 (지도를 눌렀을 때 뜨는 정보 창)' },
+                { id: 'ov-fav', label: '해점 즐겨찾기 ☆ (바텀시트 안)' },
             ]},
-            { id: 'life-activities', label: '해양생활 (활동 하위탭)', children: [
+            { id: 'om-weather', label: '해양기상정보 (사이드바 스위치)', children: [
+                { id: 'ov-warn-zone', label: '특보구역·현황', linked: ['weather-alert'] },
+                { id: 'ov-wave', label: '파고·파향' },
+                { id: 'ov-wind', label: '풍향·풍속' },
+                { id: 'ov-current', label: '유향·유속' },
+                { id: 'ov-buoy', label: '기상부이', linked: ['weather-buoy'] },
+                { id: 'ov-marine-zone', label: '해구기상 (해구 전망표 포함)' },
+                { id: 'ov-other-wx', label: '천기 (기온·강수·적설·하늘상태·시정예측)' },
+                { id: 'ov-typhoon', label: '태풍' },
+            ]},
+            { id: 'ocean-safety', label: '해양안전정보 (사이드바 [보기] — 묶음 전체)', children: [
+                { id: 'sf-navwarn', label: '항행경보 현황' },
+                { id: 'sf-risk', label: '위험예측' },
+                { id: 'sf-accident', label: '사고발생 이력·분석 (사고이력 선박·인명 · 사고분석)' },
+                { id: 'sf-terrain', label: '위험지형 (노출암·간출암)' },
+                { id: 'ov-mudflat', label: '갯벌 수위 예측' },
+                { id: 'sf-banzone', label: '출입통제·낚시금지' },
+                { id: 'sf-vts', label: '관제구역·항로' },
+                { id: 'ov-cctv', label: 'CCTV' },
+            ]},
+            { id: 'life-activities', label: '해양생활지수 (사이드바 [보기] — 묶음 전체)', children: [
                 { id: 'fishing', label: '바다낚시' },
                 { id: 'surfing', label: '서핑' },
-                { id: 'swimming', label: '해수욕' },
                 { id: 'scuba', label: '스킨스쿠버' },
                 { id: 'mudflat', label: '갯벌체험' },
                 { id: 'sea-parting', label: '바다갈라짐' },
-                { id: 'ls-basemap', label: '배경지도 고르기' },
-                { id: 'ls-gps', label: '내 위치' },
-                { id: 'ls-gubun', label: '갯바위/선상 전환' },
-                { id: 'ls-info', label: '활동 안내 ⓘ' },
+                { id: 'swell', label: '너울' },
+                { id: 'swimming', label: '해수욕' },
+                { id: 'ls-basemap', label: '지수 화면 · 배경지도 고르기' },
+                { id: 'ls-gps', label: '지수 화면 · 내 위치' },
+                { id: 'ls-gubun', label: '바다낚시 · 갯바위/선상 전환' },
+                { id: 'ls-info', label: '지수 화면 · 안내 ⓘ' },
             ]},
         ]},
         { id: 'main-etc', label: '탭 밖 기능', children: [
@@ -4550,7 +4554,7 @@ async function renderMaintenanceFullTab(container) {
             ]},
             { id: 'survey-popup', label: '설문조사 자동 팝업' },
         ]},
-        { id: 'main-promo', label: '공지사항' },
+        { id: 'main-promo', label: '뉴스·공지·어황' },
     ];
 
     // 트리 평탄화: id→label 조회 + 짝꿍(linked) 양방향 맵 구성

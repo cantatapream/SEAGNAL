@@ -3278,6 +3278,38 @@ var USAGE_FEATURE_LABELS = window.USAGE_FEATURE_LABELS || {};
 function usageFeatureLabel(key) {
     return USAGE_FEATURE_LABELS[key] || key;
 }
+/**
+ * 이름표 「묶음 · 기능 · 한 일」에서 묶음과 나머지를 가른다 — 기능별 막대를 묶음별로 모아 보여 주기 위해.
+ * 예: 'ocean.wave'(해양기상정보 · 파고·파향 · 켬) → 묶음 '해양기상정보', 짧은 이름 '파고·파향 · 켬'
+ * @param {string} key - 기능 키 @returns {string}
+ * [연계] ← _usageGroupedRows / 이름표·묶음 순서 shared/utils/usage_keys.js(__groups)
+ */
+function usageFeatureGroup(key) {
+    var l = USAGE_FEATURE_LABELS[key];
+    return l ? l.split(' · ')[0] : '이름표 없음';
+}
+function usageFeatureShort(key) {
+    var l = USAGE_FEATURE_LABELS[key];
+    return l ? l.split(' · ').slice(1).join(' · ') : key;
+}
+/**
+ * 기능별 건수를 묶음 순서대로 모은다 — 묶음마다 제목 줄(■ 묶음 — 합계 N건, 값 null)을 넣고 그 아래 그 묶음의 기능을 많은 순으로.
+ * 2026-11-23 사용자 「기능별로 묶어서 … 어떤 기능을 말하는지 정확하게」. 그 전에는 묶음 없이 건수 순 한 줄이었다.
+ * @param {Array<{key:string,count:number}>} featRows - 건수 내림차순 @returns {{labels:string[], values:Array<number|null>}}
+ * [연계] ← _usageRenderFeatureChart(막대) / → _usageBarLabelPlugin(값이 null 인 제목 줄은 숫자를 안 그린다)
+ */
+function _usageGroupedRows(featRows) {
+    var order = (USAGE_FEATURE_LABELS.__groups || []).concat(['이름표 없음']);
+    var labels = [], values = [];
+    order.forEach(function (g) {
+        var items = featRows.filter(function (r) { return usageFeatureGroup(r.key) === g; });
+        if (!items.length) return;
+        var sum = items.reduce(function (s, r) { return s + r.count; }, 0);
+        labels.push('■ ' + g + ' — 합계 ' + sum.toLocaleString() + '건'); values.push(null);
+        items.forEach(function (r) { labels.push(usageFeatureShort(r.key)); values.push(r.count); });
+    });
+    return { labels: labels, values: values };
+}
 
 // ============================================================================
 // (라)(마) Aurora 디자인 시스템 — 다크/화이트 두 팔레트(토글) 토큰
@@ -3783,6 +3815,7 @@ function _usageBarLabelPlugin() {
             ctx.textAlign = 'center';
             ctx.lineJoin = 'round';
             meta.data.forEach(function (bar, i) {
+                if (data[i] === null) return;      // 묶음 제목 줄 — 숫자는 줄 이름(합계)에 이미 있다
                 var v = data[i] || 0;
                 var txt = v.toLocaleString() + '건 · ' + (v / sum * 100).toFixed(1) + '%';
                 var tw = ctx.measureText(txt).width;
@@ -3878,9 +3911,10 @@ function _usageRenderFeatureChart() {
         if (wrap) wrap.style.height = boxF.height + 'px';
         usageFeatureChart = _usageMakeDonut(el, grouped.labels, grouped.values, T, 'feat', boxF);
     } else {
-        // 막대는 세로로 충분하므로 묶지 않고 모든 기능을 상세히 표출한다.
-        var labels = featRows.map(function (r) { return usageFeatureLabel(r.key); });
-        var values = featRows.map(function (r) { return r.count; });
+        // 막대는 세로로 충분하므로 모든 기능을 다 보여 주되, 묶음(화면 자리)별로 모아 묶음 제목 줄을 넣는다(2026-11-23).
+        var gr = _usageGroupedRows(featRows);
+        var labels = gr.labels;
+        var values = gr.values;
         if (wrap) wrap.style.height = Math.max(280, values.length * 28 + 40) + 'px';
         usageFeatureChart = _usageMakeBar(el, labels, values, T);
     }
@@ -4101,7 +4135,7 @@ function _usageMakeDonut(el, labels, values, T, which, box) {
 
 // 가로막대 차트 생성(라벨 플러그인 + 그라데이션). 도넛과 동일 데이터로 전환.
 function _usageMakeBar(el, labels, values, T) {
-    var maxV = values.length ? Math.max.apply(null, values) : 1;
+    var maxV = values.length ? Math.max.apply(null, values.map(function (v) { return v || 0; })) : 1;
     return new Chart(el, {
         type: 'bar',
         data: {
