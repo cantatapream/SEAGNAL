@@ -2,13 +2,14 @@
  * 파일명: client/js/ocean-map/menu/ocean_menu.css
  * 역할  : 해양종합정보 「새 모드」(body.om-mode)의 모양 — [메뉴] 버튼 · 오른쪽 사이드바 ·
  *         「○○ 화면 표출 중」 안내 줄 · 그 모드에서 감추거나 바꿔 보이는 기존 요소.
- *         ★모든 규칙이 body.om-mode 아래에 있다 — 평소 화면에는 아무 영향이 없어야 한다.
+ *         ★모든 규칙이 body.om-mode 아래에 있다. 2026-11-23 부터 앱이 뜨면 늘 body.om-mode 다(ocean_menu.js).
+ *         옛 화면은 시험에서만 뜬다(window.__SEAGNAL_OLD_OCEAN_SCREEN) — 그 화면에는 아무 영향이 없어야 한다.
  * [연계] js/ocean-map/menu/ocean_menu.js(클래스 om-mode·om-here·om-view·om-open·om-filter-open 을 붙인다) ·
  *        index2.html(<link> — risk_forecast.css·station_briefing.css 다음) ·
  *        index2.html 안 <style> 의 #ocean-map-section·활동 섹션 top 규칙(안내 줄 높이만큼 아래로 민다)
  * ============================================================================ */
 
-/* ── 0. 평소에는 전부 없다 ─────────────────────────────────────────────── */
+/* ── 0. 옛 화면(시험)에는 전부 없다 ─────────────────────────────────────────────── */
 #om-menu-btn, #om-subs, #om-banner, #om-backdrop, #om-sidebar, #om-acc-filter-head, #om-loading { display: none; }
 
 /* ── 1. 새 모드에서 감추는 기존 요소 ───────────────────────────────────── */
@@ -473,7 +474,7 @@ body.om-mode.om-filter-open #ocean-topleft-controls > #accident-filter-reset-btn
 /* ── 7. 앱 배경 — 사선 무늬 없이 짙은 남색 바탕에 왼쪽 아래→오른쪽 위로 흐르는 푸른 빛 ────────────
  * 2026-11-23 사용자(그림 첨부): 「지금은 배경에 사선이 들어가있는데 사선 빼고 이 느낌으로만 반영코자 해」
  * 톤: 처음 넣은 값이 「기존 스타일(남색) 대비 너무 밝」아 시안 2안(기존 남색에 가깝게, 은은한 빛만)으로 낮췄다(같은 날 사용자 「배경은 2안」).
- * 다른 변경과 같이 새 모드에서만 보인다(「모두 숨기자」) — 기본으로 바꿀 때 style.css 의 body::before 와
+ * (2026-11-23 새 메뉴 화면이 기본이 돼 앱 전체에 늘 보인다. 아직 여기 둔 채다 —) 정리할 때 style.css 의 body::before 와
  * .nhub-head.stuck(같은 무늬를 쓰는 고정 머리)로 옮긴다. */
 body.om-mode::before {
     background-color: #0a101f;

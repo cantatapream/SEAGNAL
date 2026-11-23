@@ -338,7 +338,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_admin_cards` | ★관리자 검토 카드 **7종의 HTML 을 못박는다**. (4-1 · 4-3) |
 | `test_review_sources` | ★⚠수치검증 카드의 「원문 보기」를 못박는다. (2026-11-02 사용자 요청) |
 | `test_review_replay` | 관리자 검토 센터에서 누른 「승인」이 **배포 뒤에도 남는지** 확인한다. |
-| `test_ocean_menu_ui` | 해양종합정보 「새 모드」(탭 10번 누르면 켜지는 통합 메뉴)를 실제 브라우저로 눌러 본다. |
+| `test_ocean_menu_ui` | 해양종합정보 새 메뉴 화면(통합 메뉴 — 2026-11-23 부터 앱이 뜨면 바로 이 화면)을 실제 브라우저로 눌러 본다. |
 | `test_codex_bridge` | Codex 개발자 모드(services/codex_bridge.js)의 삼중 잠금·중계를 고정한다. |
 | `test_bulletin_ai` | 「AI 모델 설정」(종전 「AI 특보 분석」) 기능별 AI 순서(services/bulletin_ai.js — ① 특보 읽기·② 참고사항 해석·④ 연안 안전 브리핑)와 그 API·일감별 실행 위치를… |
 | `test_bulletin_ai_ui` | 관리자 「AI 모델 설정」 탭(client/js/admin/admin_bulletin_ai.js)의 기능별 AI 순서 목록을 실제 Chromium 으로 그려 본다 — |

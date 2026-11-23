@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-23 15:50 KST] ✅완료 — 해양종합정보 새 메뉴 화면을 기본으로(트리거 삭제)
+사용자 2026-11-23 「이제 트리거없이 메인화면에 그대로 반영되도록 하자」. ocean_menu.js: DOMContentLoaded 에서 _setMode(true, silent), 탭 10번 누름 장치·상수 삭제. verify_all 1차에서 걸린 6건 처리 — ①실제 결함 1건: 지도를 한 번도 안 연 채 해양안전 화면에 들어가면 「전부 꺼짐」을 미뤄 둔 값으로 적어 돌아올 때 저장값을 꺼 버렸다 → 지도 없을 때 적은 값은 blind 로 두고 사용자가 직접 바꾼 스위치만 반영 ②옛 화면 자리·누름 시험 3개(test_overlay_solo·test_life_safety_tab_keep·test_risk_coast_day)는 window.__SEAGNAL_OLD_OCEAN_SCREEN 으로 옛 화면을 띄워 유지 ③test_news_hub_ui 는 고정 머리 배경을 「페이지 배경과 같은가」로 ④test_ocean_menu_ui ①②⑩⑫ 갱신 ⑤_RULES.md 재생성. 확인: verify_all 2차 — 「전체 검증 통과」, 스위트 175개 전부 0 FAIL, 「실패·악화 항목 총정리」에 스위트·게이트 실패 줄 없음(❌ 가 붙은 줄은 기존 분류 표시뿐). 앱 시작 화면 캡처로 탭 3개·[전체 메뉴]·진북 고정 확인. 남은 정리(안 함): 옛 버튼 줄·해양안전생활 탭 마크업 걷어 내기, 배경(§7)을 style.css 로 옮기기, 사용 안내 문서에 옛 화면 설명이 남았는지 점검.
+
+
 ### [2026-11-23 14:41 KST] ✅완료 — 사고 통계 시트 옆 넘침 수정 · 새 모드 시트 높이 · 한 줄 자간 맞춤 · 전체 메뉴 굵게
 사용자 2026-11-23. ①통계 시트 본문이 옆으로 밀리던 것: 원인은 칩 줄(.ash-meta .ash-chips)에 min-width:0 이 없어 360px 화면에서 406px 까지 넓어진 것(재어 본 값). min-width:0 + 본문 overflow-x:hidden + 칩 글자 줄바꿈 허용(style.css — 옛 화면에도 적용된다). ②새 모드에서 시트가 [전체 메뉴] 버튼 아래 8px 까지만 올라온다(ocean_menu.css max-height). ③shared/ui/text_fit.js 에 textFitOneLine(el) 신설 — 두 줄이 되는 짧은 글을 자간을 좁혀 한 줄로(한도 0.12em, 넘으면 두 줄 그대로). 지금 건 곳은 새 모드 안내 줄과 통계 칩 글자 둘뿐이다. 360px 에서 안내 줄·칩 윗줄은 한 줄이 되고, 칩 아랫줄(건수+비율)은 한도를 넘어 두 줄로 남는다. ④[전체 메뉴] 글자 굵게. 확인: test_ocean_menu_ui 23/0 · test_accident_sheet 200/0 · test_text_fit 28/0 · test_guide_tabs 77/0 · check_order 통과. verify_all 전체는 돌리지 않았다. 창 크기가 바뀔 때(회전) 다시 맞추는 처리는 안 넣었다(다시 그릴 때 맞춰진다).
 
