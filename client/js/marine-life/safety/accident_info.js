@@ -5987,6 +5987,8 @@
             if (!_statsNationwide && _statsCellFeature) resolveWarnDays(_statsCellFeature, _statsAll);
             renderStatsBody();
         }
+        // 새 모드(body.om-mode): 필터가 걸리고 풀릴 때마다 「선택 초기화」를 나타내고 감춘다(판정은 showFilterResetBtn 안)
+        if (document.body.classList.contains('om-mode')) showFilterResetBtn(state.mode === 'status' && !!state.source);
     }
 
     /** 사고정보가 켜져 있는 동안(showModeToggle 과 동일 시점)만 필터 바를 보여준다. */
@@ -6226,6 +6228,9 @@
 
     /** "선택 초기화" 버튼(2026-08-25 사용자 확정) — 모드토글과 같이 보이고 같이 숨는다. */
     function showFilterResetBtn(show) {
+        // [새 모드(body.om-mode) — 2026-11-22 사용자 「선택 초기화는 필터가 적용된 경우 자동으로 나타나도록 해야하고,
+        //   초기화 하면 초기화 버튼은 자동으로 사라지도록」] 걸린 필터가 없으면 보이지 않는다. 평소 화면은 종전 그대로.
+        if (show && document.body.classList.contains('om-mode')) show = hasActiveFilters();
         var btn = document.getElementById('accident-filter-reset-btn');
         if (btn) btn.style.display = show ? 'block' : 'none';
     }
