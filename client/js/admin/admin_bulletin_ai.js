@@ -343,10 +343,19 @@
             fetch('/api/admin/bulletin-ai/compare', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
                 if (!document.body.contains(card)) return;
                 if (!j || !j.ok) { out.textContent = '서버가 이 기능을 모릅니다(서버가 옛 판) — 서버를 새로 올린 뒤 다시 여세요.'; return; }
+                var net = card.querySelector('[data-bai-cmp-net]'); if (net) net.remove();
                 render(j);
                 if (cmpTimer) clearTimeout(cmpTimer);
                 if (j.running) cmpTimer = setTimeout(load, 10000);
-            }).catch(function (e) { out.textContent = '불러오기 실패: ' + (e && e.message); });
+            }).catch(function (e) {
+                // 휴대폰이 잠깐 끊겨도(「Failed to fetch」) 시험은 서버에서 계속 돈다 — 표를 지우지 않고 알림만 붙이고 30초 뒤 다시 묻는다(2026-11-23 운영: 한 번 실패로 갱신이 멈췄다)
+                if (!document.body.contains(card)) return;
+                var note = card.querySelector('[data-bai-cmp-net]') || el('div', 'color:#fbbf24;margin-top:4px', '');
+                note.setAttribute('data-bai-cmp-net', '1'); note.textContent = '서버 연결이 잠깐 끊겼습니다(' + (e && e.message) + ') — 시험은 서버에서 계속 돕니다. 30초 뒤 다시 확인합니다.';
+                if (!note.parentNode) card.appendChild(note);
+                if (cmpTimer) clearTimeout(cmpTimer);
+                cmpTimer = setTimeout(load, 30000);
+            });
         }
         load();
     }
