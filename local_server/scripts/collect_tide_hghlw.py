@@ -10,6 +10,7 @@
   TIDE_HGHLW_KEYS="키1,키2,키3" python3 local_server/scripts/collect_tide_hghlw.py 2027
   - 키는 저장소에 적지 않는다(환경변수로만). 키 하나에 하루 10,000번이다.
   - 한 번 호출 = 한 지점·하루치(고조·저조 2~4건). 166곳 × 365일 = 60,590번 → 키 3개로 3일.
+  - 끝에 --edge 를 붙이면 앞뒤 하루(전해 12-31·다음 해 01-01)만 받아 _edge.csv 에 쓴다(332번 — 1년치를 다 받은 뒤 한 번).
   - 이미 받은 지점(CSV 가 있는 지점)은 건너뛴다. 한도에 걸리면 멈춘다 → 다음 날 같은 명령으로 이어받는다.
 
 [연계]
@@ -161,14 +162,38 @@ def collect_station(keys, code, days, out_dir):
     return code, len(rows), nodata, coord
 
 
+def collect_edge(keys, year, codes, out_dir):
+    """앞뒤 하루(전해 12-31 · 다음 해 01-01)를 받아 _edge.csv 에 쓴다(지점별 CSV 와 같은 5칸).
+    [왜] 임의항은 기준 표준항 시각을 조시차만큼 밀어 계산한다 — 밀면 자정을 넘는 고조·저조가 있어
+         그 해 첫날·끝날을 채우려면 앞뒤 하루가 필요하다. [연계] build_tide_points_year.js 가 읽는다."""
+    rows = []
+    for code in codes:
+        for ymd in (f'{year - 1}1231', f'{year + 1}0101'):
+            kind, val = fetch_day(keys, code, ymd)
+            if kind != 'ok':
+                continue
+            for it in val:
+                lv = it.get('predcTdlvVl')
+                lv = str(int(lv)) if float(lv) == int(float(lv)) else str(lv)
+                rows.append([code, it.get('obsvtrNm'), it.get('predcDt'), lv, '고조' if str(it.get('extrSe')) in ('1', '3') else '저조'])
+    with open(os.path.join(out_dir, '_edge.csv'), 'w', encoding='utf-8-sig', newline='') as f:
+        w = csv.writer(f, quoting=csv.QUOTE_ALL)
+        w.writerow(['관측소코드', '관측소명', '날짜시간', '조위(cm)', '고저구분'])
+        w.writerows(rows)
+    print(f'앞뒤 하루: {len(codes)}곳 · {len(rows)}줄 → _edge.csv', flush=True)
+
+
 def main():
     year = int(sys.argv[1])
-    budget = int(sys.argv[2]) if len(sys.argv) > 2 else DAILY_LIMIT   # 키마다 이번에 쓸 횟수
+    budget = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2].isdigit() else DAILY_LIMIT   # 키마다 이번에 쓸 횟수
     key_list = [k.strip() for k in os.environ.get('TIDE_HGHLW_KEYS', '').split(',') if k.strip()]
     if not key_list:
         sys.exit('TIDE_HGHLW_KEYS 환경변수에 키를 넣어 주세요(쉼표로 구분).')
     out_dir = os.path.join(ROOT, f'{year}_hghlw')
     codes = [c.strip() for c in open(os.path.join(out_dir, '_stations.txt'), encoding='utf-8') if c.strip()]
+    if '--edge' in sys.argv:
+        collect_edge(Keys(key_list, 400), year, codes, out_dir)
+        return
     todo = [c for c in codes if not os.path.exists(os.path.join(out_dir, c + '.csv'))]
     d, days = datetime.date(year, 1, 1), []
     while d.year == year:

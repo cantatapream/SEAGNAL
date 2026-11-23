@@ -63,8 +63,8 @@ TIDE_HGHLW_KEYS="키1,키2,키3" python3 -u local_server/scripts/collect_tide_hg
 - 끝났는지: `client/tide_data/Raw_tide_data/2027_hghlw/_stations.txt` 의 166개 코드마다 `<코드>.csv` 가 있다.
 - 받는 도중의 날짜는 `_part/<코드>.json`(저장소에 안 올라간다 — 컨테이너가 새로 뜨면 그 지점은 처음부터).
 - 실행이 끝날 때마다 새 `<코드>.csv`·`_coords.csv`·`_nodata.csv` 를 **경로를 지정해** 커밋·푸시.
-- ①이 끝나면 앞뒤 하루(2026-12-31·2028-01-01)도 받는다 — 조시차로 자정을 넘는 고조·저조 때문(166×2=332번). **도구에 아직 없다 → 만들 것**
-  (같은 API 를 그 이틀만 불러 `2027_hghlw/_edge.csv` 에 같은 5칸으로).
+- ①이 끝나면 앞뒤 하루(2026-12-31·2028-01-01)도 받는다 — 조시차로 자정을 넘는 고조·저조 때문(166×2=332번):
+  `TIDE_HGHLW_KEYS=… python3 -u local_server/scripts/collect_tide_hghlw.py 2027 --edge` → `2027_hghlw/_edge.csv`. (★한도가 남은 때에 — ①과 같은 한도를 쓴다)
 
 **② 임의항 12일 실제 곡선 받기** — `collect_tidebed_verify.js` (①과 **동시에 진행해도 된다** — 서로 다른 API)
 ```
@@ -75,7 +75,7 @@ TIDEBED_KEYS="키1,키2,키3" NODE_USE_ENV_PROXY=1 node --no-warnings local_serv
 - 약 82,900번(1,381곳×12일×5) → 새벽 4일쯤. 실행이 끝날 때마다 `tidebed_verify/` 를 경로 지정해 커밋·푸시.
 - 「연속 8회 실패」로 멈추면 TideBED 장애다 — 그날은 그만두고 다음 새벽에 이어받는다.
 
-**③ 표준항 파일 만들기** (①이 끝난 뒤) — **도구 아직 없다 → 만들 것** (`build_tide_year_file.js`)
+**③ 표준항 파일 만들기** (①이 끝난 뒤) — `node local_server/scripts/build_tide_year_file.js 2027 --write` (도구 있음 · 인자 없이 돌리면 검사만)
 - `client/tide_data/tide_data_2027.js` 를 기존 틀 그대로: 머리말 2줄(`// 조석 데이터 2027년 (자동 생성됨)` · `// 생성 일시: …`) +
   `if (!window.TIDE_DATA_STORAGE) window.TIDE_DATA_STORAGE = {};` + `window.TIDE_DATA_STORAGE['2027'] = ` + `JSON.stringify(rows, null, 2)` + `;`
   (기존 파일 본문이 정확히 이 직렬화다 — 확인함). 줄 순서 = 지점 코드순 → 날짜순. 칸 = `date`(20270101 정수)·`stationName`·`stationCode`·
@@ -84,7 +84,10 @@ TIDEBED_KEYS="키1,키2,키3" NODE_USE_ENV_PROXY=1 node --no-warnings local_serv
 - 검사: 166곳 모두 365일(없는 날은 `_nodata.csv` 에 있는 날만) · 기존 파일과 전수 대조해 「같음/다름」 건수 기록 · `bash scripts/refactor/verify_all.sh`
   (⚠이 컨테이너엔 `local_server/node_modules` 가 없어 원래 실패하는 스위트가 있다 — 내 변경 전후를 비교해 **새로 깨진 것만** 본다).
 
-**④ 임의항·동해북부 1년치 계산 + 12일 대조** (①②가 끝난 뒤. 표준항이 끝난 것부터 부분 실행 가능) — **도구 아직 없다 → 만들 것** (`build_tide_points_year.js`)
+**④ 임의항·동해북부 1년치 계산 + 12일 대조** (①②가 끝난 뒤. 표준항이 끝난 것부터 부분 실행 가능) — `node local_server/scripts/build_tide_points_year.js 2027 --write`
+(도구 있음 · `--write` 없이 돌리면 보고서(`VERIFY_REPORT.md`·`verify_detail.json`)만 쓴다. 아래는 그 도구가 하는 일의 설명이다.
+ ⚠`--write` 는 ①②가 **다 끝난 뒤 한 번만** — 지점 파일 1,575개(수십 MB)가 생기므로 덜 된 상태로 커밋하지 않는다.
+ ⚠동해북부 3곳 섞기는 표준항이 **다 있어야** 앱과 같은 값이 나온다.)
 - 임의항(상태 ok): `tidebed_verify/<id>.json` 의 `ref`(기준 표준항 **이름** → `_coords.csv`/`client/tide.js` 목록으로 코드 찾기)·`shiftMin`·보정식.
   - 그날 고조·저조 = 기준 표준항의 고조·저조를 **시각 +shiftMin 분**, **높이 = a×표준항높이 + b**(a·b 는 12일 fit 의 중앙값, 반올림 정수 cm).
   - 시각을 민 뒤 날짜가 넘어가면 그 날짜 줄로 옮긴다(그래서 ①의 앞뒤 하루가 필요하다).
@@ -120,3 +123,4 @@ TIDEBED_KEYS="키1,키2,키3" NODE_USE_ENV_PROXY=1 node --no-warnings local_serv
 - 2026-11-24 00:07 KST: ① 이어받기 시작(떼어 놓고 실행, 기록 /tmp/tide_hghlw.log) — 62곳 완료·104곳 남음. 한도 초과 응답 없이 호출이 된다(자정에 한도가 풀린 것으로 보인다).
 - 2026-11-24 02:45 KST: 떼어 놓고 띄운 ①이 세션이 쉬는 동안 죽어 있었다(62곳 그대로). ①②를 백그라운드 실행으로 다시 시작(②는 임의항 1,378곳 남음, 06:50 까지).
 - 2026-11-24 03:10 KST: ③ 도구 build_tide_year_file.js 를 미리 만들어 받은 62곳으로 검사 모드 시험. ★API 원본 오류 발견: 2027-01-02 의 속초등표(DT_0048)·쌍정초(DT_0046) 응답 9건 중 5건이 속초(DT_0012)의 그날 값과 똑같거나 두 지점에 똑같이 든 줄(직접 다시 불러 확인) — 하루 고조·저조가 4개를 넘는 날에 한해 「다른 지점과 똑같은 줄」을 빼도록 했다(dropForeign).
+- 2026-11-24 03:20 KST: ④ 도구 build_tide_points_year.js 와 앞뒤 하루 받기(`--edge`)를 만들었다. 지금까지 대조할 수 있는 임의항 **19곳 × 12일(고조·저조 801건)이 전부 ±1분·±1cm 안**(불합격 0 · 개수 다름 0). 남은 일은 ①② 수집이 끝나기를 기다렸다가 ①의 --edge → ③ --write → ④ --write → ⑤.
