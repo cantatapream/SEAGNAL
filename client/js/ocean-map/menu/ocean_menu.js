@@ -901,6 +901,8 @@
         var msg = viewing ? '<b>' + _esc(_viewLabel(_view)) + '</b> 화면 표출 중 해양기상정보는 표시되지 않습니다.' : '';
         banner.hidden = !viewing; vbox.hidden = !viewing;
         if (viewing) { banner.querySelector('.om-banner-text').innerHTML = msg; vbox.querySelector('.om-viewbox-text').innerHTML = msg; }
+        // 좁은 화면에서 안내 글이 두 줄이 되면 글자 간격을 좁혀 한 줄로(한도를 넘으면 두 줄 그대로) — shared/ui/text_fit.js
+        if (viewing && window.textFitOneLine) window.textFitOneLine(banner.querySelector('.om-banner-text'));
         var h = viewing ? banner.offsetHeight : 0;
         var prev = body.style.getPropertyValue('--om-banner-h');
         if (prev !== h + 'px') {

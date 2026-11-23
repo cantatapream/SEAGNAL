@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-23 14:41 KST] ✅완료 — 사고 통계 시트 옆 넘침 수정 · 새 모드 시트 높이 · 한 줄 자간 맞춤 · 전체 메뉴 굵게
+사용자 2026-11-23. ①통계 시트 본문이 옆으로 밀리던 것: 원인은 칩 줄(.ash-meta .ash-chips)에 min-width:0 이 없어 360px 화면에서 406px 까지 넓어진 것(재어 본 값). min-width:0 + 본문 overflow-x:hidden + 칩 글자 줄바꿈 허용(style.css — 옛 화면에도 적용된다). ②새 모드에서 시트가 [전체 메뉴] 버튼 아래 8px 까지만 올라온다(ocean_menu.css max-height). ③shared/ui/text_fit.js 에 textFitOneLine(el) 신설 — 두 줄이 되는 짧은 글을 자간을 좁혀 한 줄로(한도 0.12em, 넘으면 두 줄 그대로). 지금 건 곳은 새 모드 안내 줄과 통계 칩 글자 둘뿐이다. 360px 에서 안내 줄·칩 윗줄은 한 줄이 되고, 칩 아랫줄(건수+비율)은 한도를 넘어 두 줄로 남는다. ④[전체 메뉴] 글자 굵게. 확인: test_ocean_menu_ui 23/0 · test_accident_sheet 200/0 · test_text_fit 28/0 · test_guide_tabs 77/0 · check_order 통과. verify_all 전체는 돌리지 않았다. 창 크기가 바뀔 때(회전) 다시 맞추는 처리는 안 넣었다(다시 그릴 때 맞춰진다).
+
+
 ### [2026-11-23 14:10 KST] ✅완료 — 새 모드 — 진북 정렬 버튼 삭제 · 늘 진북 고정
 사용자 「진북정렬이라는 버튼은 삭제하고, 기본 진북 fix로 적용되어있도록 하자」. 새 모드(body.om-mode) 안에서만: #ocean-northup-btn 을 CSS 로 감추고 ocean_menu.js _lockNorth 가 그 버튼을 대신 눌러 고정 상태로 둔다(_moveNorthBtn 삭제). 끄면 켜기 전 상태로 되돌리고, 우리가 건 고정은 localStorage(oceanMap.northUp.locked)에서 빼 앱을 껐다 켜면 원래대로다. 위 버튼 줄은 기본맵→내 위치→안내. test_ocean_menu_ui.js 22 PASS/0 FAIL(이번에 돌린 것은 이 스위트 하나 — verify_all 전체는 안 돌렸다). 옛 화면(평소 모드)의 진북 정렬 버튼은 그대로다 — 새 모드를 기본으로 바꿀 때 함께 정리.
 

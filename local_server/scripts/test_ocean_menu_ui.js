@@ -230,6 +230,17 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
       await click('#om-menu-btn'); await wait(300); await view('accStat'); await wait(1500); r = await a();
       assert.equal(r.mode, 'analysis'); assert.equal(r.nw, 'block'); assert.equal((await S()).banner, '사고분석 화면 표출 중 해양기상정보는 표시되지 않습니다.');
     });
+    await check('[2026-11-23] 사고분석 「전국 통계」 시트 — [전체 메뉴] 버튼 아래까지만 올라오고 · 본문이 옆으로 넘치지 않는다', async () => {
+      await click('#accident-nationwide-btn');
+      await page.waitForFunction(() => document.getElementById('accident-stats-sheet').classList.contains('open') && document.querySelector('#accident-stats-body .ash-chips'), null, { timeout: 30000 });
+      await wait(700);
+      const g = await page.evaluate(() => { const sh = document.getElementById('accident-stats-sheet').getBoundingClientRect(), mb = document.getElementById('om-menu-btn').getBoundingClientRect(), b = document.getElementById('accident-stats-body');
+        let over = 0; b.querySelectorAll('*').forEach(e => { const r = e.getBoundingClientRect(); if (r.width && r.right > innerWidth + 0.5) over++; });
+        return { top: Math.round(sh.top), menuBottom: Math.round(mb.bottom), sw: b.scrollWidth, cw: b.clientWidth, over }; });
+      assert.ok(g.top >= g.menuBottom + 4, '시트 윗변이 버튼 아래 ' + JSON.stringify(g));
+      assert.ok(g.sw <= g.cw && g.over === 0, '옆으로 넘침 없음 ' + JSON.stringify(g));
+      await click('#accident-stats-close'); await wait(500);
+    });
     await check('⑦ 바다낚시 [보기] — 활동 화면 · 갯바위(먼저)·선상 버튼 · 지도 섹션이 안내 줄만큼 내려감', async () => {
       await click('#om-menu-btn'); await wait(300); await view('fish'); await wait(1500); const s = await S();
       assert.equal(s.sec, 'fishing-section'); assert.equal(s.view, 'fish'); assert.deepEqual(s.subs, ['갯바위●', '선상']);
