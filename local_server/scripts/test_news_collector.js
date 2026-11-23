@@ -198,6 +198,9 @@ const mk = (f, dir) => N.createNews({ dir, configFile: path.join(dir, 'cfg.json'
         ok('관리자가 실은 카드는 묶기에 넣지 않는다(AI 가 모두 한 묶음이라 해도 — 관리자 고른 분류 그대로)', D.cards.some((x) => /관리자/.test(x.title) && x.cat === 'rule'), D.cards.map((x) => [x.title, x.cat]));
         ok('AI 를 기다리는 사이 들어온 펼친 횟수를 덮지 않는다(검토 지적 — 종전엔 0)', D.cards.find((x) => /관리자/.test(x.title)).views === 2, D.cards.map((x) => [x.title, x.views]));
         ok('합친 카드의 펼친 횟수는 남는 카드로', acc.views === 1, acc.views);
+        const mv = cc.adminDay('2026-11-21').rejected.filter((x) => /같은 사건으로 합침/.test(x.reason));
+        ok('「AI 가 뺀 기사」에는 화면에서 빠진 기사만 — 머리가 된 「시신 발견」은 없고 「→ 자기 자신」 줄도 없다(운영 2026-11-23 관리자 화면에서 발견)',
+            mv.length === 2 && !mv.some((x) => /시신 발견/.test(x.title)) && mv.every((x) => !x.reason.includes('「' + x.title + '」')) && mv.some((x) => x.title === '해광호 실종 수색 사흘째'), mv.map((x) => [x.title, x.reason]));
     }
     {
         // 묶기 AI 가 실패하면 합치지 않고, 새 카드가 없어도 다음 회차에 다시 묻는다 · 관리자 화면에 띄울 실패 기록
@@ -221,7 +224,9 @@ const mk = (f, dir) => N.createNews({ dir, configFile: path.join(dir, 'cfg.json'
         const cards = [{ title: '해수부, 김장철 수산물 원산지 표시 특별 점검' }, { title: '해수부, 내달 4일까지 김장철 수산물 원산지 표시 특별점검' }, { title: '부산해경, 김장철 농수산물 유통 특별단속' }, { title: '실종 어선 해광호 수색 닷새째' }];
         const r1 = await J.groupDuplicates(cards, { call: async (fn, prm, o) => { calls.push(fn + '|' + prm); return { success: false, error: '모든 AI 실패' }; } });
         ok('groupDuplicates: AI 실패 → 묶지 않는다(by failed · 까닭)', r1.by === 'failed' && r1.groups.length === 0 && r1.error === '모든 AI 실패', r1);
-        ok('⑦ news 로 부른다 · 지시문: 제목·요약 목록과 「기관·지역·사건이 다르면 따로」', /^news\|/.test(calls[0]) && /\[3\] 실종 어선 해광호/.test(calls[0]) && /기관·지역·사건이 다르면 따로/.test(calls[0]));
+        ok('⑦ news 로 부른다 · 지시문: 제목·요약 목록과 「기관·지역·사건이 다르면 따로」', /^news\|/.test(calls[0]) && /\[3\] 실종 어선 해광호/.test(calls[0]) && /기관·지역·사건이 다르면 따로/.test(calls[0])
+            // 운영 2026-11-22·23: 「오늘의 안전 상황」 종합 기사가 다른 카드와 합쳐졌고, 22일 진도 전복 카드가 사라졌다(해광호 카드에 합쳐진 것으로 추정)
+            && /배 이름·장소가 다르면/.test(calls[0]) && /종합·정리 기사.*어느 묶음에도 넣지 않는다/.test(calls[0]));
         const bad = await J.groupDuplicates(cards, { call: async () => ({ success: true, text: '{"groups":[[0,9]]}', provider: 'gemma' }) });
         ok('답에 없는 번호가 있으면 버린다', bad.by === 'failed' && bad.groups.length === 0, bad);
         const dup = await J.groupDuplicates(cards, { call: async () => ({ success: true, text: '{"groups":[[0,1],[1,2]]}', provider: 'gemma' }) });
