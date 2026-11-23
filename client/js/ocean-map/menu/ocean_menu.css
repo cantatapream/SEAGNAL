@@ -209,7 +209,7 @@ body.om-mode.om-here.om-open #om-sidebar { transition: transform 0.3s ease, visi
     top: 50%;
     transform: translateY(-50%);
     width: 26px;
-    height: 86px;
+    height: 104px;        /* 화살표(›) 위·아래 + 「접기」 */
     padding: 0;
     border: 1px solid rgba(148, 163, 184, 0.3);
     border-right: 0;

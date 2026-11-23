@@ -668,7 +668,7 @@
             '<div id="om-backdrop" data-om="close" hidden></div>' +
             '<aside id="om-sidebar" aria-label="해양종합정보 메뉴" aria-hidden="true">' +
                 '<button type="button" class="om-handle" data-om="close" aria-label="메뉴 접기">' +
-                    '<i class="fa-solid fa-chevron-right" aria-hidden="true"></i><span>접<br>기</span></button>' +
+                    '<i class="fa-solid fa-chevron-right" aria-hidden="true"></i><span>접<br>기</span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>' +
                 '<div class="om-head"><span>해양종합정보 메뉴</span>' +
                     '<button type="button" class="om-x" data-om="close" aria-label="닫기"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>' +
                 '<div class="om-body">' +
