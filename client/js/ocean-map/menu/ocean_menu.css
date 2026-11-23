@@ -25,18 +25,17 @@ body.om-mode[data-active-tab="ocean-life-group"] { --sub-tab-height: 0px; }
 /* ── 2. 위쪽 버튼 한 줄 · [전체 메뉴] 버튼 · 그 아래 버튼 줄(천기 7개 / 갯바위·선상) ─────
  * 2026-11-23 사용자: 「기존의 기본맵, 안내, 내위치, 진북정렬을 검색란 아래 한줄로 … 순서는 기본맵, 진북정렬, 내위치, 안내」
  * 「매뉴 버튼을 좀더 [(햄버거 아이콘) 전체 매뉴] 처럼 되도록 좀 더 넓게(한줄로)」「불필요하게 초록색 빛 … 」(→ 다른 버튼과 같은 남색) */
+/* (그 뒤 2026-11-23 사용자 「진북정렬이라는 버튼은 삭제하고, 기본 진북 fix로」 — 진북 정렬 버튼은 줄에서 뺐다) */
 /* 검색란 — 오른쪽에 있던 진북 정렬·버튼 줄 자리가 비었으므로 끝까지 편다 */
 body.om-mode #ocean-map-section.active .ocean-search-container { right: 12px; }
-/* 왼쪽 위 버튼들을 한 줄로: 기본맵(1) → 진북 정렬(2, ocean_menu.js 가 이 줄로 옮긴다) → 내 위치(3) → 안내(4) */
+/* 왼쪽 위 버튼들을 한 줄로: 기본맵(1) → 내 위치(3) → 안내(4) */
 body.om-mode #ocean-topleft-controls > #ocean-basemap-toggle-wrap { display: contents; }
 body.om-mode #ocean-topleft-controls .ocean-basemap-anchor { order: 1; pointer-events: auto; }
-body.om-mode #ocean-map-section.active #ocean-topleft-controls > #ocean-northup-btn {
-    order: 2; position: static !important; top: auto; right: auto; pointer-events: auto;
-}
+/* 「진북 정렬」 버튼은 없앤다 — 새 모드는 늘 진북 고정(ocean_menu.js _lockNorth). 2026-11-23 사용자 */
+body.om-mode #ocean-northup-btn { display: none !important; }
 body.om-mode #ocean-topleft-controls #ocean-myloc-btn { order: 3; align-self: flex-start; pointer-events: auto; }
 body.om-mode #ocean-topleft-controls > #ocean-info-btn-wrap { order: 4; }
 /* 네 버튼을 기본맵 버튼과 같은 크기로(폭 48px · 같은 높이) — 2026-11-23 사용자 「각 버튼의 크기가 제각각 … 기본맵 버튼 수준으로」 */
-body.om-mode #ocean-map-section.active #ocean-topleft-controls > #ocean-northup-btn,
 body.om-mode #ocean-topleft-controls #ocean-myloc-btn {
     width: 48px;
     min-width: 48px;

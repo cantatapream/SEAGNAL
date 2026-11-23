@@ -147,7 +147,7 @@
     var _viewBasePrev = null;   // [보기] 화면 전용 배경(VIEWS[].base)으로 바꾸기 전의 배경 — 그 화면을 떠날 때 되돌린다
     var _accBusy = false;       // 사고 자료를 받는 동안의 로딩 표시가 떠 있는가
     var _loadSeq = 0;           // 천기 로딩 표시 — 연달아 눌렀을 때 앞선 표시가 끼어들지 않게 하는 번호
-    var _northHome = null;      // 진북 정렬 버튼의 원래 자리 {parent, next} — 새 모드를 끌 때 되돌린다
+    var _northPrev = null;      // 새 모드를 켜기 전 진북 상태('free'|'aligned'|'locked') — 끌 때 되돌린다
 
     // ========================================================================
     // 작은 도구
@@ -840,21 +840,30 @@
     }
 
     /**
-     * 진북 정렬 버튼을 검색란 아래 버튼 줄로 옮긴다(끄면 원래 자리로) — 「기본맵, 진북정렬, 내위치, 안내 순」(2026-11-23 사용자).
-     * 버튼을 그대로 옮기므로 눌렀을 때 동작(ocean_northup.js)은 바뀌지 않는다. 순서는 CSS(order)가 정한다.
-     * @param {boolean} on  [연계] ← _setMode()
+     * 진북 고정(North up fixed) — 새 모드에서는 「진북 정렬」 버튼을 없애고 지도를 늘 북쪽이 위로 고정해 둔다.
+     * 2026-11-23 사용자 「진북정렬이라는 버튼은 삭제하고, 기본 진북 fix로 적용되어있도록 하자」.
+     * 버튼(#ocean-northup-btn)은 CSS 로 감추고, 그 버튼을 대신 눌러 「고정」 상태(.northup-locked)까지 넘긴다
+     * (자유 → 정렬 → 고정 3단 — ocean_northup.js). 끄면 켜기 전 상태로 되돌린다. 지도가 아직 안 만들어졌으면 잠깐 뒤 다시 한다.
+     * @param {boolean} on  켜기/끄기
+     * @param {number} [tries]  다시 해 본 횟수(안에서만 쓴다)  [연계] ← _setMode() → #ocean-northup-btn (ocean-map/map/ocean_northup.js)
      */
-    function _moveNorthBtn(on) {
-        var btn = document.getElementById('ocean-northup-btn'), row = document.getElementById('ocean-topleft-controls');
-        if (!btn || !row) return;
-        if (on) {
-            if (btn.parentNode === row) return;
-            _northHome = { parent: btn.parentNode, next: btn.nextSibling };
-            row.appendChild(btn);
-        } else if (_northHome && _northHome.parent) {
-            _northHome.parent.insertBefore(btn, _northHome.next && _northHome.next.parentNode === _northHome.parent ? _northHome.next : null);
-            _northHome = null;
+    function _lockNorth(on, tries) {
+        var btn = document.getElementById('ocean-northup-btn');
+        if (!btn) return;
+        var stateOf = function () { return btn.classList.contains('northup-locked') ? 'locked' : (btn.classList.contains('northup-aligned') ? 'aligned' : 'free'); };
+        var want = on ? 'locked' : _northPrev;
+        if (on && _northPrev === null) _northPrev = stateOf();
+        if (!want) return;
+        _quiet(function () { for (var k = 0; k < 3 && stateOf() !== want; k++) btn.click(); });
+        if (stateOf() !== want) {
+            // 지도가 아직 준비 전이라 버튼이 듣지 않는다 — 조금 뒤 다시
+            if ((tries || 0) < 12 && _mode === on) setTimeout(function () { _lockNorth(on, (tries || 0) + 1); }, 500);
+            else if (!on) _northPrev = null;
+            return;
         }
+        if (!on) _northPrev = null;
+        // 「고정」은 원래 휴대폰에 저장돼 다음 실행에도 남는다 — 새 모드는 앱을 껐다 켜면 원래대로여야 하니, 우리가 건 고정은 저장에서 뺀다
+        else if (_northPrev !== 'locked') { try { localStorage.removeItem('oceanMap.northUp.locked'); } catch (e) { /* 저장이 막혀 있어도 화면은 그대로 돈다 */ } }
     }
 
     /**
@@ -985,7 +994,7 @@
             _wxOpen = !!_wxActiveSub();
         }
         document.body.classList.toggle('om-mode', on);
-        _moveNorthBtn(on);
+        _lockNorth(on);
         if (!on) { document.body.classList.remove('om-here', 'om-view', 'om-open'); document.body.style.removeProperty('--om-banner-h'); }
         // 이미 그려진 특보 색칠·관제구역이 새 무늬·새 색으로 다시 그려지게 한다
         try { if (window.OceanWarnActive && window.OceanWarnActive.refresh) window.OceanWarnActive.refresh(); } catch (e) { /* 특보 층이 아직 없으면 켤 때 새 무늬로 그려진다 */ }

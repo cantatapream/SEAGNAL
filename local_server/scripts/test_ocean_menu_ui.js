@@ -104,21 +104,21 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
       assert.equal(s.mode, true); assert.equal(s.menuBtn, true); assert.equal(s.rail, false);
       assert.deepEqual(s.tabs, ['특보정보', '해양종합정보', '뉴스·공지·어황']);
     });
-    await check('[2026-11-23] 위쪽 버튼 한 줄(기본맵→진북 정렬→내 위치→안내) · 넓은 [전체 메뉴](글자 크게 설정에도 같은 크기) · 사이드바 폭 60% · 이름 한 줄', async () => {
+    await check('[2026-11-23] 위쪽 버튼 한 줄(기본맵→내 위치→안내 · 「진북 정렬」 버튼은 없고 늘 진북 고정) · 넓은 [전체 메뉴](글자 크게 설정에도 같은 크기) · 사이드바 폭 60% · 이름 한 줄', async () => {
       const m = () => page.evaluate(() => {
         const r = (el) => { const b = el.getBoundingClientRect(); return { x: Math.round(b.left), y: Math.round(b.top), w: Math.round(b.width), h: Math.round(b.height) }; };
         const q = (s) => document.querySelector(s);
-        return { base: r(q('#ocean-basemap-toggle')), north: r(q('#ocean-northup-btn')), my: r(q('#ocean-myloc-btn')), info: r(q('#ocean-info-btn')),
-          menu: r(q('#om-menu-btn')), menuText: q('#om-menu-btn .om-menu-label').textContent, northParent: q('#ocean-northup-btn').parentNode.id,
+        return { base: r(q('#ocean-basemap-toggle')), northShown: q('#ocean-northup-btn').offsetParent !== null, northLocked: q('#ocean-northup-btn').classList.contains('northup-locked'), lsLock: localStorage.getItem('oceanMap.northUp.locked'), my: r(q('#ocean-myloc-btn')), info: r(q('#ocean-info-btn')),
+          menu: r(q('#om-menu-btn')), menuText: q('#om-menu-btn .om-menu-label').textContent,
           search: r(q('#ocean-map-section .ocean-search-container')) };
       });
       let g = await m();
-      assert.equal(g.northParent, 'ocean-topleft-controls'); assert.equal(g.menuText, '전체 메뉴');
-      assert.ok(g.base.x < g.north.x && g.north.x < g.my.x && g.my.x < g.info.x, JSON.stringify(g));
-      assert.ok(Math.abs(g.base.y - g.north.y) <= 2 && Math.abs(g.base.y - g.my.y) <= 2 && Math.abs(g.base.y - g.info.y) <= 2, '한 줄 ' + JSON.stringify(g));
+      assert.equal(g.northShown, false, '진북 정렬 버튼은 안 보인다'); assert.equal(g.northLocked, true, '진북 고정 상태'); assert.equal(g.lsLock, null, '고정은 저장하지 않는다(앱을 껐다 켜면 원래대로)'); assert.equal(g.menuText, '전체 메뉴');
+      assert.ok(g.base.x < g.my.x && g.my.x < g.info.x, JSON.stringify(g));
+      assert.ok(Math.abs(g.base.y - g.my.y) <= 2 && Math.abs(g.base.y - g.info.y) <= 2, '한 줄 ' + JSON.stringify(g));
       assert.ok(g.base.y >= g.search.y + g.search.h, '검색란 아래'); assert.ok(g.menu.w >= 90 && g.menu.h <= 46 && Math.abs(g.menu.y - g.base.y) <= 4, JSON.stringify(g.menu));
       assert.ok(g.info.x + g.info.w < g.menu.x, '안내 버튼과 [전체 메뉴]가 겹치지 않는다');
-      assert.deepEqual([g.north.w, g.north.h, g.my.w, g.my.h, g.info.w, g.info.h], [g.base.w, g.base.h, g.base.w, g.base.h, g.base.w, g.base.h], '네 버튼이 기본맵 버튼과 같은 크기 ' + JSON.stringify(g));
+      assert.deepEqual([g.my.w, g.my.h, g.info.w, g.info.h], [g.base.w, g.base.h, g.base.w, g.base.h], '세 버튼이 기본맵 버튼과 같은 크기 ' + JSON.stringify(g));
       assert.ok(g.menu.h === g.base.h, '[전체 메뉴] 높이도 같다');
       const before = g.menu;
       await page.evaluate(() => { document.documentElement.setAttribute('data-font-size', 'large'); document.documentElement.style.fontSize = '18px'; }); await wait(300);
@@ -302,9 +302,9 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
       assert.deepEqual(s.tabs, ['특보정보', '해양종합정보', '해양안전생활', '뉴스·공지·어황']); assert.ok(!/om-/.test(s.cls), s.cls); assert.equal(s.secTop, 0);
       assert.ok(!s.on.includes('ocean-terrain-toggle-btn'), JSON.stringify(s.on));
     });
-    await check('[2026-11-23] 새 모드를 끄면 진북 정렬 버튼이 원래 자리로 · 태풍 「해역표출 강제(디버그)」는 화면·코드에 없다 · 범례 아래 참고 문구는 유럽(ECMWF)·일본(JMA)만 남김', async () => {
+    await check('[2026-11-23] 새 모드를 끄면 진북 정렬 버튼이 다시 보이고 고정이 풀린다 · 태풍 「해역표출 강제(디버그)」는 화면·코드에 없다 · 범례 아래 참고 문구는 유럽(ECMWF)·일본(JMA)만 남김', async () => {
       const fs = require('fs');
-      assert.notEqual(await page.evaluate(() => document.getElementById('ocean-northup-btn').parentNode.id), 'ocean-topleft-controls');
+      assert.deepEqual(await page.evaluate(() => { const b = document.getElementById('ocean-northup-btn'); return [b.offsetParent !== null, b.classList.contains('northup-locked')]; }), [true, false]);
       assert.equal(await page.evaluate(() => !!document.getElementById('tphn-dbg-row')), false);
       const src = fs.readFileSync(path.join(root, 'client/js/typhoon/ocean_typhoon.js'), 'utf8');
       assert.ok(!/_debugKorea|tphn-dbg|해역표출 강제/.test(src) && !/tphn-dbg|해역표출 강제/.test(fs.readFileSync(path.join(root, 'client/index2.html'), 'utf8')));
