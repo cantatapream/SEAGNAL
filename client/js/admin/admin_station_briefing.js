@@ -261,8 +261,10 @@
         var run = elc('button', 'sba-btn primary', '지금 다시 만들기'); run.type = 'button'; run.setAttribute('data-sb-run', ''); acts.appendChild(run);
         var msg = el('div', 'font-size:0.78rem;line-height:1.5;margin:-6px 0 12px;'); msg.setAttribute('data-sb-run-msg', ''); msg.setAttribute('aria-live', 'polite'); msg.hidden = true; host.appendChild(msg);
         // v = 상태가 그리는 칸들(새로고침·진행 끝 때 한꺼번에 다시 그림)
-        var v = { pill: pill, status: card(host, 'data-sb-status'), errors: card(host, 'data-sb-errcard'), autofix: card(host, 'data-sb-autofix'), times: card(host, 'data-sb-edition-times'), prog: null };
+        var v = { pill: pill, status: card(host, 'data-sb-status'), autofix: card(host, 'data-sb-autofix'), times: card(host, 'data-sb-edition-times'), prog: null };
         var cfgBox = card(host, 'data-sb-config'), pvBox = card(host, 'data-sb-preview');
+        // 오류 카드는 맨 끝(2026-11-23 사용자 "오류 부분이 맨 마지막에 위치했으면 좋겠어. 이것때문에 한참 내려야만 해") — 「정하실 것」·설정·미리보기가 위로 온다.
+        v.errors = card(host, 'data-sb-errcard');
         re.addEventListener('click', function () { drawStatus(v); });
         var say = function (color, t) { msg.hidden = false; msg.style.color = color; msg.textContent = t; };
         run.addEventListener('click', async function () {

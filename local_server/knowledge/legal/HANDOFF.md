@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-23 08:43 KST] ✅완료 — 연안 브리핑 오류 자동 처리 — 배포 뒤 마무리(§11.10.62)
+PR #1567 머지·배포 확인(11-23 08:41 KST, 새 주소 autofix-answers 200). ①예약 작업 「연안 브리핑 오류 자동 처리」(trig_01Wd7dtxim4BFpuJbTM4Ecgj) 지침을 main 의 briefing_autofix.routine.md 8행~끝으로 교체(다음 실행 11-24 05:48 KST). ②#1559 에 남았던 결정 2건을 autofix-decisions 로 올림 → d1(몽돌해변 붙여쓰기, 추천 막기)·d2(남동쪽 연안바다, 추천 허용) 둘 다 open, 앱 AI 브리핑 탭 「정하실 것」에 뜨고 푸시 「정하실 것 2건」 발송. 다음: 사장님 답 → 다음 새벽 세션이 반영.
+
+
 ### [2026-11-23 00:49 KST] ✅완료 — 연안 브리핑 오류 자동 처리 — 결정 답 칸·판정 자동 닫기·결정 푸시
 사용자(11-22) 「배경과 내용을 충분히 설명 … ai 브리핑 탭 … 맞다, 아니다, 기타 의견 … 다음 절차가 자동으로」·「처리한 건은 … 자동으로 목록에서 삭제」·「푸시알림에 … 선택해주어야 할 것이 있다는 내용」, 물음 답 「다음 새벽 05:48」·「네, 자동으로 닫기」. ①station_briefing_autofix.js decisions(배경·실제 문장·맞다면·아니다면·추천) 저장·「정하실 것 N건」 푸시 · POST /api/admin/station-briefing/autofix/decisions/:id/answer(아니다=곧바로 끝+그 유형 닫음 by decision, 맞다·기타=세션 몫) · GET automation/autofix-answers(answers+known) · POST automation/autofix-decisions ②autofix-done 의 left+left_kinds 유형을 by auto 로 자동 닫기(결정 유형·fixed 겹침·옛 꼴·남의 내보내기 제외, 못 닫으면 closeIssue 빨간 줄) ③화면: 「정하실 것」 카드·「처리 안 된 오류」 꼬리표·「처리한 오류」 목록·PR 카드 「확인 필요」 ④routine.md 지침(2-1 답 받기·decisions 쓰는 법·answer_ats·known). 독립 적대검증 상1·중5·하4 모두 반영. 시험 test_station_briefing 259/0 · test_station_briefing_ui 104/0 · test_silent_catch 22/0. 설계서 §11.10.62. 남은 일: 머지·배포 뒤 ①예약 작업 「연안 브리핑 오류 자동 처리」 지침 교체(update_trigger — 배포 전에 바꾸면 안 됨) ②#1559 결정 2건(몽돌해변·남동쪽 연안바다)을 autofix-decisions 로 다시 올림(초안 scratchpad legacy_decisions.json).
 
