@@ -49,7 +49,7 @@ const wrong={
 
 (async () => {
     console.log('A. ② 채점');
-    ok('시험 글 20건 — 실수 6 · 표본 14', all.interpret.length === 20 && all.interpret.filter((c) => c.group === '실수').length === 6);
+    ok('시험 글 20건 — 실수 5 · 표본 15(대전 11-6 예비는 모든 AI 가 같게 적어 표본 「어려운 글」로 옮김)', all.interpret.length === 20 && all.interpret.filter((c) => c.group === '실수').length === 5);
     const notOk = all.interpret.filter((c) => C.gradeInterpret(c, JSON.stringify({ 요약: 'x', 사건: A[c.id] })).verdict !== '맞음').map((c) => c.id);
     ok('원문에서 바르게 뽑은 답은 20건 모두 「맞음」(정답표가 원문으로 맞힐 수 있는 것이다)', !notOk.length, notOk);
     const g = (id) => C.gradeInterpret(all.interpret.find((c) => c.id === id), JSON.stringify({ 사건: wrong[id] }));
@@ -57,7 +57,7 @@ const wrong={
     ok('실제 틀린 답: 해제 시각 빈칸(수도권 11-12) → 틀림', g('수도권청 제11-12호').verdict === '틀림' && /11시/.test(g('수도권청 제11-12호').reasons.join()));
     ok('실제 틀린 답: 근거 이어 붙임(강원 11-39) → 틀림(바깥먼바다 모자람)', g('강원청 제11-39호').verdict === '틀림' && /동해중부바깥먼바다/.test(g('강원청 제11-39호').reasons.join()));
     ok('실제 틀린 답: 예비 시각 빠뜨림(부산 11-10 · 대구 11-14) → 틀림', g('부산청 제11-10호(예비)').verdict === '틀림' && g('대구청 제11-14호(예비)').verdict === '틀림');
-    ok('실제 틀린 답: 평수구역만의 예비 해제를 충남앞바다 전체로(대전 11-6 예비) → 틀림(넓혀 적음)', /넓혀 적음/.test(g('대전청 제11-6호(예비)').reasons.join()));
+    ok('「충남앞바다」로 적은 답(대전 11-6 예비 — 업스테이지·클로드 모두)은 이제 사건 검사가 확인필요로 돌려 덮지 않는다 → 맞음(2026-11-23 checkEvent 고침)', g('대전청 제11-6호(예비)').verdict === '맞음' && g('대전청 제11-6호(예비)').events[0].판정 === '확인필요', g('대전청 제11-6호(예비)'));
     ok('JSON 이 아니거나 「사건」 이 없으면 실패', C.gradeInterpret(all.interpret[0], '모르겠다').verdict === '실패' && C.gradeInterpret(all.interpret[0], '{"요약":"x"}').verdict === '실패');
     ok('사건 없는 글(대구 11-34)에 자동 반영 후보를 지어내면 틀림', C.gradeInterpret(all.interpret.find((c) => c.id === '대구청 제11-34호'), JSON.stringify({ 사건: [{ 종류: '예비취소', 해역표현: '경북남부앞바다', 근거문장: 'x' }] })).verdict === '틀림');
 
@@ -105,7 +105,7 @@ const wrong={
     console.log('D. 창구·화면');
     const rt = fs.readFileSync(path.join(__dirname, '..', 'routes', 'bulletin_watch.js'), 'utf8'), ui = fs.readFileSync(path.join(__dirname, '..', '..', 'client', 'js', 'admin', 'admin_bulletin_ai.js'), 'utf8');
     ok('관리자 창구 넷(상태·시작·멈춤·보고서) 모두 관리자 인증', ["'/api/admin/bulletin-ai/compare', authorize", "'/api/admin/bulletin-ai/compare/start', authorize", "'/api/admin/bulletin-ai/compare/stop', authorize", "'/api/admin/bulletin-ai/compare/report.md', authorize"].every((x) => rt.includes(x)));
-    ok('화면: 시작 전에 부르는 횟수를 묻는다 · 도는 동안 10초마다 갱신 · 결과 내려받기', /w\.confirm\('AI 를 ' \+ n \+ '번 부릅니다/.test(ui) && /setTimeout\(load, 10000\)/.test(ui) && /compare\/report\.md/.test(ui));
+    ok('화면: 시작 전에 부르는 횟수를 묻는다 · 도는 동안 10초마다 갱신 · 연결이 끊겨도 30초 뒤 다시 묻는다 · 결과 내려받기', /w\.confirm\('AI 를 ' \+ n \+ '번 부릅니다/.test(ui) && /setTimeout\(load, 10000\)/.test(ui) && /setTimeout\(load, 30000\)/.test(ui) && /compare\/report\.md/.test(ui));
 
     console.log(`\n결과: ${pass} PASS / ${fail} FAIL`);
     process.exit(fail ? 1 : 0);
