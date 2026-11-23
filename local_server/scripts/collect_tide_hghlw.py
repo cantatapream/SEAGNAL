@@ -105,6 +105,10 @@ def fetch_day(keys, code, ymd):
             print(f'  ⚠ 키 {k[:6]}… 응답 {rc} {head.get("resultMsg")} → 이 키는 그만 쓴다', flush=True)
             keys.kill(k)
             continue
+        if 'LIMITED_NUMBER' in r.text or 'SERVICE_KEY' in r.text or 'DEADLINE' in r.text:
+            # 한도 초과는 머리말 없는 JSON(OpenAPI_ServiceResponse)으로 온다 — 이 키를 뺀다(2026-11-23 실제 응답으로 확인)
+            keys.kill(k)
+            continue
         # 머리말이 없거나 모르는 코드 — 포털이 가끔 엉뚱한 답을 준다. 원문을 찍고 다시 부른다.
         net_fail += 1
         print(f'  ? {code} {ymd}: 모르는 응답({rc}) {r.text[:160]!r} — 다시 부름 {net_fail}', flush=True)
