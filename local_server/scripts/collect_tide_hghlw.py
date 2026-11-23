@@ -1,0 +1,171 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+파일명: local_server/scripts/collect_tide_hghlw.py
+역할: 표준항(조석 예보지점)의 1년치 고조·저조 시각·높이를 공공데이터포털
+      「조석예보(고, 저조)」 API 로 받아 지점별 CSV 로 쌓는다. (앱이 도는 중에 쓰는 코드가 아니라
+      1년에 한 번 사람이 돌리는 수집 도구다.)
+
+[쓰는 법]
+  TIDE_HGHLW_KEYS="키1,키2,키3" python3 local_server/scripts/collect_tide_hghlw.py 2027
+  - 키는 저장소에 적지 않는다(환경변수로만). 키 하나에 하루 10,000번이다.
+  - 한 번 호출 = 한 지점·하루치(고조·저조 2~4건). 166곳 × 365일 = 60,590번 → 키 3개로 3일.
+  - 이미 받은 지점(CSV 가 있는 지점)은 건너뛴다. 한도에 걸리면 멈춘다 → 다음 날 같은 명령으로 이어받는다.
+
+[연계]
+  - 읽는 것: client/tide_data/Raw_tide_data/<연도>_hghlw/_stations.txt (예보지점 코드, 한 줄에 하나 —
+            API 활용가이드의 「예보지점 목록」 166곳)
+  - 쓰는 것: 같은 폴더의 <코드>.csv (관측소코드,관측소명,날짜시간,조위(cm),고저구분 — 기존 Raw_tide_data 와 같은 칸)
+            · _nodata.csv (그 날 자료가 없다고 답한 지점·날짜)
+  - 다음 단계: 이 CSV 들을 합쳐 client/tide_data/tide_data_<연도>.js 를 만든다(client/tide.js 가 읽는 파일).
+"""
+import csv
+import datetime
+import os
+import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
+
+import requests
+
+URL = 'https://apis.data.go.kr/1192136/tideFcstHghLw/GetTideFcstHghLwApiService'
+ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'client', 'tide_data', 'Raw_tide_data')
+DAILY_LIMIT = 10000   # 키 하나의 하루 한도(포털 「일일 트래픽」)
+WORKERS = 6           # 동시에 부르는 수
+
+
+class QuotaOut(Exception):
+    """쓸 수 있는 키가 없다(전부 한도에 걸렸다)."""
+
+
+class Keys:
+    """키 돌려 쓰기 — 호출마다 다음 키, 한도에 걸린 키는 뺀다.
+    예) Keys(['a','b']).pick() → 'a', 다음은 'b', 다음은 'a' …
+    """
+
+    def __init__(self, keys, budget):
+        self.left = {k: budget for k in keys}   # 이번 실행에서 키마다 더 부를 수 있는 횟수
+        self.order = list(keys)
+        self.i = 0
+        self.lock = threading.Lock()
+
+    def pick(self):
+        with self.lock:
+            live = [k for k in self.order if self.left[k] > 0]
+            if not live:
+                raise QuotaOut()
+            self.i += 1
+            k = live[self.i % len(live)]
+            self.left[k] -= 1
+            return k
+
+    def kill(self, k):
+        with self.lock:
+            self.left[k] = 0
+
+
+def fetch_day(keys, code, ymd):
+    """한 지점·하루치를 받는다.
+    @returns ('ok', [item…]) | ('nodata', 응답코드)
+    한도·인증 오류면 그 키를 빼고 다른 키로, 접속 오류면 3번까지 다시 부른다.
+    """
+    net_fail = 0
+    while True:
+        k = keys.pick()
+        try:
+            r = requests.get(URL, params={'serviceKey': k, 'obsCode': code, 'reqDate': ymd,
+                                          'type': 'json', 'numOfRows': 300}, timeout=40)
+            j = r.json()
+        except Exception as e:  # 접속 끊김·JSON 아님(포털 오류 화면)
+            text = ''
+            try:
+                text = r.text[:300]
+            except Exception:
+                pass
+            if 'LIMITED_NUMBER' in text or 'SERVICE_KEY' in text or 'SERVICE ACCESS DENIED' in text or 'DEADLINE' in text:
+                print(f'  ⚠ 키 {k[:6]}… 한도/인증 오류 → 이 키는 그만 쓴다: {text[:120]!r}', flush=True)
+                keys.kill(k)
+                continue
+            net_fail += 1
+            if net_fail > 3:
+                raise RuntimeError(f'{code} {ymd}: 접속 오류 4번 — {e} {text[:120]!r}')
+            continue
+        head = j.get('header') or (j.get('response') or {}).get('header') or {}
+        body = j.get('body') or (j.get('response') or {}).get('body') or {}
+        rc = str(head.get('resultCode'))
+        if rc == '00':
+            items = (body.get('items') or {}).get('item') or []
+            return 'ok', items if isinstance(items, list) else [items]
+        if rc == '03':      # NODATA_ERROR — 그 날 자료 없음
+            return 'nodata', rc
+        if rc in ('22', '30', '31', '32', '20'):   # 한도 초과·키 미등록·기한 만료 등
+            print(f'  ⚠ 키 {k[:6]}… 응답 {rc} {head.get("resultMsg")} → 이 키는 그만 쓴다', flush=True)
+            keys.kill(k)
+            continue
+        raise RuntimeError(f'{code} {ymd}: 응답 {rc} {head.get("resultMsg")}')
+
+
+def collect_station(keys, code, days, out_dir):
+    """한 지점의 1년치를 받아 <코드>.csv 로 쓴다. 365일을 다 받았을 때만 파일을 만든다
+    (중간에 한도가 끝나면 그 지점은 버리고 다음 날 처음부터 — 반쪽 파일을 남기지 않으려고)."""
+    rows, nodata = [], []
+    for ymd in days:
+        kind, val = fetch_day(keys, code, ymd)
+        if kind == 'nodata':
+            nodata.append(ymd)
+            continue
+        for it in val:
+            lv = it.get('predcTdlvVl')
+            lv = str(int(lv)) if float(lv) == int(float(lv)) else str(lv)
+            rows.append([code, it.get('obsvtrNm'), it.get('predcDt'), lv,
+                         '고조' if str(it.get('extrSe')) in ('1', '3') else '저조',
+                         it.get('extrSe'), it.get('lat'), it.get('lot')])
+    tmp = os.path.join(out_dir, code + '.csv.tmp')
+    with open(tmp, 'w', encoding='utf-8-sig', newline='') as f:
+        w = csv.writer(f, quoting=csv.QUOTE_ALL)
+        w.writerow(['관측소코드', '관측소명', '날짜시간', '조위(cm)', '고저구분', '극치구분', '위도', '경도'])
+        w.writerows(rows)
+    os.replace(tmp, os.path.join(out_dir, code + '.csv'))
+    return code, len(rows), nodata
+
+
+def main():
+    year = int(sys.argv[1])
+    budget = int(sys.argv[2]) if len(sys.argv) > 2 else DAILY_LIMIT   # 키마다 이번에 쓸 횟수
+    key_list = [k.strip() for k in os.environ.get('TIDE_HGHLW_KEYS', '').split(',') if k.strip()]
+    if not key_list:
+        sys.exit('TIDE_HGHLW_KEYS 환경변수에 키를 넣어 주세요(쉼표로 구분).')
+    out_dir = os.path.join(ROOT, f'{year}_hghlw')
+    codes = [c.strip() for c in open(os.path.join(out_dir, '_stations.txt'), encoding='utf-8') if c.strip()]
+    todo = [c for c in codes if not os.path.exists(os.path.join(out_dir, c + '.csv'))]
+    d, days = datetime.date(year, 1, 1), []
+    while d.year == year:
+        days.append(d.strftime('%Y%m%d'))
+        d += datetime.timedelta(days=1)
+    print(f'{year}년: 전체 {len(codes)}곳 · 이미 받음 {len(codes) - len(todo)}곳 · 남음 {len(todo)}곳 · 키 {len(key_list)}개 × {budget}번', flush=True)
+
+    keys = Keys(key_list, budget)
+    done = 0
+    # 지점 단위로 나눠 동시에 받는다(한 지점 안에서는 날짜 순서대로).
+    with ThreadPoolExecutor(WORKERS) as ex:
+        futs = {ex.submit(collect_station, keys, c, days, out_dir): c for c in todo}
+        for fut, c in futs.items():
+            try:
+                code, n, nodata = fut.result()
+            except QuotaOut:
+                continue
+            except Exception as e:
+                print(f'  ✗ {c}: {e}', flush=True)
+                continue
+            done += 1
+            if nodata:
+                with open(os.path.join(out_dir, '_nodata.csv'), 'a', encoding='utf-8') as f:
+                    for ymd in nodata:
+                        f.write(f'{code},{ymd}\n')
+            print(f'  ✓ {code}: {n}건 · 자료 없는 날 {len(nodata)}일 ({done}/{len(todo)})', flush=True)
+    left = len([c for c in codes if not os.path.exists(os.path.join(out_dir, c + '.csv'))])
+    print(f'끝: 이번에 {done}곳 받음 · 아직 남은 곳 {left}곳 · 키별 남은 횟수 {[v for v in keys.left.values()]}', flush=True)
+
+
+if __name__ == '__main__':
+    main()
