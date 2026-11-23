@@ -261,8 +261,10 @@
         var run = elc('button', 'sba-btn primary', '지금 다시 만들기'); run.type = 'button'; run.setAttribute('data-sb-run', ''); acts.appendChild(run);
         var msg = el('div', 'font-size:0.78rem;line-height:1.5;margin:-6px 0 12px;'); msg.setAttribute('data-sb-run-msg', ''); msg.setAttribute('aria-live', 'polite'); msg.hidden = true; host.appendChild(msg);
         // v = 상태가 그리는 칸들(새로고침·진행 끝 때 한꺼번에 다시 그림)
-        var v = { pill: pill, status: card(host, 'data-sb-status'), errors: card(host, 'data-sb-errcard'), autofix: card(host, 'data-sb-autofix'), times: card(host, 'data-sb-edition-times'), prog: null };
+        var v = { pill: pill, status: card(host, 'data-sb-status'), autofix: card(host, 'data-sb-autofix'), times: card(host, 'data-sb-edition-times'), prog: null };
         var cfgBox = card(host, 'data-sb-config'), pvBox = card(host, 'data-sb-preview');
+        // 오류 카드는 맨 끝(2026-11-23 사용자 "오류 부분이 맨 마지막에 위치했으면 좋겠어. 이것때문에 한참 내려야만 해") — 「정하실 것」·설정·미리보기가 위로 온다.
+        v.errors = card(host, 'data-sb-errcard');
         re.addEventListener('click', function () { drawStatus(v); });
         var say = function (color, t) { msg.hidden = false; msg.style.color = color; msg.textContent = t; };
         run.addEventListener('click', async function () {
@@ -793,7 +795,7 @@
         select(ui.errTab === 'run' ? 'run' : 'open');
         return { show: function (k, runAt) { if (runAt) { ui.run = runAt; drawRunErrors(panels.run, s); } select(k); box.scrollIntoView({ block: 'start', behavior: 'smooth' }); } };
     }
-    // 「오류 자동 처리」 칸(§11.10.59) — 세션 결과 글·PR 상태 글. 서버 station_briefing_autofix outcome · nariya_pr_merge(briefing) status 와 같은 열쇠.
+    // 「오류 자동 처리」 칸(§11.10.59 · §11.10.62 「정하실 것」 카드) — 세션 결과 글·PR 상태 글. 서버 station_briefing_autofix outcome · nariya_pr_merge(briefing) status 와 같은 열쇠.
     var AF_OUTCOME = { pr: 'PR 을 올렸습니다', nothing: '고칠 것 없음', skipped: '건너뜀(이전 자동 처리 PR 머지 대기)', failed: '세션 실패' };
     var AF_PR = { waiting: '검사 기다리는 중', needs_human: '머지 버튼을 눌러 주세요', failed_checks: '검사 실패', conflict_fixing: '충돌', merged: '머지됨', closed: '닫힘' };
     /**
@@ -821,8 +823,10 @@
         var lastMs = lr ? Date.parse(lr.at) : NaN;
         if (lr && Number.isFinite(lastMs) && Date.now() - lastMs > 36 * 3600000) { var stl = elc('div', 'sba-line bad', '세션이 ' + Math.floor((Date.now() - lastMs) / 86400000) + '일 넘게 결과를 보내지 않았습니다 — 예약 작업이 멈췄는지 확인해 주세요.'); stl.setAttribute('data-sb-autofix-stale', ''); box.appendChild(stl); }
         if (s.saveError) box.appendChild(elc('div', 'sba-line bad', '기록 저장 실패: ' + s.saveError));
+        if (s.closeIssue) { var ci = elc('div', 'sba-line bad', s.closeIssue.text + ' (' + at(s.closeIssue.at) + ') — 「처리 안 된 오류」에 그대로 남아 있습니다.'); ci.setAttribute('data-sb-autofix-close-issue', ''); box.appendChild(ci); }
         if (s.prError) box.appendChild(elc('div', 'sba-line bad', 'PR 목록을 읽지 못함: ' + s.prError));
         if (s.tokenConfigured === false) box.appendChild(elc('div', 'sba-line warn', '서버에 GitHub 열쇠가 없어 자동 머지·머지 버튼을 쓸 수 없습니다(관리자 센터 → 설정 확인).'));
+        drawDecisions(box, s.decisions || [], function () { drawAutofix(box, refresh); refresh(); });
         var msg = elc('div', 'sba-line'); msg.setAttribute('aria-live', 'polite'); msg.hidden = true;
         (s.prs || []).forEach(function (p) {
             var row = elc('div', 'sba-line'); row.setAttribute('data-sb-autofix-pr', String(p.number));
@@ -833,14 +837,14 @@
             if (p.status === 'needs_human' && p.howText) row.appendChild(elc('div', 'sba-muted', p.howText));
             // 무엇을 보고 누르는지(독립 검토 (E)) — PR 요약·결정 필요·자동 범위 밖 파일
             if (p.summary) { var ps = elc('div', 'sba-muted', p.summary); ps.setAttribute('data-sb-autofix-pr-summary', ''); row.appendChild(ps); }
-            (p.needs || []).forEach(function (q, i) { var nq = elc('div', '', '결정 필요 ' + (i + 1) + ' · ' + q); nq.style.color = '#fcd34d'; nq.setAttribute('data-sb-autofix-need', ''); row.appendChild(nq); });
+            (p.needs || []).forEach(function (q, i) { var nq = elc('div', '', '확인 필요 ' + (i + 1) + ' · ' + q); nq.style.color = '#fcd34d'; nq.setAttribute('data-sb-autofix-need', ''); row.appendChild(nq); });
             if ((p.outside || []).length) { var ou = elc('div', 'sba-muted', '자동 범위 밖 파일: ' + p.outside.join(', ') + (p.outsideCount > p.outside.length ? ' 외' : '')); ou.setAttribute('data-sb-autofix-outside', ''); row.appendChild(ou); }
             var acts = el('div', 'display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;');
             if (p.status !== 'merged' && p.status !== 'closed') {
                 var mb = elc('button', 'sba-btn primary', '머지'); mb.type = 'button'; mb.setAttribute('data-sb-autofix-merge', String(p.number)); mb.disabled = !p.canMerge;
                 if (!p.canMerge) mb.title = '검사가 끝나 초록일 때 눌립니다';
                 mb.addEventListener('click', async function () {
-                    if (!window.confirm('PR #' + p.number + ' 을 머지할까요? 머지하면 곧바로 배포가 시작됩니다.' + (p.summary ? '\n\n' + p.summary : '') + ((p.needs || []).length ? '\n\n결정 필요 ' + p.needs.length + '건 — 내용을 확인하셨으면 확인을 눌러 주세요.' : ''))) return;
+                    if (!window.confirm('PR #' + p.number + ' 을 머지할까요? 머지하면 곧바로 배포가 시작됩니다.' + (p.summary ? '\n\n' + p.summary : '') + ((p.needs || []).length ? '\n\n확인 필요 ' + p.needs.length + '건 — 내용을 확인하셨으면 확인을 눌러 주세요.' : ''))) return;
                     mb.disabled = true; msg.hidden = false; msg.style.color = '#94a3b8'; msg.textContent = '머지 요청 중…';
                     try {
                         var m = await call('/autofix/prs/' + p.number + '/merge', { method: 'POST' });
@@ -861,6 +865,111 @@
         });
         if (note) { msg.hidden = false; msg.style.color = '#34d399'; msg.textContent = note; }
         box.appendChild(msg);
+    }
+    // 결정 답 이름(§11.10.62) — 서버 station_briefing_autofix CHOICES 와 같은 열쇠
+    var DEC_CHOICE = { allow: '맞다 — 허용', block: '아니다 — 막기', other: '기타 의견' };
+    /**
+     * 결정 하나의 상태 글. 예: {answer:null} → null · {answer:{choice:'allow',at}, handledAt:null} → '보낸 답: 맞다 — 허용 · 11-22 10:00 — 다음 새벽 05:48 세션이 반영합니다'
+     *     {result:'block'} → '아니다(막기)로 정해 그 오류를 처리 완료로 닫았습니다' · {result:'pr', handledPr:'…/pull/9'} → '세션이 반영했습니다(PR #9)' · {deferredAt} → '세션이 이 답을 그대로 반영하지 못했습니다 — …'
+     * @param {Object} d @returns {string|null} [연계] ← drawDecisions · 시험
+     */
+    function decisionState(d) {
+        if (!d || !d.answer) return null;
+        var said = '보낸 답: ' + (DEC_CHOICE[d.answer.choice] || d.answer.choice) + (d.answer.text ? ' 「' + d.answer.text + '」' : '') + ' · ' + at(d.answer.at);
+        if (d.result === 'block') return said + ' — 아니다(막기)로 정해 그 오류를 처리 완료로 닫았습니다';
+        if (d.handledAt) { var m = /\/pull\/(\d+)$/.exec(String(d.handledPr || '')); return said + ' — 세션이 반영했습니다' + (m ? '(PR #' + m[1] + ')' : '') + ' · ' + at(d.handledAt); }
+        if (d.deferredAt) return said + ' — 세션이 이 답을 그대로 반영하지 못했습니다(' + at(d.deferredAt) + ' · 까닭은 위 세션 요약). 답을 고쳐 다시 보내 주세요';
+        return said + ' — 다음 새벽 05:48 세션이 반영합니다';
+    }
+    /**
+     * 「정하실 것」 — 자동 처리 세션이 사장님 판단을 물은 것(설계서 §11.10.62). 2026-11-22 사용자 *"배경과 내용을 충분히 설명할 수 있도록 해야하고, 또한 그 내용이 ai 브리핑 탭에 반영되어야 해.
+     * 그리고, 그 브리핑 탭에서 맞다, 아니다, 기타 의견을 기록하여 전송할 수 있어야 하고, 그에 따라 다음 절차가 자동으로 진행 될 수 있도록 하여야만 해."*
+     * 결정마다: 제목 · 배경 · 실제 문장 · 맞다(허용)면 · 아니다(막기)면 · 추천과 까닭 → [맞다 — 허용] [아니다 — 막기] [기타 의견](글 칸) → [보내기].
+     * 「아니다」는 곧바로 끝나고(그 오류를 닫음), 「맞다」·「기타」는 다음 새벽 05:48 세션이 반영한다(사용자 「다음 새벽 05:48」). 끝나기 전에는 답을 바꿔 다시 보낼 수 있다.
+     * @param {HTMLElement} box @param {Object[]} list - status.decisions @param {Function} after - 보낸 뒤 다시 그리기 @returns {void} [연계] ← drawAutofix / → POST /autofix/decisions/:id/answer
+     */
+    function drawDecisions(box, list, after) {
+        var open = list.filter(function (d) { return !d.handledAt; }), done = list.filter(function (d) { return d.handledAt; });
+        if (!list.length) return;
+        var sec = el('div', 'margin:8px 0;'); sec.setAttribute('data-sb-decisions', '');
+        var waiting = open.filter(function (d) { return !d.answer || d.deferredAt; }).length;   // 보류된 답도 다시 정해야 한다(독립 검토 중6)
+        var hd = el('div', 'font-weight:700;color:#fcd34d;margin-bottom:4px;', waiting ? '정하실 것 ' + waiting + '건 — 아래에서 골라 [보내기]를 눌러 주세요' : '정하실 것 — 답을 모두 보냈습니다');
+        sec.appendChild(hd);
+        sec.appendChild(elc('div', 'sba-muted', '「아니다」는 곧바로 반영(그 오류를 닫음)되고, 「맞다」·「기타 의견」은 다음 새벽 05:48 세션이 그 답대로 검사기를 고쳐 올립니다.'));
+        open.concat(done).forEach(function (d, i) {
+            var card = el('div', 'border:1px solid rgba(252,211,77,.35);border-radius:10px;padding:10px;margin-top:8px;' + (d.handledAt ? 'opacity:.7;' : '')); card.setAttribute('data-sb-decision', d.id);
+            card.appendChild(el('div', 'font-weight:700;margin-bottom:6px;', (d.handledAt ? '끝난 결정 · ' : '정하실 것 ' + (i + 1) + ' · ') + d.title));
+            var row = function (label, text, style) { if (!text) return; var r = el('div', 'font-size:.8rem;line-height:1.55;margin:3px 0;' + (style || '')); r.appendChild(el('b', '', label + ' ')); r.appendChild(document.createTextNode(text)); card.appendChild(r); };
+            row('배경', d.background);
+            row('실제 문장', d.example ? '「' + d.example + '」' : '', 'color:#cbd5e1;');
+            row('맞다(허용)면', d.allow);
+            row('아니다(막기)면', d.block);
+            if (d.recommend) row('추천', (d.recommend === 'allow' ? '맞다 — 허용' : '아니다 — 막기') + (d.why ? ' · ' + d.why : ''), 'color:#6ee7b7;');
+            var st = decisionState(d);
+            if (st) { var sl = el('div', 'font-size:.78rem;margin-top:6px;color:' + (d.deferredAt && !d.handledAt ? '#fca5a5' : '#94a3b8') + ';', st); sl.setAttribute('data-sb-decision-state', ''); card.appendChild(sl); }
+            if (!d.handledAt) {
+                var pick = d.answer ? d.answer.choice : null;
+                var acts = el('div', 'display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;');
+                var ta = el('textarea', 'width:100%;min-height:52px;margin-top:6px;box-sizing:border-box;border-radius:8px;padding:6px;font-size:.8rem;background:rgba(15,23,42,.6);color:inherit;border:1px solid rgba(148,163,184,.4);');
+                ta.placeholder = '기타 의견 — 어떻게 했으면 하는지 적어 주세요(맞다·아니다를 고른 경우에도 덧붙일 말을 적을 수 있습니다)';
+                ta.value = d.answer && d.answer.text ? d.answer.text : ''; ta.setAttribute('data-sb-decision-text', '');
+                var btns = {};
+                ['allow', 'block', 'other'].forEach(function (c) {
+                    var b = elc('button', 'sba-btn' + (pick === c ? ' primary' : ''), DEC_CHOICE[c] + (d.recommend === c ? ' (추천)' : '')); b.type = 'button'; b.setAttribute('data-sb-decision-pick', c); btns[c] = b;
+                    b.addEventListener('click', function () { pick = c; Object.keys(btns).forEach(function (k) { btns[k].className = 'sba-btn' + (k === c ? ' primary' : ''); }); send.disabled = false; if (c === 'other') ta.focus(); });
+                    acts.appendChild(b);
+                });
+                var send = elc('button', 'sba-btn primary', d.answer ? '답 바꿔 보내기' : '보내기'); send.type = 'button'; send.disabled = !pick; send.setAttribute('data-sb-decision-send', '');
+                var say = el('div', 'font-size:.76rem;margin-top:4px;'); say.setAttribute('aria-live', 'polite');
+                send.addEventListener('click', async function () {
+                    if (!pick) return;
+                    if (pick === 'other' && !ta.value.trim()) { say.style.color = '#fca5a5'; say.textContent = '기타 의견은 글을 적어 주세요.'; return; }
+                    if (pick === 'block' && !w.confirm('「아니다 — 막기」로 정하면 이 결정은 바로 끝나고, 걸린 오류는 처리 완료로 닫힙니다. 보낼까요?')) return;
+                    send.disabled = true; say.style.color = '#94a3b8'; say.textContent = '보내는 중…';
+                    try {
+                        var r = await call('/autofix/decisions/' + encodeURIComponent(d.id) + '/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ choice: pick, text: ta.value }) });
+                        if (r.status !== 200) throw new Error((r.body && r.body.error) || ('HTTP ' + r.status));
+                        after();
+                    } catch (e) { console.warn('[AI 브리핑 관리] 결정 답 보내기 실패:', e && e.message); say.style.color = '#fca5a5'; say.textContent = '보내지 못했습니다: ' + ((e && e.message) || '알 수 없음'); send.disabled = false; }
+                });
+                card.appendChild(acts); card.appendChild(ta);
+                var last = el('div', 'display:flex;justify-content:flex-end;margin-top:6px;'); last.appendChild(send); card.appendChild(last); card.appendChild(say);
+            }
+            sec.appendChild(card);
+        });
+        box.appendChild(sec);
+    }
+    /** 처리 완료 기록 글(누가·어떻게). 예: {by:'auto', note:'세션 판정: …'} → '세션 판정: …' · {by:'merge', note:'v25'} → '검사기 고침(머지) — v25' · {by:'manual'} → '관리자 버튼' · {by:'decision', note} → note. @param {Object} r @returns {string} [연계] ← drawOpenErrors·processedRows */
+    function resolvedHow(r) {
+        if (!r) return '';
+        if (r.by === 'auto' || r.by === 'decision') return r.note || (r.by === 'auto' ? '세션 판정' : '사장님 결정');
+        if (r.by === 'merge') return '검사기 고침(머지)' + (r.note ? ' — ' + r.note : '');
+        return '관리자 버튼' + (r.note ? ' — ' + r.note : '');
+    }
+    /**
+     * 「처리한 오류」 목록(§11.10.62 — 사용자 「처리한 건은 아래 처리한 건으로 자동으로 목록에서 삭제」) — 내보내기들의 처리 완료된 유형을 처리한 때 늦은 것부터(최대 n개).
+     * 예: processedRows({exports:[{id:'E1', groups:[{code:'G02', family:'number', count:11, resolved:{at, by:'auto', note}}]}]}) → [{export:'E1', code:'G02', family:'number', count:11, at, how:'세션 판정: …'}]
+     * @param {Object} L - status.errorLog @param {number} [n] @returns {Object[]} [연계] ← drawOpenErrors · 시험
+     */
+    function processedRows(L, n) {
+        var out = [];
+        ((L && L.exports) || []).forEach(function (x) { (x.groups || []).forEach(function (g) { if (g.resolved) out.push({ export: x.id, code: g.code, family: g.family, count: g.count, at: g.resolved.at, by: g.resolved.by, how: resolvedHow(g.resolved) }); }); });
+        return out.sort(function (a, b) { return a.at < b.at ? 1 : a.at > b.at ? -1 : 0; }).slice(0, n || 20);
+    }
+    /**
+     * 「처리 안 된 오류」 유형마다 지금 어디까지 왔나(§11.10.62 — 사용자 「자동으로 처리가 된건지 안된건지 지금 상태에서는 알 수가 없어」).
+     * 열쇠 = 유형(family). 서버 autofixBrief(고침 PR 머지 대기 · 결정 대기)와 errorLog.exports(내보내기 번호·유형 번호 → 유형)로 맞춘다. 꼬리표가 없는 유형은 「세션 처리 전」.
+     * 예: familyTags({exports:[{id:'E1', groups:[{code:'G04', family:'place'}]}]}, {pendingFix:[{export_id:'E1', codes:['G04'], pr:9, status:'waiting'}], decisions:[]}) → {place:{text:'고침 — PR #9 머지 대기', tone:'ok'}}
+     * @param {Object} L - status.errorLog @param {Object|null} brief - status.autofixBrief @returns {Object} [연계] ← drawOpenErrors · 시험
+     */
+    function familyTags(L, brief) {
+        var fam = {}, out = {};
+        // 이미 처리 완료됐거나 남은 오류가 없는 유형은 건너뛴다 — 옛 PR 꼬리표가 그 뒤 새로 생긴 같은 꼴 오류에 붙지 않게(독립 검토 중5)
+        ((L && L.exports) || []).forEach(function (x) { (x.groups || []).forEach(function (g) { if (!g.resolved && g.open !== 0) fam[x.id + '|' + g.code] = g.family; }); });
+        // 결정 대기가 먼저(같은 유형에 고침 PR 과 결정이 함께 있으면 사장님 할 일이 가려지지 않게)
+        ((brief && brief.decisions) || []).forEach(function (d) { var f = fam[d.export_id + '|' + d.group]; if (f) out[f] = { text: d.answered ? '답 받음 — 다음 새벽 05:48 세션이 반영' : '사장님 결정 대기 — 위 「오류 자동 처리」의 「정하실 것」에서 골라 주세요', tone: 'warn' }; });
+        ((brief && brief.pendingFix) || []).forEach(function (p) { (p.codes || []).forEach(function (c) { var f = fam[p.export_id + '|' + c]; if (f && !out[f]) out[f] = p.status === 'merged' ? { text: '고침 — PR #' + p.pr + ' 머지됨 · 배포가 끝나면 닫힘', tone: 'ok' } : p.status ? { text: '고침 — PR #' + p.pr + ' 머지 대기', tone: 'ok' } : { text: '고침 PR #' + p.pr + ' — 지금 상태를 알 수 없음(PR 목록에서 치웠거나 못 읽음) · GitHub 에서 확인해 주세요', tone: 'warn' }; }); });
+        return out;
     }
     /**
      * 「실행별」 탭 — 최근 3일 오류를 「실행」마다 드롭다운으로 고르고(기본 = 가장 최근 실행), 고른 실행의 오류만 관할별·시도별 한글 풀이로 보인다.
@@ -1039,6 +1148,7 @@
         var msg = el('div', 'font-size:0.76rem;min-height:1.1em;margin-top:4px;line-height:1.5;'); msg.setAttribute('data-sb-open-msg', ''); msg.setAttribute('aria-live', 'polite'); box.appendChild(msg);
         var view = el('div', 'margin-top:4px;'); box.appendChild(view);
         var say = function (ok, t) { msg.style.color = ok === null ? '#94a3b8' : ok ? '#34d399' : '#fca5a5'; msg.textContent = t; };
+        var tags = familyTags(L, s.autofixBrief || null);
         if (!L.open) { head.textContent = '처리 안 된 오류가 없습니다.'; head.style.color = '#6ee7b7'; acts.hidden = true; }
         else {
             head.textContent = '처리 안 된 오류 ' + L.open + '건 · 유형 ' + (L.families || []).length + '개 · ' + at(L.since) + '부터(처리 완료 전까지 최대 ' + (L.keepDays || 90) + '일 보관)';
@@ -1050,6 +1160,8 @@
                 var vals = (f.values || []).slice(0, 4).map(function (x) { return '「' + x[0] + '」'; }).join(' ');
                 var a1 = at(f.first), a2 = at(f.last), when = a1 === a2 ? a1 : a1 + ' ~ ' + (a1.slice(0, 5) === a2.slice(0, 5) ? a2.slice(6) : a2);
                 var meta = elc('div', 'sba-emeta', [where, vals ? '값 ' + vals : null, when].filter(Boolean).join(' · ')); meta.setAttribute('data-sb-open-meta', ''); left.appendChild(meta);
+                var tg = tags[f.family] || { text: '세션 처리 전 — 다음 새벽 05:48 세션이 봅니다', tone: 'muted' };
+                var tl = el('div', 'font-size:.74rem;margin-top:2px;color:' + (tg.tone === 'ok' ? '#6ee7b7' : tg.tone === 'warn' ? '#fcd34d' : '#94a3b8') + ';', tg.text); tl.setAttribute('data-sb-open-tag', ''); left.appendChild(tl);
                 d.appendChild(left); d.appendChild(elc('span', 'sba-cnt', f.count + '건'));
                 list.appendChild(d);
             });
@@ -1068,6 +1180,15 @@
         };
         save.addEventListener('click', function () { exportNow('save'); });
         copy.addEventListener('click', function () { exportNow('copy'); });
+        // 처리한 오류(§11.10.62) — 세션 판정·고침 머지·사장님 결정·관리자 버튼으로 닫힌 유형, 처리한 때 늦은 것부터
+        var done = processedRows(L, 20);
+        if (done.length) {
+            var pd = elc('details', 'sba-exp'); pd.setAttribute('data-sb-processed', ''); pd.style.marginTop = '8px';
+            pd.appendChild(el('summary', '', '처리한 오류 — 최근 ' + done.length + '개 유형'));
+            var pu = el('ul', 'margin:6px 0 0;padding-left:16px;');
+            done.forEach(function (x) { var li = el('li', 'margin:2px 0;', at(x.at) + ' · ' + familyText(x.family) + ' ' + x.count + '건 — ' + x.how); li.setAttribute('data-sb-processed-row', x.export + '|' + x.code); pu.appendChild(li); });
+            pd.appendChild(pu); box.appendChild(pd);
+        }
         // 내보내기 — 남은 것이 있는 것은 모두, 끝난 것은 최근 5개(서버 summary)
         (Array.isArray(L.exports) ? L.exports : []).forEach(function (x, i) {
             var left = (x.groups || []).filter(function (g) { return !g.resolved && g.open > 0; }), n = x.openErrors || 0;
@@ -1078,7 +1199,7 @@
             var ul = el('ul', 'margin:6px 0 0;padding-left:16px;');
             (x.groups || []).forEach(function (g) {
                 // 지워진 것(보관 90일·상한 — gone)은 「다른 내보내기로 처리」라고 하지 않는다(§11.10.48 검토 ⑥)
-                var how = g.resolved ? '처리 완료(' + (g.resolved.by === 'merge' ? '머지' : '버튼') + ' ' + at(g.resolved.at) + (g.resolved.note ? ' — ' + g.resolved.note : '') + ')'
+                var how = g.resolved ? '처리 완료(' + at(g.resolved.at) + ' · ' + resolvedHow(g.resolved) + ')'
                     : g.open > 0 ? '남음 ' + g.open + '건' + (g.gone ? ' · 보관 기간·상한으로 지워짐 ' + g.gone + '건' : '')
                     : g.gone >= g.count ? '보관 기간·상한으로 모두 지워짐' : '다른 내보내기로 처리 완료' + (g.gone ? ' · 지워짐 ' + g.gone + '건' : '');
                 ul.appendChild(el('li', '', g.code + ' ' + familyText(g.family) + ' — ' + g.count + '건 · ' + how));
@@ -1188,4 +1309,8 @@
     renderStationBriefingAdmin.SHAPE = SHAPE;
     renderStationBriefingAdmin.mmss = mmss;   // §11.10.21 정시 판 소요 표
     renderStationBriefingAdmin.providersText = providersText;   // §11.10.50 「쓴 AI」
+    renderStationBriefingAdmin.decisionState = decisionState;   // §11.10.62 결정 답 상태 글
+    renderStationBriefingAdmin.resolvedHow = resolvedHow;
+    renderStationBriefingAdmin.processedRows = processedRows;
+    renderStationBriefingAdmin.familyTags = familyTags;
 })(window);

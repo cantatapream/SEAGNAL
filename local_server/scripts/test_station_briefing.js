@@ -4002,6 +4002,135 @@ const WIN = R.editionWindow('morning', T0);
         sec.started('E20261122-054812'); await sec.done({ outcome: 'pr', export_id: 'E20261122-054812', pr_url: 'https://github.com/cantatapream/SEAGNAL/pull/12' });
         assert.equal(pushes.length, 2); assert.ok(/자동 머지 불가/.test(pushes[1][0]) && /GitHub 열쇠/.test(pushes[1][1]), pushes[1][1]);
     });
+    await check('[§11.10.62] 결정 답·판정 자동 닫기 — 세션이 그대로 둔 유형은 close 로 돌려줌(결정이 걸린 유형은 빼고) · 결정 저장·푸시 · 답(막기는 곧바로 끝·close / 맞다·기타는 세션 몫) · answers · answer_ids 로 끝 · 결정은 자동 머지를 막지 않음 · brief', async () => {
+        const AF = require('../services/station_briefing_autofix'), f = path.join(fs.mkdtempSync(path.join(require('os').tmpdir(), 'sbaf2-')), 'af.json');
+        let t = Date.parse('2026-11-23T05:48:00+09:00'); const tracks = [], pushes = [];
+        const merger = { track: (d, o) => (tracks.push([d, o]), { tracked: true, mode: o.owner ? 'auto' : 'human', status: 'waiting' }), list: () => ({ prs: [{ number: 21, status: 'waiting' }], counts: {}, tokenConfigured: true }), refresh: async () => {}, mergeNow: async () => ({ ok: true }), dismiss: () => ({ ok: true }) };
+        const a = AF.createAutofix({ file: f, now: () => t, merger, push: async (x, y, z) => pushes.push([x, y, z]), env: { FLY_APP_NAME: 'seagnal-server' } });
+        a.started('E20261123-054812');
+        const dec = { group: 'G04', title: '붙여 쓴 「몽돌해변」을 통과시킬지', background: '배경 글', example: '몽돌해변은 …', allow: '허용하면 …', block: '막으면 …', recommend: 'block', why: '실제 관광지 이름과 같다' };
+        const r = await a.done({ outcome: 'pr', export_id: 'E20261123-054812', pr_url: 'https://github.com/cantatapream/SEAGNAL/pull/21', fixed: ['G01'], left: ['G02', 'G03', 'G04'], left_kinds: { G02: 'ai', G03: 'external', G04: 'ai', X9: 'ai' }, decisions: [dec, { title: '' }], needs_decision: [] });
+        assert.equal(r.ok, true);
+        assert.deepStrictEqual(r.close, { exportId: 'E20261123-054812', groups: [{ code: 'G02', kind: 'ai' }, { code: 'G03', kind: 'external' }] }, '결정이 걸린 G04 는 닫지 않음 · 고친 G01 은 머지 때 닫힘');
+        assert.deepStrictEqual(r.decisions, ['d1'], '제목 없는 결정은 버림');
+        assert.deepStrictEqual(tracks[0][0].needs_decision, [], '결정은 머지 담당의 「결정 필요」(자동 머지 막힘)로 넘기지 않음');
+        assert.equal(pushes.length, 1); assert.ok(/정하실 것 1건/.test(pushes[0][0]) && /몽돌해변/.test(pushes[0][1]) && /\[맞다\]/.test(pushes[0][1]) && /「오류 자동 처리」 칸/.test(pushes[0][1]), pushes[0]);
+        // 같은 세션이 같은 결정을 또 보내도 하나
+        await a.addDecisions({ export_id: 'E20261123-054812', decisions: [dec] }); assert.equal(a.status().decisions.length, 1); assert.equal(pushes.length, 1);
+        let st = a.status(); assert.equal(st.openDecisions, 1); assert.equal(st.decisions[0].title, dec.title); assert.equal(st.decisions[0].recommend, 'block');
+        assert.deepStrictEqual(a.brief().decisions, [{ export_id: 'E20261123-054812', group: 'G04', answered: false }]);
+        assert.deepStrictEqual(a.brief().pendingFix, [{ export_id: 'E20261123-054812', codes: ['G01'], pr: 21, status: 'waiting' }]);
+        // 답 — 잘못된 것
+        assert.equal(a.answer('d9', 'allow', '', 'x').status, 404); assert.equal(a.answer('d1', 'maybe', '', 'x').status, 400); assert.equal(a.answer('d1', 'other', '  ', 'x').status, 400, '기타는 글 필요');
+        // 맞다 → 세션 몫(answers 에 나옴) · 바꿀 수 있음
+        assert.equal(a.answer('d1', 'allow', '', '관리자(앱)').close, null);
+        assert.deepStrictEqual(a.answers().map((x) => [x.id, x.answer.choice]), [['d1', 'allow']]);
+        assert.equal(a.answer('d1', 'other', '앞에 지명이 없을 때만 허용', '관리자(앱)').ok, true); assert.equal(a.answers()[0].answer.text, '앞에 지명이 없을 때만 허용');
+        // 세션이 반영 → 끝
+        const at1 = a.answers()[0].answer.at;
+        t += 86400000; await a.done({ outcome: 'pr', pr_url: 'https://github.com/cantatapream/SEAGNAL/pull/22', answer_ids: ['d1'], answer_ats: { d1: at1 } });
+        assert.deepStrictEqual(a.answers(), []); st = a.status(); assert.ok(st.decisions[0].handledAt); assert.equal(st.decisions[0].handledPr, 'https://github.com/cantatapream/SEAGNAL/pull/22');
+        assert.equal(a.answer('d1', 'block', '', 'x').status, 409, '끝난 결정은 다시 답할 수 없음');
+        assert.equal((await a.done({ outcome: 'pr', pr_url: 'https://github.com/cantatapream/SEAGNAL/pull/23' })).status, 400, '내보내기 번호도 answer_ids 도 없는 PR 은 거절');
+        // 막기 → 곧바로 끝 + close
+        await a.addDecisions({ export_id: 'E20261123-054812', decisions: [{ ...dec, title: '「남동쪽 연안바다」를 통과시킬지', group: 'G05' }] });
+        const b = a.answer('d2', 'block', '', '관리자(앱)'); assert.deepStrictEqual(b.close, { exportId: 'E20261123-054812', code: 'G05' }); assert.equal(b.decision.result, 'block');
+        assert.deepStrictEqual(a.answers(), [], '막기는 세션 몫이 아님');
+        // 보류(deferred) → 화면에 보이고 답을 바꿔 다시 보낼 수 있음
+        await a.addDecisions({ decisions: [{ title: '세 번째' }] }); a.answer('d3', 'allow', '', 'x');
+        await a.done({ outcome: 'nothing', deferred_answer_ids: ['d3'], summary: '답이 모호' });
+        assert.ok(a.status().decisions.find((x) => x.id === 'd3').deferredAt); assert.equal(a.answers().length, 1, '보류된 답도 다음 세션이 다시 본다');
+        a.answer('d3', 'block', '', 'x'); assert.equal(a.status().decisions.find((x) => x.id === 'd3').deferredAt, null);
+        // 실패·건너뜀은 닫지 않음
+        assert.equal((await a.done({ outcome: 'skipped', export_id: 'E20261123-054812', left: ['G02'] })).close, null);
+        // 파일에서 다시 읽어도
+        const a2 = AF.createAutofix({ file: f, now: () => t, merger, push: async () => {}, env: {} }); assert.equal(a2.status().decisions.length, 3);
+    });
+    await check('[§11.10.62] 독립 검토 반영 — 옛 지침 꼴(판정 없이 left)은 닫지 않음 · fixed 와 겹친 유형·이 세션이 받지 않은 내보내기는 닫지 않음 · 같은 질문은 날이 달라도 하나·푸시 1통 · 받아 간 뒤 바뀐 답은 반영으로 안 찍고 자동 머지 막음 · 보류는 푸시·「정하실 것」에 셈 · known', async () => {
+        const AF = require('../services/station_briefing_autofix'), f = path.join(fs.mkdtempSync(path.join(require('os').tmpdir(), 'sbaf3-')), 'af.json');
+        let t = Date.parse('2026-11-23T05:48:00+09:00'); const tracks = [], pushes = [];
+        const merger = { track: (d, o) => (tracks.push([d, o]), { tracked: true, mode: o.owner && !d.needs_decision.length ? 'auto' : 'human', status: 'waiting' }), list: () => ({ prs: [], counts: {}, tokenConfigured: true }), refresh: async () => {}, mergeNow: async () => ({ ok: true }), dismiss: () => ({ ok: true }) };
+        const a = AF.createAutofix({ file: f, now: () => t, merger, push: async (x, y) => pushes.push([x, y]), env: { FLY_APP_NAME: 'seagnal-server' } });
+        const E = 'E20261123-054812', E2 = 'E20261124-054812';
+        a.started(E);
+        // 상1 — 옛 꼴: 판정(left_kinds) 없이 left 만 + needs_decision 글 → 닫지 않음(결정이 걸린 유형일 수 있다)
+        assert.equal((await a.done({ outcome: 'nothing', export_id: E, left: ['G02', 'G04'], needs_decision: ['G04 몽돌해변 허용할지'] })).close, null);
+        // 중4 — fixed 와 left 에 같은 번호면 그 번호는 머지 때 닫힘(바로 닫지 않음)
+        assert.deepStrictEqual((await a.done({ outcome: 'pr', export_id: E, pr_url: 'https://github.com/cantatapream/SEAGNAL/pull/31', fixed: ['G01'], left: ['G01', 'G02'], left_kinds: { G01: 'ai', G02: 'ai' } })).close.groups, [{ code: 'G02', kind: 'ai' }]);
+        // 하8 — 자동화 경로로 받지 않은 내보내기는 닫지 않음
+        assert.equal((await a.done({ outcome: 'nothing', export_id: 'E20261125-054812', left: ['G02'], left_kinds: { G02: 'ai' } })).close, null);
+        // 중2 — 같은 질문은 날(내보내기)이 달라도 열려 있으면 하나 · 푸시 1통
+        const q = { group: 'G04', title: '「몽돌해변」을 통과시킬지' };
+        await a.done({ outcome: 'nothing', export_id: E, decisions: [q] }); a.started(E2); t += 86400000;
+        await a.done({ outcome: 'nothing', export_id: E2, decisions: [{ ...q, group: 'G03' }] });
+        assert.equal(a.status().decisions.length, 1); assert.equal(pushes.filter((x) => /정하실 것/.test(x[0])).length, 1);
+        assert.deepStrictEqual(a.known().map((x) => [x.title, x.status]), [['「몽돌해변」을 통과시킬지', 'open']], '세션이 같은 질문을 다시 올리지 않게 known 으로 준다');
+        // 중3 — 받아 간 뒤 답이 바뀌면 반영으로 찍지 않고, 그 PR 은 「확인 필요」로 자동 머지 막음
+        a.answer('d1', 'allow', '', 'x'); const seen = a.answers()[0].answer.at; t += 60000; a.answer('d1', 'other', '앞에 지명이 없을 때만', 'x');
+        tracks.length = 0;
+        await a.done({ outcome: 'pr', export_id: E2, pr_url: 'https://github.com/cantatapream/SEAGNAL/pull/32', answer_ids: ['d1'], answer_ats: { d1: seen } });
+        assert.equal(a.status().decisions[0].handledAt, null, '바뀐 답은 아직 반영 안 됨 — 다음 세션이 새 답을 받는다');
+        assert.equal(tracks[0][1].owner, true); assert.ok(/답이 세션 처리 중에 바뀌었습니다/.test(tracks[0][0].needs_decision[0]), '자동 머지를 막는 「확인 필요」');
+        // 받아 간 뒤 「막기」로 바꿔도 같은 꼴
+        await a.done({ outcome: 'nothing', decisions: [{ title: '둘째', group: 'G05' }] }); a.answer('d2', 'allow', '', 'x'); const seen2 = a.answers().find((x) => x.id === 'd2').answer.at; a.answer('d2', 'block', '', 'x');
+        tracks.length = 0; await a.done({ outcome: 'pr', export_id: E2, pr_url: 'https://github.com/cantatapream/SEAGNAL/pull/33', answer_ids: ['d2'], answer_ats: { d2: seen2 } });
+        assert.ok(tracks[0][0].needs_decision.some((x) => /둘째/.test(x)), '막기로 바뀐 답과 반대인 PR 은 자동 머지 막음');
+        // 중6 — 보류는 푸시 + 「정하실 것」 수에 셈
+        pushes.length = 0; await a.done({ outcome: 'nothing', deferred_answer_ids: ['d1'], summary: '모호' });
+        assert.ok(pushes.some((x) => /답을 다시 정해 주세요 1건/.test(x[0]))); assert.equal(a.status().openDecisions, 1);
+    });
+    await check('[§11.10.62] 라우터 — autofix-done 의 close 를 판정 글과 함께 처리 완료(by auto) · 결정 답(관리자만 · 막기는 by decision 으로 닫음) · autofix-answers·autofix-decisions(자동화 열쇠만) · 상태에 autofixBrief', async () => {
+        const express = require('express'), { createRouter } = require('../routes/station_briefing'); const resolved = [];
+        const afake = { started: () => {}, refresh: async () => {}, status: () => ({ decisions: [] }), brief: () => ({ pendingFix: [], decisions: [] }),
+            done: async () => ({ ok: true, close: { exportId: 'E1', groups: [{ code: 'G02', kind: 'ai' }, { code: 'G03', kind: 'external' }, { code: 'G06', kind: 'ai' }] } }),
+            answer: (id, c) => (id === 'd1' ? { ok: true, decision: { id, title: '몽돌' }, close: c === 'block' ? { exportId: 'E1', code: 'G04' } : null } : { ok: false, status: 404, error: '없는 결정' }),
+            answers: () => [{ id: 'd1' }], known: () => [{ id: 'd0', status: 'block' }], closeIssue: (t) => issues.push(t), addDecisions: async (b) => (b && b.decisions ? { ok: true, added: ['d2'] } : { ok: false, status: 400, error: 'x' }) };
+        const issues = [];
+        const fake = { readConfig: () => ({ exposure: 'admin' }), stations: () => [], status: () => ({ errorLog: { open: 0 } }), resolveExport: (id, g, n, by) => { resolved.push([id, g, n, by]); return { ok: true, resolved: g.filter((c) => c !== 'G06'), already: [], unknown: g.filter((c) => c === 'G06') }; } };
+        const app = express(); app.use(express.json()); app.use(createRouter({ service: fake, autofix: afake, isAdminDevice: () => false, verifyToken: () => false, authorize: (req, res, next) => req.get('X-Admin-Token') === 'tok-ok' ? next() : res.status(401).json({}), authorizeTrial: (req, res, next) => req.get('X-Automation-Token') === 'auto-ok' ? next() : res.status(401).json({}) }));
+        const server = http.createServer(app); await new Promise((r) => server.listen(0, '127.0.0.1', r)); const root = 'http://127.0.0.1:' + server.address().port;
+        const H = { 'X-Admin-Token': 'tok-ok', 'Content-Type': 'application/json' }, AJ = { 'X-Automation-Token': 'auto-ok', 'Content-Type': 'application/json' };
+        try {
+            assert.equal((await fetch(root + '/api/station-briefing/automation/autofix-done', { method: 'POST', headers: AJ, body: '{"outcome":"nothing"}' })).status, 200);
+            assert.deepStrictEqual(resolved.map((x) => [x[0], x[1], x[3]]), [['E1', ['G02', 'G06'], 'auto'], ['E1', ['G03'], 'auto']]);
+            assert.ok(/AI 가 실제로 규칙을 어김/.test(resolved[0][2]) && /AI 호출 문제/.test(resolved[1][2]), '판정 글이 처리 완료 기록에');
+            assert.ok(issues.length === 1 && /G06 가 없음/.test(issues[0]), '닫지 못한 유형은 화면에 알림(독립 검토 하7) ' + issues);
+            const u = root + '/api/admin/station-briefing/autofix/decisions/d1/answer';
+            assert.equal((await fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"choice":"block"}' })).status, 401, '관리자만');
+            resolved.length = 0; assert.equal((await fetch(u, { method: 'POST', headers: H, body: '{"choice":"allow"}' })).status, 200); assert.equal(resolved.length, 0, '맞다는 닫지 않음');
+            assert.equal((await fetch(u, { method: 'POST', headers: H, body: '{"choice":"block"}' })).status, 200);
+            assert.deepStrictEqual([resolved[0][0], resolved[0][1], resolved[0][3]], ['E1', ['G04'], 'decision']); assert.ok(/아니다\(막기\)/.test(resolved[0][2]));
+            assert.equal((await fetch(root + '/api/admin/station-briefing/autofix/decisions/d9/answer', { method: 'POST', headers: H, body: '{"choice":"block"}' })).status, 404);
+            assert.equal((await fetch(root + '/api/station-briefing/automation/autofix-answers', { headers: H })).status, 401, '자동화 열쇠만');
+            const aj = await (await fetch(root + '/api/station-briefing/automation/autofix-answers', { headers: AJ })).json(); assert.equal(aj.count, 1); assert.deepStrictEqual(aj.known, [{ id: 'd0', status: 'block' }]);
+            assert.equal((await fetch(root + '/api/station-briefing/automation/autofix-decisions', { method: 'POST', headers: AJ, body: '{"decisions":[{"title":"x"}]}' })).status, 200);
+            assert.equal((await fetch(root + '/api/station-briefing/automation/autofix-decisions', { method: 'POST', headers: AJ, body: '{}' })).status, 400);
+            const sj = await (await fetch(root + '/api/admin/station-briefing/status', { headers: H })).json(); assert.deepStrictEqual(sj.autofixBrief, { pendingFix: [], decisions: [] });
+        } finally { server.close(); }
+    });
+    await check('[§11.10.62] 화면 — 결정 상태 글 · 처리한 오류(늦은 것부터·누가 어떻게) · 처리 안 된 오류 꼬리표(고침 PR 머지 대기·결정 대기)', () => {
+        const sandbox = { window: {} }; require('vm').runInNewContext(fs.readFileSync(path.join(__dirname, '../../client/js/admin/admin_station_briefing.js'), 'utf8'), sandbox);
+        const A = sandbox.window.renderStationBriefingAdmin;
+        assert.equal(A.decisionState({ answer: null }), null);
+        assert.ok(/다음 새벽 05:48 세션이 반영/.test(A.decisionState({ answer: { choice: 'allow', at: '2026-11-22T10:00:00+09:00' } })));
+        assert.ok(/처리 완료로 닫았습니다/.test(A.decisionState({ answer: { choice: 'block', at: '2026-11-22T10:00:00+09:00' }, result: 'block', handledAt: 'x' })));
+        assert.ok(/PR #22/.test(A.decisionState({ answer: { choice: 'other', text: '조건부', at: '2026-11-22T10:00:00+09:00' }, handledAt: '2026-11-23T06:20:00+09:00', handledPr: 'https://github.com/cantatapream/SEAGNAL/pull/22' })));
+        assert.ok(/반영하지 못했습니다/.test(A.decisionState({ answer: { choice: 'allow', at: 'a' }, deferredAt: '2026-11-23T06:20:00+09:00' })));
+        assert.equal(A.resolvedHow({ by: 'auto', note: '세션 판정: AI 가 실제로 규칙을 어김 — 고칠 코드 없음' }), '세션 판정: AI 가 실제로 규칙을 어김 — 고칠 코드 없음');
+        assert.equal(A.resolvedHow({ by: 'merge', note: 'v25' }), '검사기 고침(머지) — v25'); assert.equal(A.resolvedHow({ by: 'manual' }), '관리자 버튼');
+        const L = { exports: [{ id: 'E2', groups: [{ code: 'G01', family: 'number', count: 11, resolved: { at: '2026-11-23T06:00:00+09:00', by: 'auto', note: '세션 판정: AI' } }, { code: 'G04', family: 'place', count: 5, resolved: null }] },
+            { id: 'E1', groups: [{ code: 'G02', family: 'shape:sea-too-long', count: 7, resolved: { at: '2026-11-21T09:58:00+09:00', by: 'merge', note: 'v25' } }] }] };
+        const rows = A.processedRows(L); assert.deepStrictEqual(Array.from(rows, (x) => x.code), ['G01', 'G02'], '늦은 것부터 · 안 닫힌 유형은 빠짐'); assert.equal(rows[1].how, '검사기 고침(머지) — v25');
+        const tg = A.familyTags(L, { pendingFix: [{ export_id: 'E2', codes: ['G04'], pr: 21, status: 'waiting' }], decisions: [{ export_id: 'E1', group: 'G02', answered: false }] });
+        assert.equal(tg.place.text, '고침 — PR #21 머지 대기'); assert.equal(tg['shape:sea-too-long'], undefined, 'E1 G02 는 이미 처리 완료 — 꼬리표 없음');
+        assert.ok(/답 받음/.test(A.familyTags({ exports: [{ id: 'E3', groups: [{ code: 'G04', family: 'place', count: 2, open: 2, resolved: null }] }] }, { decisions: [{ export_id: 'E3', group: 'G04', answered: true }] }).place.text));
+        assert.deepStrictEqual(Object.keys(A.familyTags(L, null)), [], '꼬리표 재료가 없으면 「세션 처리 전」(화면 기본)');
+        // 독립 검토 중5 — 처리 완료된 유형엔 옛 PR 꼬리표 안 붙음 · 결정 대기가 먼저 · PR 상태 모름은 그렇게 밝힘
+        assert.equal(A.familyTags(L, { pendingFix: [{ export_id: 'E1', codes: ['G02'], pr: 9, status: 'merged' }] })['shape:sea-too-long'], undefined, 'E1 G02 는 이미 처리 완료');
+        const L2 = { exports: [{ id: 'E3', groups: [{ code: 'G04', family: 'place', count: 2, open: 2, resolved: null }] }] };
+        assert.ok(/사장님 결정 대기/.test(A.familyTags(L2, { pendingFix: [{ export_id: 'E3', codes: ['G04'], pr: 21, status: 'waiting' }], decisions: [{ export_id: 'E3', group: 'G04', answered: false }] }).place.text), '결정 대기가 먼저');
+        assert.ok(/상태를 알 수 없음/.test(A.familyTags(L2, { pendingFix: [{ export_id: 'E3', codes: ['G04'], pr: 21, status: null }] }).place.text));
+    });
     await check('[§11.10.48-7] 화면 md — 누적 md(내보내기 번호·처리 완료 기록 방법·저장소 파일 경로·유형별 요약·날짜별·유형 번호 칸·탈락 글) · 서버 유형 열쇠가 모두 한글로 풀림 · 실행별 md 에 「(처리 완료)」', () => {
         const sandbox = { window: {} }; require('vm').runInNewContext(fs.readFileSync(path.join(__dirname, '../../client/js/admin/admin_station_briefing.js'), 'utf8'), sandbox);
         const A = sandbox.window.renderStationBriefingAdmin;

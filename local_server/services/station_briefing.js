@@ -1057,8 +1057,9 @@ function createService({ dir = path.join(DATA, 'station_briefing'), clock = Date
      * 예: resolveExport('E20261115-221034') → {ok:true, resolved:['G02','G03'], already:['G01'], unknown:[]} · 없는 번호 → {ok:false, reason:'not-found'}
      * @param {string} id @param {string[]|null} codes @param {string} note @returns {object} [연계] ← routes POST /error-log/exports/:id/resolve → EL.resolve
      */
-    function resolveExport(id, codes, note) {
-        const lg = loadLog(state(), true), r = EL.resolve(lg, String(id || ''), Array.isArray(codes) ? codes : null, 'manual', note, clock());
+    function resolveExport(id, codes, note, by = 'manual') {
+        // by: 'manual'(관리자 버튼) · 'auto'(자동 처리 세션 판정 — AI 가 실제로 어김·코드 밖, §11.10.62) · 'decision'(사장님 결정 「아니다(막기)」, §11.10.62)
+        const lg = loadLog(state(), true), r = EL.resolve(lg, String(id || ''), Array.isArray(codes) ? codes : null, ['manual', 'auto', 'decision'].includes(by) ? by : 'manual', note, clock());
         if (r.resolved.length) saveLog(lg);
         return r;
     }
