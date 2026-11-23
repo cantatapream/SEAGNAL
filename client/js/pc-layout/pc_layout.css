@@ -76,7 +76,7 @@ body.pc-mode #ocean-topleft-controls .ocean-overlay-label { font-size: 12px !imp
 /* 화면에 고정으로 붙는 기존 요소 — 지도 칸 기준으로 다시 놓는다(원 규칙에 !important 가 있으면 여기도 붙인다) */
 body.pc-mode.om-mode #ocean-map-section.tab-content.active .ocean-legend { left: var(--pc-menu) !important; right: var(--pc-side) !important; }
 body.pc-mode.om-mode #ocean-fav-bar { left: var(--pc-menu); right: var(--pc-side); }
-body.pc-mode.om-mode.ocean-map-active.ocean-sheet-open #ocean-fav-bar:not(.empty) { display: flex !important; }   /* PC 는 지점 창이 지도를 안 덮는다 */
+body.pc-mode.om-mode.ocean-map-active.ocean-sheet-open:not(.ls-safety) #ocean-fav-bar:not(.empty) { display: flex !important; }   /* PC 는 지점 창이 지도를 안 덮는다 */
 body.pc-mode.om-mode .ol-scale-line { right: calc(var(--pc-side) + 8px) !important; }
 body.pc-mode.om-mode.ls-mode.ls-safety .ol-attribution { left: calc(var(--pc-menu) + 8px) !important; }
 body.pc-mode.om-mode #ocean-topleft-controls > .accident-grid-legend,

@@ -465,6 +465,21 @@ const SUB_GJ = { type: 'FeatureCollection', features: [
       assert.ok(used.includes('settings.open'), JSON.stringify(used));
       await page.unroute('**/api/usage');
     });
+    await check('17-b. [전체 메뉴] 점검 — 켠 뒤 막히면 메뉴 스위치를 눌러도 안 켜지고 평소 화면 + 점검 안내 · 막힌 채 10번 눌러도 안 켜짐', async () => {
+      assert.equal(await isOn(page), true);
+      await page.evaluate(() => { window.switchMainTab('ocean-map-section'); }); await W(page, 500);
+      await page.evaluate(() => { localStorage.removeItem('seagnal_admin_mode'); document.getElementById('blocked-feature-popup').style.display = 'none'; applyFeatureBlocks(['om-menu']); }); await W(page, 300);
+      const before = await page.evaluate(() => document.querySelectorAll('#om-sidebar [aria-checked="true"]').length);
+      await mclick(page, '#om-sidebar [data-om="sw"][data-id="wav"]'); await W(page, 500);
+      const s = await page.evaluate(() => ({ pc: document.body.classList.contains('pc-mode'), popup: document.getElementById('blocked-feature-popup').style.display, n: document.querySelectorAll('#om-sidebar [aria-checked="true"]').length }));
+      assert.equal(s.pc, false, '막혔는데 PC 화면이 남았다'); assert.equal(s.popup, 'flex', '점검 안내'); assert.equal(s.n, before, '막힌 메뉴의 스위치가 켜졌다');
+      await page.evaluate(() => { document.getElementById('blocked-feature-popup').style.display = 'none'; window.PcLayout.disarm(); }); await W(page, 500);
+      for (let i = 0; i < 10; i++) await mclick(page, '#bottom-tab-bar .tab-btn[data-target="ocean-map-section"]');
+      await W(page, 400);
+      assert.equal(await isOn(page), false, '막힌 채 10번에 켜졌다');
+      await page.evaluate(() => { applyFeatureBlocks([]); window.PcLayout.arm(); }); await W(page, 600);
+      assert.equal(await isOn(page), true);
+    });
     await check('18. 정적 — pc_layout.css 의 모든 선택자가 body.pc-mode 로 시작(첫 규칙 한 줄 예외) · :root·@font-face·@keyframes·@media 없음', async () => {
       const css = read('client/js/pc-layout/pc_layout.css').replace(/\/\*[\s\S]*?\*\//g, '');
       assert.ok(!/:root|@font-face|@keyframes|@media/.test(css));

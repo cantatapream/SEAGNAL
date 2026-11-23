@@ -2,7 +2,7 @@
  * ============================================================================
  * 파일명: client/js/pc-layout/pc_layout.js
  * 역할  : PC 화면(A안 · 지도 중심형)을 켜고 끈다 — 넓은 PC 브라우저에서 「해양종합정보」 탭을 10번 누르면 켜진다.
- *         (마우스를 쓰는 1200px 이상 창에서 3초 안에 10번 누르면 body.pc-mode 가 붙어 화면이
+ *         (마우스를 쓰는 1200px 이상 창에서 누름 사이를 3초 넘기지 않고 10번 누르면 body.pc-mode 가 붙어 화면이
  *          「위 막대 · 왼쪽 메뉴 · 가운데 지도 · 오른쪽 칸」으로 바뀐다. 저장하지 않는다 — 새로고침하면 원래 화면.)
  * ----------------------------------------------------------------------------
  * [사용자 확정 2026-11-23~24 — 원문]
@@ -62,13 +62,39 @@
     }
 
     /**
-     * 지금 PC 배치를 보여 줄 수 있는가 — PC 기기 + 창 폭 1200 이상 + 통합 메뉴 화면(body.om-mode).
-     * 예: 1440 폭 데스크톱 → true · 같은 창을 1100 으로 줄이면 → false
+     * 관리자가 [전체 메뉴]를 점검으로 막아 두었나(관리자 모드 기기는 막히지 않는다 — 다른 차단과 같다).
+     * 예: _blockedFeatures=['om-menu'] 인 일반 기기 → true
+     * @returns {boolean}
+     * [연계] ← _canShow()·_onAnyClick() / → window._blockedFeatures(index2.html applyFeatureBlocks 가 채운다)
+     *          왜: PC 화면은 왼쪽 메뉴를 늘 펼쳐 둔다 — 막힌 메뉴가 그대로 눌리면 점검 차단이 샌다(독립 검토에서 재현)
+     */
+    function _menuBlocked() {
+        if ((window._blockedFeatures || []).indexOf('om-menu') < 0) return false;
+        try { if (localStorage.getItem('seagnal_admin_mode') === 'true') return false; } catch (e) { /* 저장을 못 읽으면 일반 기기로 본다 */ }
+        return true;
+    }
+
+    /**
+     * 지금 PC 배치를 보여 줄 수 있는가 — PC 기기 + 창 폭 1200 이상 + 통합 메뉴 화면(body.om-mode) + [전체 메뉴]가 점검 중이 아님.
+     * 예: 1440 폭 데스크톱 → true · 같은 창을 1100 으로 줄이면 → false · [전체 메뉴] 점검 중 → false
      * @returns {boolean}
      * [연계] ← _onTabClick()·_apply()
      */
     function _canShow() {
-        return _isPcDevice() && window.innerWidth >= PC_MIN_W && document.body.classList.contains('om-mode');
+        return _isPcDevice() && window.innerWidth >= PC_MIN_W && document.body.classList.contains('om-mode') && !_menuBlocked();
+    }
+
+    /**
+     * PC 화면을 켠 뒤에 [전체 메뉴]가 점검으로 막히면, 다음 누름에서 평소 화면으로 물러나고 그 누름은 버린다(점검 안내를 띄운다).
+     * 예: PC 화면을 보는 중 관리자가 [전체 메뉴]를 막음 → 메뉴의 스위치를 누름 → 스위치는 안 켜지고 평소 화면 + 점검 안내
+     * @param {MouseEvent} e
+     * [연계] ← document 'click'(capture — 처음 켤 때 _apply 가 붙인다) / → _apply()·window.showBlockedFeaturePopup(index2.html)
+     */
+    function _onAnyClick(e) {
+        if (!_on || !_menuBlocked()) return;
+        _apply();
+        e.stopPropagation(); e.preventDefault();
+        if (typeof window.showBlockedFeaturePopup === 'function') window.showBlockedFeaturePopup();
     }
 
     /** 공용 토스트로 안내한다(있을 때만). 예: _toast('원래 화면으로 돌아왔습니다', 1800)  @param {string} msg @param {number} ms
@@ -101,7 +127,7 @@
         var side = document.getElementById('om-sidebar');
         if (want) {
             if (window.OceanMenu && typeof window.OceanMenu.close === 'function') window.OceanMenu.close();   // 열린 사이드바(덮개·뒤로가기 목록)를 먼저 정리
-            if (!_built) { _build(); window.addEventListener('resize', _apply); }
+            if (!_built) { _build(); window.addEventListener('resize', _apply); document.addEventListener('click', _onAnyClick, true); }
             document.body.classList.add('pc-mode');
             if (side) side.setAttribute('aria-hidden', 'false');
             _afterTab();
@@ -127,7 +153,7 @@
     }
 
     /**
-     * 아래 탭 줄의 누름을 센다 — 「해양종합정보」를 3초 안에 10번이면 켜고(켜져 있으면 끈다), 다른 탭이 끼면 처음부터.
+     * 아래 탭 줄의 누름을 센다 — 「해양종합정보」를 누름 사이 3초를 넘기지 않고 10번이면 켜고(켜져 있으면 끈다), 다른 탭이 끼면 처음부터.
      * 기존 탭 동작은 막지 않는다(preventDefault·stopPropagation 을 부르지 않는다).
      * 예: 1440 데스크톱에서 10번 → arm(true) · 휴대폰에서 10번 → 아무 일도 없음
      * @param {MouseEvent} e

@@ -25,6 +25,8 @@
     var BLOCK_IDS = ['weather-alert', 'ov-warn-zone', 'ov-warn-active', 'main-ocean'];
 
     var _map = null, _view = null, _fitted = false;
+
+    var _loading = false;   // 특보구역을 받는 중인가(_load)
     var _mainSrc = null, _subSrc = null, _hiSrc = null;
     var _zoneLayers = [];        // 구역 층 5개(색칠 2 · 선+이름 2 · 고른 구역 테두리)
 
@@ -83,12 +85,26 @@
     }
 
     /**
+     * 특보구역 경계를 받아 지도에 넣는다. 받는 중이면 겹쳐 부르지 않는다. 실패하면 다음 ensure() 때 다시 받는다.
+     * 예: 첫 요청이 끊김 → 빈 지도 → 다른 탭에 갔다 돌아오면 다시 받아 그린다
+     * [연계] ← ensure() / → OceanWarnZone.loadFeatures(ocean_warn_zone.js)
+     */
+    function _load() {
+        if (_loading) return;
+        _loading = true;
+        window.OceanWarnZone.loadFeatures().then(function (r) {
+            _loading = false;
+            _mainSrc.addFeatures(r.main); _subSrc.addFeatures(r.sub); _fitOnce();
+        }).catch(function (e) { _loading = false; console.warn('[pc-alert-map] 특보구역을 받지 못했습니다', e && e.message); });
+    }
+
+    /**
      * 「특보 및 전망」 화면이 보일 때 부른다 — 처음이면 지도를 만들고, 있으면 칸 크기와 색을 다시 맞춘다.
      * 예: PcAlertMap.ensure() → #pc-alert-map 에 배경지도 + 특보구역 4층 + 고른 구역 테두리
      * [연계] ← js/pc-layout/pc_layout.js _afterTab / → OceanWarnZone.loadFeatures(ocean_warn_zone.js)·refresh()
      */
     function ensure() {
-        if (_map) { _map.updateSize(); refresh(); _fitOnce(); return; }
+        if (_map) { _map.updateSize(); refresh(); _fitOnce(); if (!_mainSrc.getFeatures().length) _load(); return; }   // 구역을 못 받았으면 화면에 돌아올 때 다시 받는다
         var sec = document.getElementById('weather-alert-section');
         if (!sec || typeof ol === 'undefined' || !window.OceanWarnZone || !window.OceanWarnActive) return;
         var el = document.createElement('div'); el.id = 'pc-alert-map';
@@ -119,9 +135,7 @@
             view: _view,
             controls: ol.control.defaults.defaults({ zoom: true, rotate: false, attribution: false }).extend([new ol.control.Attribution({ collapsible: false })])
         });
-        Z.loadFeatures().then(function (r) {
-            _mainSrc.addFeatures(r.main); _subSrc.addFeatures(r.sub); _fitOnce();
-        }).catch(function (e) { console.warn('[pc-alert-map] 특보구역을 받지 못했습니다', e && e.message); });
+        _load();
         window.addEventListener('seagnal:alerts-changed', refresh);
         refresh();
     }
