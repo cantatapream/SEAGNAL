@@ -320,6 +320,32 @@ window.trackUsage = function trackUsage(featureKey) {
 };
 
 /**
+ * 「누르면 1건」인 단순한 버튼들을 한곳에서 센다 — 그 버튼의 코드에 손대지 않고, 사람이 직접 누른 것(e.isTrusted)만.
+ * 2026-11-23 사용자 「새로 추가된 기능 … 집계하는 기준이 생겨야」 — 뉴스·공지·어황의 안쪽 탭, AI 챗봇, 앱 설정에는 집계 기준이 없었다.
+ * 예: 「어황정보」 탭을 누름 → trackUsage('hub.fishcond')
+ * [연계] 이름표 shared/utils/usage_keys.js · 마크업 index2.html(#nhub-tabs .nhub-tab · .header-settings-btn) · ai-chat/ai_chat.js(#nryaFab)
+ */
+var USAGE_CLICK_KEYS = [
+    ['.nhub-tab[data-nhub="news"]', 'hub.news'],
+    ['.nhub-tab[data-nhub="notice"]', 'hub.notice'],
+    ['.nhub-tab[data-nhub="fishcond"]', 'hub.fishcond'],
+    ['#nryaFab', 'chat.open'],
+    ['.header-settings-btn', 'settings.open']
+];
+if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('click', function (e) {
+        try {
+            if (!e || !e.isTrusted || !e.target || !e.target.closest) return;
+            for (var i = 0; i < USAGE_CLICK_KEYS.length; i++) {
+                var el = e.target.closest(USAGE_CLICK_KEYS[i][0]);
+                // 점검으로 막힌 버튼(.feat-blocked)은 열리지 않았으니 세지 않는다
+                if (el && !el.classList.contains('feat-blocked')) { window.trackUsage(USAGE_CLICK_KEYS[i][1]); return; }
+            }
+        } catch (err) { /* 집계 때문에 화면이 멈추면 안 된다 */ }
+    }, true);
+}
+
+/**
  * 여러 기능 사용을 한 번에 기록한다 (바텀시트처럼 다건이 동시 발생할 때).
  *
  * @param {string[]} keys 예: ['ocean.wind','ocean.wave','sheet.tide']

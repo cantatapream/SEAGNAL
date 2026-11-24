@@ -340,13 +340,18 @@
     }
     function _onlyStrokeAndText(style) {
         if (!style) return null;
+        var extra = null;
         if (Array.isArray(style)) {
             // [S13-F 버그수정] 배열 입력 시 stroke 또는 text 보유 Style 을 찾아 선택.
             //   _coloredStyle 의 holed 분기 [fillStyle, strokeStyle] 에서 strokeStyle 이
             //   stroke + text 보유. 기존 코드 `style = style[0]` 는 fillStyle 을 선택해
             //   stroke 없음 → null 반환 → 부모 stroke·label 누락 회귀 위험.
+            // [2026-11-23] 격상·격하 세모(ocean_warn_active3.js 가 _omTrend 로 표시한 글자 전용 Style)는 따로 챙겨 끝에 함께 돌려준다 —
+            //   아래는 선·이름표를 가진 Style 하나만 고르므로, 안 챙기면 세모가 버려진다(화면에서 확인).
+            extra = style.filter(function (x) { return x && x._omTrend; });
             var found = null;
             for (var i = 0; i < style.length; i++) {
+                if (style[i] && style[i]._omTrend) continue;
                 if (style[i] && (
                     (style[i].getStroke && style[i].getStroke()) ||
                     (style[i].getText && style[i].getText())
@@ -367,7 +372,7 @@
         var ns = new ol.style.Style(opts);
         var z = style.getZIndex();
         if (z != null) ns.setZIndex(z);
-        return ns;
+        return (extra && extra.length) ? [ns].concat(extra) : ns;
     }
 
     // 두 layer 가 각각 호출할 style 함수 — 본 _zoneStyle 결과를 split.

@@ -111,7 +111,7 @@
         pcp: 'shrt.rain_amount',
         sno: 'shrt.snow',
         sky: 'shrt.sky',
-        pty: 'shrt.rain_prob',   // 강수형태도 강수 계열 대표 key 로 통합
+        pty: 'shrt.rain_type',   // 강수형태 — 2026-11-23 따로 센다(그 전에는 강수확률 key 에 합쳤다. 새 메뉴 천기 버튼이 둘을 따로 보여 준다)
         tmp: 'shrt.temp_air'
     };
     /** 현재 활성 천기 요소의 사용량 key 를 +1 (없으면 무시). */
@@ -1507,6 +1507,16 @@
      * 호출자: 바텀시트 천기 카드 (해점 클릭/날짜 nav 시 forceRefresh).
      *         사용자 의도적 갱신 시 stale 캐시 우회 — KMA 점진 발표 진행 즉시 반영.
      */
+    /**
+     * [외부 노출] 그 종류의 단기예보 그림 목록을 지금 받을 수 있는가(5분 캐시 공유).
+     * 예: _shrtForecastHasFrames('sno').then(function (ok) { … }) → 목록이 비었거나 요청이 실패하면 false
+     * @param {string} shrtType - 'pop'|'pcp'|'sno'|'sky'|'pty'|'tmp' @returns {Promise<boolean>}
+     * [연계] ← js/ocean-map/menu/ocean_menu.js — 천기 버튼을 회색으로 막고 맨 뒤로 보낼지 정한다 / → _getImgListEntry
+     */
+    window._shrtForecastHasFrames = function (shrtType) {
+        return _getImgListEntry(shrtType).then(function (e) { return !!(e && e.frames && e.frames.length); })
+            .catch(function () { return false; });
+    };
     window._shrtForecastInvalidateImgListCache = function () {
         var keys = Object.keys(_imgListCache);
         for (var i = 0; i < keys.length; i++) delete _imgListCache[keys[i]];

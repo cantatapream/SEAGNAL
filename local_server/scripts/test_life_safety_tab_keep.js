@@ -64,7 +64,7 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'tab-keep-'));
  app.use('/api',(req,res)=>res.status(404).json({ok:false}));
  server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));const base='http://127.0.0.1:'+server.address().port;
  browser=await chromium.launch({...((process.env.PW_CHROME||process.env.SIM_CHROMIUM||process.env.CHROMIUM_EXECUTABLE)?{executablePath:process.env.PW_CHROME||process.env.SIM_CHROMIUM||process.env.CHROMIUM_EXECUTABLE}:{}),headless:true,args:['--no-sandbox']});
- const ctx=await browser.newContext({viewport:{width:412,height:915}}),page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const ctx=await browser.newContext({viewport:{width:412,height:915}});/* 2026-11-23 새 메뉴 화면이 기본이 됐다 — 이 시험은 옛 화면(해양안전생활 탭·오른쪽 버튼 줄)의 자리·누름을 재므로 옛 화면으로 띄운다(ocean_menu.js) */ await ctx.addInitScript(() => { window.__SEAGNAL_OLD_OCEAN_SCREEN = true; });const page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.route('**/*',r=>r.request().url().startsWith(base)?r.continue():r.abort());
  // 60초 주기 타이머를 따로 모아 둔다 — 60초를 실제로 기다리지 않고 "주기가 돌았을 때" 무엇을 하는지 직접 불러 본다.
  await page.addInitScript(()=>{const orig=window.setInterval;window.__iv60=[];window.setInterval=function(fn,ms){if(ms===60000)window.__iv60.push(fn);return orig.apply(this,arguments);};});

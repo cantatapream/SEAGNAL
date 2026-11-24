@@ -201,6 +201,24 @@
     }
 
     /**
+     * 내 위치 토스트와 같은 모양으로 「안 됨」 알림을 띄운다(동그라미 ✕ 아이콘 + 글자, 줄바꿈은 \n).
+     * 예: window.showLocateStyleNotice('기상청 단기예보 데이터를\n일시적으로 불러올 수 없습니다.')
+     * @param {string} text - 보여 줄 문구(\n 으로 두 줄) @param {number} [holdMs] - 보여 주는 시간(기본 2500)
+     * [연계] ← js/ocean-map/menu/ocean_menu.js — 자료 없는 천기 버튼을 눌렀을 때(2026-11-22 사용자 지정 문구)
+     */
+    window.showLocateStyleNotice = function (text, holdMs) {
+        _seq++;                                   // 진행 중인 위치 요청의 결과가 이 알림을 바꾸지 않게
+        var el = _el();
+        if (_hideTimer) { clearTimeout(_hideTimer); _hideTimer = null; }
+        el.classList.add('lt-multi');
+        el.querySelector('.lt-icon').innerHTML = '<i class="fa-regular fa-circle-xmark lt-fail"></i>';
+        el.querySelector('.lt-text').textContent = String(text || '');
+        _place();
+        requestAnimationFrame(function () { el.classList.add('visible'); });
+        _hideAfter(holdMs || HOLD_FAIL_MS);
+    };
+
+    /**
      * 토스트를 띄우고 현재 위치를 가져온다(navigator.geolocation.getCurrentPosition 대신 쓴다).
      * 예: window.locateWithToast(function (pos) { 지도 이동 }, function (err) { 버튼 로딩 해제 },
      *                            { enableHighAccuracy: true, timeout: 10000 });

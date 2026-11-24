@@ -177,6 +177,8 @@ client/js/
 │   │   ├── ocean_northup.js
 │   │   ├── ocean_overlay_labels.js
 │   │   ├── ocean_overlay.js
+│   ├── menu/
+│   │   ├── ocean_menu.js
 │   ├── observation/
 │   │   ├── ocean_buoy.js
 │   ├── timeline/
@@ -208,6 +210,7 @@ client/js/
 │       ├── mappings.js
 │       ├── usage_keys.js
 │       ├── utils.js
+├── tutorial/
 └── typhoon/  ← ⚡ 태풍
     ├── location_alert_typhoon_runtime.js
     ├── ocean_typhoon.js
@@ -485,6 +488,12 @@ client/js/
 | `ocean_northup.js` | 해양종합정보 지도의 "진북(North Up)" 회전 컨트롤 |
 | `ocean_overlay.js` | 해양현황 캔버스 오버레이 (해류/바람/파고 색상 + 파티클 애니메이션) |
 | `ocean_overlay_labels.js` | 해양종합정보 색칠 지도 위에 "그 자리 값"을 글자로 얹는 그리기 도구. |
+
+### `client/js/ocean-map/menu/`
+
+| 파일 | 역할 |
+|------|------|
+| `ocean_menu.js` | 해양종합정보의 「새 모드」 — 지도 오른쪽 버튼 줄 대신 [메뉴] 버튼 하나와 |
 
 ### `client/js/ocean-map/observation/`
 

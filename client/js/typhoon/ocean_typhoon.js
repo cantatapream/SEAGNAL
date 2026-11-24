@@ -77,7 +77,6 @@
     var _playbackMode = false; // true=재생(이동 말풍선만), false=기본(포인트별 말풍선 + 사전 범위)
     var _koreaBuoy = null;     // 우리 해역 진입 시 진로선 최근접 부이 관측 {name,type,obs} (해구도 표출 시에만 사용)
     var _enrichToken = 0;      // 비동기 해구도/부이 enrich 경합 방지 토큰
-    var _debugKorea = false;   // [디버그] 트리거/72h게이트/강풍반경 거리 무시하고 최근접 해구·부이 강제 표출
     var _demoActive = false;   // demoFocus(테스트/시연)로 표출 중인지 — OFF 시 기본 전도(전도 중앙) 복귀 게이트
 
     var _activeData = null;    // /api/typhoon 응답(현재연도 활성 태풍 + 통보문 인라인)
@@ -233,7 +232,7 @@
         // 파고: 우리 해역(해구도 예측 범위) 진입 시 해구도 예측 + 진로 최근접 부이 관측, 아니면 보퍼트 추정.
         if (o._zoneFc) {
             var z = o._zoneFc;
-            more += '<div class="tphn-b-zone tphn-blink">' + z.lzone + ' 해구 예상 기상(' + utcTmToKstLabel(z.tm) + ' 기준)' + (_debugKorea ? ' [디버그]' : '') + '</div>';
+            more += '<div class="tphn-b-zone tphn-blink">' + z.lzone + ' 해구 예상 기상(' + utcTmToKstLabel(z.tm) + ' 기준)' + '</div>';
             more += '<div class="tphn-b-sub">유의파고 ' + (z.wh != null ? z.wh.toFixed(1) : '-') + 'm'
                 + (z.wp != null ? ' · 파주기 ' + Math.round(z.wp) + 's' : '') + '</div>';
             more += '<div class="tphn-b-sub">파향 ' + dirStr(z.waveDir) + ' · 풍향 ' + dirStr(z.windDir)
@@ -826,9 +825,8 @@
         var token = ++_enrichToken;
         _koreaBuoy = null;
         _frames.forEach(function (f) { f._zoneFc = null; });
-        var dbg = _debugKorea;
-        // 강풍반경 북단이 31°N 에 닿는 후보 프레임만 해구도 조회. (디버그: 전 프레임 강제)
-        var cand = dbg ? _frames.slice() : _frames.filter(function (f) { return f.radStrong && (f.lat + f.radStrong / KM_PER_DEG) >= KOREA_TRIG_LAT; });
+        // 강풍반경 북단이 31°N 에 닿는 후보 프레임만 해구도 조회.
+        var cand = _frames.filter(function (f) { return f.radStrong && (f.lat + f.radStrong / KM_PER_DEG) >= KOREA_TRIG_LAT; });
         if (!cand.length) { refreshBubbleContents(); return; }
 
         // 진로선 최근접 부이(B/C) 선택 — 좌표는 BUOY_LOCATIONS, 관측은 fetchMarineBuoyData.
@@ -872,16 +870,14 @@
                     var z = d.zones[lz];
                     if (z.lat == null || z.lon == null) return;
                     var dist = haversineKm(f.lat, f.lon, z.lat, z.lon);
-                    if (!dbg && f.radStrong && dist > f.radStrong) return; // 강풍반경에 걸친 해구만 (디버그: 거리 무시)
+                    if (f.radStrong && dist > f.radStrong) return; // 강풍반경에 걸친 해구만
                     if (!pick || dist < pick.dist) pick = { lzone: lz, dist: dist, z: z };
                 });
                 if (!pick) return;
-                // 72h 예측범위 게이트: 해구도 tm 이 프레임시각과 ±ZONE_MATCH_H 이내인가. (디버그: 게이트 무시)
-                if (!dbg) {
-                    var s = String(pick.z.tm).replace(/[^0-9]/g, '');
-                    var tmMs = Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(8, 10), +(s.slice(10, 12) || 0));
-                    if (Math.abs(tmMs - utcMs) > ZONE_MATCH_H * 3600000) return; // 범위 밖 → 보퍼트 유지
-                }
+                // 72h 예측범위 게이트: 해구도 tm 이 프레임시각과 ±ZONE_MATCH_H 이내인가.
+                var s = String(pick.z.tm).replace(/[^0-9]/g, '');
+                var tmMs = Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(8, 10), +(s.slice(10, 12) || 0));
+                if (Math.abs(tmMs - utcMs) > ZONE_MATCH_H * 3600000) return; // 범위 밖 → 보퍼트 유지
                 f._zoneFc = { lzone: pick.lzone, wh: pick.z.wh, wp: pick.z.wp, waveDir: pick.z.waveDir, ws: pick.z.ws, windDir: pick.z.windDir, tm: pick.z.tm };
                 refreshBubbleContents();
             }).catch(function () { });
@@ -1654,6 +1650,13 @@
             el.className = 'tphn-source-note';
             leg.parentNode.insertBefore(el, leg.nextSibling);
         }
+        // 2026-11-23 사용자 「열대저압부 약, 중, 강의 하단에 나오던 참고문구는 없애도록」→「유럽만 출처를 남겨」→「일본도 남겨」
+        //   — 한국(기상청)·미국(JTWC)은 줄을 감춘다. 기관 이름은 위 출처 고르기 칸에 그대로 보인다.
+        //   ⚠유럽(ECMWF)·일본(JMA)은 남긴다: 두 기관의 이용 조건이 기관 이름만이 아니라 「가공했다」는 표시
+        //     (유럽은 저작권 표시 © 연도·라이선스 이름까지)를 요구한다(위 SOURCES 주석). 고르기 칸의 이름 한 단어로는 모자란다.
+        var KEEP_NOTE = { ecmwf: true, jma: true };
+        if (!KEEP_NOTE[_src] && !extra) { el.textContent = ''; el.style.display = 'none'; return; }
+        el.style.display = '';
         var base = (SOURCES[_src] || SOURCES.kma).note;
         el.textContent = extra ? (base + ' — ' + extra) : base;
     }
@@ -1888,10 +1891,6 @@
             if (_src !== 'kma') return;              // 해외 출처는 연도 이동이 없다(활성 태풍만 제공)
             loadYear(parseInt(this.value, 10));
         });
-        // 관리자 모드 기기인가 — 아래 디버그 줄(tphn-dbg-row)이 쓴다.
-        var isAdmin = false;
-        try { isAdmin = localStorage.getItem('seagnal_admin_mode') === 'true'; } catch (e) { /* 사생활 모드·저장 한도면 던진다 — 저장이 안 돼도 화면은 그대로 돈다 */ }
-
         // [출처 전환] 모든 사용자에게 보인다. 기본값은 한국(기상청) 그대로다.
         var srcSel = document.getElementById('tphn-source');
         if (srcSel) srcSel.addEventListener('change', function () { setSource(this.value); });
@@ -1957,15 +1956,6 @@
         if (imgModal) imgModal.addEventListener('click', function (e) { if (e.target === imgModal) closeImgModal(); });
         var imgDl = document.getElementById('tphn-img-download');
         if (imgDl) imgDl.addEventListener('click', downloadImg);
-
-        // [디버그] 해역표출 강제 토글 — 관리자 모드 기기에서만 노출(시그널 통합관리자 센터에서 체크).
-        var dbgRow = document.getElementById('tphn-dbg-row');
-        if (dbgRow && !isAdmin) dbgRow.style.display = 'none';
-        var dbgChk = document.getElementById('tphn-dbg-korea');
-        if (dbgChk) dbgChk.addEventListener('change', function () {
-            _debugKorea = dbgChk.checked;
-            if (_frames.length) enrichKoreaWaters();
-        });
 
         // 레이어 토글 체크박스 (dmdw 상세정보 레이어 대응)
         [['tphn-ly-track', 'track'], ['tphn-ly-prob', 'prob'], ['tphn-ly-swath', 'swath'], ['tphn-ly-strong', 'strong'], ['tphn-ly-storm', 'storm']]
@@ -2049,6 +2039,9 @@
         show: function () { setVisible(true); },
         hide: function () { setVisible(false); },
         isVisible: function () { return _visible; },
+        // 활성 태풍이 있는가 — 통합 메뉴(ocean_menu.js)가 태풍 줄의 자리(있으면 제자리·없으면 맨 뒤)를 정할 때 읽는다.
+        //   예: 활성 태풍 1개 → true · 없음 또는 아직 못 받음 → false. 10회 눌러 연 것(_unlocked)은 세지 않는다.
+        hasActive: function () { return !!(_activeData && _activeData.hasActive && (_activeData.typhoons || []).length); },
         // 지도·모듈 초기화(tryInit) 완료 여부 — 딥링크(assistant_deeplink)가 demoFocus 호출 타이밍 게이트로 사용.
         isReady: function () { return !!_map; },
         demoFocus: demoFocus,   // 위치기반 태풍 반경 알림 탭: 실제 통보문을 강제 활성화 표출 + 지도 이동

@@ -353,11 +353,11 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
                     const dl = document.getElementById('news-dateline').getBoundingClientRect(), tabs = document.getElementById('nhub-tabs').getBoundingClientRect();
                     return { y: window.scrollY, headTop: Math.round(h.top), inHead: !!(top && top.closest('.nhub-head')),
                         // 「헤더부분 배경색이 기존 스타일과 다른데?」 — 붙었을 때는 페이지와 같은 줄무늬 배경
-                        stuck: head.classList.contains('stuck'), img: getComputedStyle(head).backgroundImage,
+                        stuck: head.classList.contains('stuck'), img: getComputedStyle(head).backgroundImage, pageImg: getComputedStyle(document.body, '::before').backgroundImage,
                         // 날짜줄도 함께 고정(사용자 「뉴스에서 날짜 부분도 고정되었으면 좋겠는데」) — 탭 줄 바로 아래, 머리 안
                         dateInHead: dl.height > 0 && dl.top >= tabs.bottom - 1 && dl.bottom <= h.bottom + 0.5 };
                 });
-                assert.ok(r.y === 600 && r.headTop === 0 && r.inHead && r.stuck && /repeating-linear-gradient/.test(r.img) && r.dateInHead, JSON.stringify(r));
+                assert.ok(r.y === 600 && r.headTop === 0 && r.inHead && r.stuck && /gradient/.test(r.img) && r.img === r.pageImg /* 2026-11-23 새 배경(사선 없음)이 기본 — 무늬 이름이 아니라 「페이지 배경과 같은가」를 본다 */ && r.dateInHead, JSON.stringify(r));
                 await pg.evaluate(() => { document.getElementById('news-list').style.minHeight = ''; window.scrollTo(0, 0); });
                 await pg.waitForTimeout(150);
                 const back = await pg.evaluate(() => { const h = document.querySelector('.nhub-head'); return { stuck: h.classList.contains('stuck'), img: getComputedStyle(h).backgroundImage, color: getComputedStyle(h).backgroundColor }; });

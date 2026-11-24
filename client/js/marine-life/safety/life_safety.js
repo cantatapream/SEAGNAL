@@ -29,6 +29,8 @@
  *                    .main-tabs .tab-btn[data-target="ocean-life-group"](N 배지를 붙이는 탭) ·
  *                    style.css 의 .new-badge(공지사항 탭과 같은 배지 스타일)
  *  - 나를 쓰는 곳  : 없음 — 앱이 뜨면 스스로 이 화면의 표시 규칙(body.ls-mode)을 켠다
+ *                    ocean-map/menu/ocean_menu.js(해양종합정보 「새 모드」 — 이 화면으로 이동해 버튼을 대신 누른다.
+ *                    window._lsDropParkedSafety 를 부르고, 새 모드에서는 관제구역+항로·해역을 함께 켠다 _isOmPair)
  * [로드 순서] js/core/index2_patch.js 다음 — index2_patch 가 감싼 switchMainTab/
  *             switchSubTab 위에 한 겹 더 얹어야 하므로 반드시 그 뒤 · 순서 변경 금지
  * ============================================================================
@@ -1293,6 +1295,22 @@
     ];
     var _soloBusy = false;   // 우리가 끄려고 누른 클릭이 다시 이 로직을 타지 않게 하는 빗장
 
+    /** 새 모드에서 함께 켜 두는 짝(관제구역 + 항로·해역)인가. 예: _isOmPair('ocean-vts-toggle-btn','ocean-seaway-toggle-btn') → 새 모드면 true
+     *  @param {string} a @param {string} b @returns {boolean}  [연계] ← _bindSoloOverlays / js/ocean-map/menu/ocean_menu.js 「관제구역·항로」 */
+    function _isOmPair(a, b) {
+        if (!document.body.classList.contains('om-mode')) return false;
+        var pair = ['ocean-vts-toggle-btn', 'ocean-seaway-toggle-btn'];
+        return pair.indexOf(a) >= 0 && pair.indexOf(b) >= 0;
+    }
+
+    /**
+     * 기억해 둔 해양안전 화면(_parkedSafety)을 버린다 — 새 모드의 [보기]는 누른 것만 켜야 하므로
+     * 지난번에 보던 것을 되살리지 않는다.
+     * 예: 위험지형을 보다 [끄기] → 서핑 [보기] → 다시 사고분석 [보기] 를 눌렀을 때 위험지형이 따라 켜지지 않는다.
+     * [연계] ← js/ocean-map/menu/ocean_menu.js _openSafetyView (해양안전 화면으로 들어가기 직전)
+     */
+    window._lsDropParkedSafety = function () { _parkedSafety = null; };
+
     /**
      * 해양안전 오버레이 버튼을 "한 번에 하나만" 켜지도록 묶는다.
      * 예: 금지구역이 켜져 있을 때 위험지형을 누르면 → 금지구역이 먼저 꺼지고 위험지형만 켜진다
@@ -1315,6 +1333,9 @@
                 try {
                     SOLO_BTN_IDS.forEach(function (otherId) {
                         if (otherId === id) return;
+                        // [새 모드(body.om-mode)] 관제구역과 항로·해역은 한 지도에 함께 그린다(2026-11-22 사용자
+                        //   「관제구역과 항로 해역은 지도에 표출되는 요소를 한 지도에 합치고자함」) — 서로는 끄지 않는다.
+                        if (_isOmPair(id, otherId)) return;
                         var other = document.getElementById(otherId);
                         if (other && other.classList.contains('active')) other.click();
                     });

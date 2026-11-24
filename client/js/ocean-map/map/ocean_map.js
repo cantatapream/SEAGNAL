@@ -1009,7 +1009,11 @@
 
         // 기본맵·전자해도로 전환 시 오버레이(파티클+범례+슬라이더) 자동 OFF
         // coast(해안도)로 전환할 때만 오버레이 상태를 유지합니다.
-        if (type !== 'coast' && window.oceanOverlayTurnOff) {
+        // [새 모드(body.om-mode) 예외 — 2026-11-22 사용자 「태풍, 해구기상이 켜진다면 태풍과 해구기상 배경 지도를 우선으로 적용」]
+        //   태풍(세계지도)·해구기상(기본맵)이 파고·풍향·유향과 함께 켜질 수 있어야 하므로, 새 모드에서는
+        //   배경이 바뀌어도 오버레이를 끄지 않는다. [연계] js/ocean-map/menu/ocean_menu.js _arbitrateBasemap
+        var _omMode = document.body && document.body.classList.contains('om-mode');
+        if (type !== 'coast' && window.oceanOverlayTurnOff && !_omMode) {
             window.oceanOverlayTurnOff();
         }
     }
