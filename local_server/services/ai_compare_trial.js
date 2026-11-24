@@ -131,7 +131,7 @@ function createCompare(o = {}) {
             const t0 = now();
             let r;
             try { r = await call(v.id, { contents: promptFor(f, c), config: { responseMimeType: 'application/json' } }, { model: v.model, effort: v.effort }); }
-            catch (e) { r = { success: false, error: String((e && e.message) || e) }; }
+            catch (e) { console.warn('[ai_compare_trial] 호출 실패(결과에 「실패」로 남김):', v.key, f, c.id, e && e.message); r = { success: false, error: String((e && e.message) || e) }; }
             const ms = now() - t0, text = r && r.success && r.response ? String(r.response.text || '') : '';
             const g = r && r.success ? (f === 'interpret' ? gradeInterpret(c, text) : gradeSea(c, text)) : { verdict: '실패', reasons: ['호출 실패: ' + String((r && r.error) || '응답 없음').slice(0, 200)] };
             st.results[v.key] = st.results[v.key] || {};
