@@ -785,11 +785,13 @@
     function _healZone() {
         var on = _liveOn('zone');
         if (!on) { _zoneHealed = false; return; }
-        if (_zoneHealed || _pending || _view || _tab() !== 'ocean-map-section') return;
         var ab = document.getElementById('ocean-warn-active-toggle-btn');
+        // 색칠 버튼은 특보가 있을 때만 보인다. 안 보이면 「해 봤다」를 지운다 — 특보가 전부 해제됐다 다시 발효되면(버튼이 다시 나타나면)
+        //   색칠도 다시 켜야 한다(독립 검토 2026-11-24: 종전에는 한 번 맞춘 것으로 쳐서 안 켰다). 숨은 버튼에 남은 켜짐 표시는 믿지 않는다.
+        if (!ab || ab.style.display === 'none') { _zoneHealed = false; return; }
+        if (_zoneHealed || _pending || _view || _tab() !== 'ocean-map-section') return;
+        if (_blocked('zone')) return;                                             // 관리자 점검으로 막혀 있으면 켜지 않는다(독립 검토 — 재현함)
         if (_isActive(ab)) { _zoneHealed = true; return; }                      // 이미 색칠 중(우리가 켠 경우)
-        // 색칠 버튼은 특보 자료가 온 뒤에야 나타난다 — 아직 안 보이면 「해 봤다」로 치지 않고, 버튼이 나타나 이 감시가 다시 불릴 때 켠다
-        if (!ab || ab.style.display === 'none') return;
         _zoneHealed = true;
         // 지금 배경(저장돼 있던 사용자의 배경)을 「원래 배경」으로 적어 둔다 — 특보구역을 끄면 이 배경으로 돌아간다.
         //   (_noteFreeBase 는 「이미 바꿔야 할 기능이 켜져 있으면 안 적는다」라 여기서는 직접 적는다)
@@ -939,7 +941,14 @@
         var btn = document.getElementById('ocean-northup-btn');
         if (!btn) return;
         var stateOf = function () { return btn.classList.contains('northup-locked') ? 'locked' : (btn.classList.contains('northup-aligned') ? 'aligned' : 'free'); };
+        if (on && !_mode) return;                                    // 새 메뉴 화면이 꺼졌으면(시험) 걸지 않는다 — 남은 타이머가 뒤늦게 걸지 않게
         var want = on ? 'locked' : _northPrev;
+        var mapReady = !!(typeof window.getOceanMap === 'function' && window.getOceanMap());
+        // ★지도가 아직 없으면 버튼을 누르지 않고 기다리기만 한다(독립 검토 2026-11-24 — 재현함).
+        //   지도가 없을 때 이 버튼은 눌러도 아무 일도 안 하는데, 그 「누름」은 문서까지 올라가 다른 곳의 「바깥을 눌렀다」 처리를 깨운다
+        //   (core/index2_patch.js — 특보정보 탭의 하위탭 줄이 닫힌다). 종전에는 지도가 생길 때까지 0.5초마다 3번씩 계속 눌러
+        //   (3초에 18번 — 재어 봄) 해양종합정보를 열기 전에는 「해상일기도」 하위탭 줄이 계속 닫혔다.
+        if (on && !mapReady) { clearTimeout(_northTimer); _northTimer = setTimeout(function () { _lockNorth(true); }, 500); return; }
         if (on && _northPrev === null) _northPrev = stateOf();
         if (!want) return;
         _quiet(function () { for (var k = 0; k < 3 && stateOf() !== want; k++) btn.click(); });

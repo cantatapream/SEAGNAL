@@ -533,13 +533,15 @@
         }
 
         // 일반 KHOA TideBED 호출
-        OS.fetchTideKhoa(lat, lon, dateObj);
+        OS.fetchTideKhoa(lat, lon, dateObj, myReq);
     };
 
     /* --------------------------------------------------------------
      * KHOA TideBED 호출 + 3일치 폴링
      * ------------------------------------------------------------ */
-    OS.fetchTideKhoa = function (lat, lon, dateObj) {
+    OS.fetchTideKhoa = function (lat, lon, dateObj, reqNo) {
+        // 요청 번호 — fetchTideForSheet 가 넘겨 준다. 따로 불렸으면 여기서 새 번호를 받는다(isStaleTideRequest 참고)
+        var myReq = (typeof reqNo === 'number') ? reqNo : ++_tideReq;
         var dateInt = OS.formatDateInt(dateObj);
         // [좌표 양자화 2026-05] 부동소수점 noise 로 같은 격자에서 다른 lat/lon 이
         // 전송돼 서버 캐시(grid hash) 도 같은 격자임에도 false-miss 가 나는 것을
@@ -562,6 +564,7 @@
         })
             .then(function (r) { return r.json(); })
             .then(function (resp) {
+                if (isStaleTideRequest(myReq)) return;   // 그 사이 다른 날짜·지점으로 옮겼거나 시트를 닫았다 — 낡은 응답으로 지금 칸을 건드리지 않는다
                 // ❹+ 서버가 clientGridHash 무효 감지 → 자동 갱신을 알려온 경우.
                 //   기존 localStorage 항목은 stale 이므로 우선 제거 후 새 값으로 재기록.
                 //   (비즐겨찾기 좌표 시 rememberGridHash 는 localStorage 영속화를 skip 하므로
@@ -595,7 +598,10 @@
                 // tide.js의 loadAllThreeDays와 동일하게 3일치(어제/오늘/내일)를 모두 폴링
                 pollThreeDayFiles(resp.files, dateObj);
             })
-            .catch(function () {
+            .catch(function (err) {
+                if (isStaleTideRequest(myReq)) return;
+                // 까닭을 남긴다 — 종전에는 조용히 칸만 숨겨, 코드 실수(없는 변수)로 생긴 오류도 화면만으로는 알 수 없었다(2026-11-24)
+                console.warn('[조석] 요청·처리 중 오류 — 조석 칸을 숨긴다:', err && err.message);
                 OS.renderTideError('조석 데이터 요청 중 오류가 발생했습니다.');
             });
 
