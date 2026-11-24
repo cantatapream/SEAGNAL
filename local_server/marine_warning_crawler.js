@@ -43,7 +43,7 @@ const fs = require('fs');
 const path = require('path');
 const dmdwPush = require('./services/dmdw_push_sender');
 const pushHelpers = require('./services/push_helpers');
-const ZONE_SPLIT = require('./config/zone_split');   // 2026-11-26 제주도남쪽바깥먼바다 → 남서쪽·남동쪽바깥 분할(언제부터·무엇이 무엇으로)
+const ZONE_SPLIT = require('./config/zone_split');   // 제주도남쪽바깥먼바다 → 남서쪽·남동쪽바깥 분할(전환 조건·이름·코드)
 
 // [수정1] 관리자 알림 푸시(dmdw 채널) 전면 비활성.
 //   작업2 통합으로 사용자 푸시에 이미 자식 한정사가 포함되므로 관리자 채널은 중복.
@@ -200,6 +200,10 @@ const MMIS_CODE_TO_NAME = {
     'S1323300': '제주도남부앞바다',
     'S1323400': '제주도서부앞바다',
     'S1324020': '제주도남쪽바깥먼바다',
+    // [구역 분할] 기상청 회신 2026-11-24: 옛 S1324020 폐지 → 남동쪽 S1324120 · 남서쪽 S1324220(config/zone_split.js NEW_CODES 와 같다).
+    //   옛 코드는 지우지 않는다 — 전환 전까지, 그리고 전환 뒤에도 기상청이 작업을 마치기 전에는 옛 코드로 특보가 온다.
+    'S1324120': '제주도남동쪽바깥먼바다',
+    'S1324220': '제주도남서쪽바깥먼바다',
     'S1324110': '제주도남동쪽안쪽먼바다',
     'S1324210': '제주도남서쪽안쪽먼바다',
     'S2110100': '경북남부앞바다중평수구역',
@@ -3241,7 +3245,7 @@ function _createZoneSkeleton() {
                 "제주도남부앞바다": leaf({ "제주도남부앞바다중연안바다": null }),
                 "제주도서부앞바다": leaf({ "제주도서부앞바다중북서연안바다": null, "제주도서부앞바다중남서연안바다": null, "제주도서부앞바다중가파도연안바다": null })
             },
-            // 2026-11-26 00:00 KST 부터 「제주도남쪽바깥먼바다」 잎 1개 → 「남서쪽·남동쪽바깥먼바다」 잎 2개(config/zone_split.js — 사용자 확정).
+            // 전환(config/zone_split.js) 뒤 「제주도남쪽바깥먼바다」 잎 1개 → 「남서쪽·남동쪽바깥먼바다」 잎 2개 — 사용자 확정.
             //   이 뼈대에 없는 이름은 나무에서 조용히 빠지므로(_buildZoneTreeFromSnapshot 의 `if (!leaf) continue`) 화면·통보문 기준 나무가 모두 이 잎을 따른다.
             "제주도먼바다": Object.assign(
                 ZONE_SPLIT.isActive()
@@ -3255,44 +3259,80 @@ function _createZoneSkeleton() {
     };
 }
 
-const SPLIT_BULLETIN_STALE_MS = 30 * 60 * 1000;   // 통보문 기준 계산이 이만큼 안 돌았으면 서버 로그에 경고(10분마다) — 없으면: 통보문 수집이 멈춰도 「특보 없음」과 구별이 안 된다
-let _splitStaleWarnAt = 0;
 /**
- * [구역 분할 2026-11-26] 새 두 구역 잎을 「통보문 기준 특보현황」(services/bulletin_status — data/bulletin_status.json) 값으로 채운다 — 전환 뒤에만.
- *   사용자 확정: 「26일부터는 제주도남쪽바깥먼바다(남서쪽바깥먼바다, 남동쪽바깥먼바다)에 대해서는 … 통보문 기준으로 표출」 — 일반 사용자 화면(인덱스·특보구역 지도)에도.
- *   나머지 43개 구역은 MMIS 값 그대로다. 통보문 기준 계산을 못 읽으면 잎을 비워 두고(특보 없음과 같은 모양) 서버 로그에 남긴다.
- *   ★MMIS 스냅샷에서는 이 구역을 빼지 않는다 — MMIS 가 26일부터 이 구역을 어떤 이름·코드로 주든(옛 이름·새 이름·줄인 이름) 스냅샷·디바운스·의심 가드는
- *     종전 구역 수 그대로 돈다(빼면 「3곳 이상 동시 소실」 의심 가드가 2곳으로 줄어 다른 구역에 거짓 해제 푸시가 나간다 — 독립 검토 2026-11-23 재현).
- *     화면: 여기서 두 잎을 통보문 값으로 **덮어쓴다**(MMIS 가 새 이름으로 채웠어도). 옛 이름·줄인 이름은 뼈대에 잎이 없어 나무에 안 실린다.
- *     푸시: push_sender·routes/push.js 가 이 구역 이름(「제주…바깥…」 꼴 전부)을 막는다.
- *   previous 나무의 두 잎 = 디스크에 있던 직전 current 의 그 잎(「직전에 화면에 보이던 것」).
- * 예: 통보문 기준 {제주도남서쪽바깥먼바다: 풍랑주의보} → newCurrent 의 그 잎 current = {source:'BULLETIN', wrnTp:'풍랑', wrnLvl:'주의보', …}
- * @param {object} newCurrent 이번 current 나무(고쳐 쓴다)  @param {object} newPrevious 이번 previous 나무(고쳐 쓴다)  @param {object|null} disk 디스크의 직전 weather_alerts.json
- * [연계] ← _writeWeatherAlertsJson(이 파일) / → services/bulletin_status.read
+ * [구역 분할] 전환 뒤, 스냅샷에 옛 구역(제주도남쪽바깥먼바다)으로 든 특보를 새 두 구역의 특보로 옮긴다.
+ *   전환 뒤에도 기상청이 작업을 마치기 전에는 MMIS 가 옛 코드(S1324020)로 특보를 준다 — 옛 구역 = 새 두 구역 전체이므로 둘 다의 특보다
+ *   (사용자 확정 「제주도남쪽바깥먼바다라고 칭하면 두구역 모두」). 새 구역에 이미 값이 있으면(MMIS 가 새 코드로 준 것) 그것을 둔다.
+ *   직전 스냅샷에도 건다 — 옛 이름으로 발효 중이던 특보가 전환 주기에 「옛 구역 해제 + 새 구역 발효」로 읽혀 거짓 푸시가 나가지 않게
+ *   (직전·이번이 같은 이름표가 되어 변화가 없다. 사용자 「기존 남쪽바깥먼바다 구독자는 해당 2개해역을 그대로 이어받아」).
+ *   이 구역은 자식(연안바다·평수구역)이 없어 children 은 건드리지 않는다.
+ * 예: parents {제주도남쪽바깥먼바다: 풍랑주의보} → {제주도남서쪽바깥먼바다: 풍랑주의보, 제주도남동쪽바깥먼바다: 풍랑주의보}
+ * @param {StateSnapshot|null} snap
+ * @returns {number} 옮긴 칸 수
+ * [연계] ← run(이 파일) — 스냅샷을 다 만든 직후, 디바운스·가드·변화 비교 전에
  */
-function _graftBulletinSplitZones(newCurrent, newPrevious, disk) {
-    if (!ZONE_SPLIT.isActive()) return;
-    let st = null;
-    try { st = require('./services/bulletin_status').read(); } catch (e) { console.warn('[구역 분할] 통보문 기준 특보현황을 못 읽음:', e && e.message); }
-    // 신선도는 listsOkMs(방재기상플랫폼 목록을 마지막으로 다 받은 시각)로 본다 — updatedAt 은 목록을 못 받아도 매분 새로 찍힌다
-    const okMs = st ? (typeof st.listsOkMs === 'number' ? st.listsOkMs : Date.parse(st.updatedAt || '')) : 0;   // listsOkMs 0 = 목록을 한 번도 다 못 받음 → 낡음
-    const age = okMs ? Date.now() - okMs : Infinity;
-    if (!(age < SPLIT_BULLETIN_STALE_MS) && Date.now() - _splitStaleWarnAt > 10 * 60 * 1000) {
-        _splitStaleWarnAt = Date.now();
-        console.warn(`[구역 분할] ⚠ 통보문 기준 특보현황이 낡았다(${okMs ? Math.round(age / 60000) + '분 전' : '없음'}) — 제주 바깥먼바다 2구역 표출이 최신이 아닐 수 있다`);
+function _foldOldSplitZone(snap) {
+    if (!snap || !ZONE_SPLIT.isActive()) return 0;
+    let n = 0;
+    for (const m of [snap.parents, snap.upcomings]) {
+        if (!(m instanceof Map) || !m.has(ZONE_SPLIT.OLD)) continue;
+        const info = m.get(ZONE_SPLIT.OLD);
+        m.delete(ZONE_SPLIT.OLD);
+        for (const name of ZONE_SPLIT.NEW) if (!m.has(name)) { m.set(name, Object.assign({}, info)); n++; }
     }
-    // splitCurrent = 규칙 계산까지만(참고사항 AI 덧씌움 전) — 일반 사용자에게 나가는 값이라 AI 해석을 섞지 않는다(bulletin_status.compute)
-    const srcTree = st && (st.splitCurrent || st.current);
-    const src = srcTree ? _collectLeafZonesByName(srcTree) : new Map();
-    const cur = _collectLeafZonesByName(newCurrent), prv = _collectLeafZonesByName(newPrevious);
-    const old = disk && disk.current ? _collectLeafZonesByName(disk.current) : new Map();
-    for (const name of ZONE_SPLIT.NEW) {
-        // 전환 직후 첫 주기: 통보문 계산이 아직 전환 전 것(옛 이름 잎)이면 그 잎을 두 구역에 그대로 — 발효 중인 특보가 1분 동안 「없음」으로 보이지 않게
-        const dst = cur.get(name), from = src.get(name) || src.get(ZONE_SPLIT.OLD);
-        if (dst) { dst.current = (from && from.current) || null; dst.upcoming = (from && from.upcoming) || null; }
-        const p = prv.get(name), o = old.get(name);
-        if (p) { p.current = (o && o.current) || null; p.upcoming = (o && o.upcoming) || null; }
+    return n;
+}
+
+const SPLIT_ZONE_LIST_URL = 'https://marine.kma.go.kr/geoserver/mmis/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=mmis:shp_wrn_poly&outputFormat=application/json&propertyName=WarnCode,name';
+const SPLIT_ZONE_LIST_EVERY_MS = 5 * 60 * 1000;   // 구역 지도 목록은 5분에 한 번만 묻는다(특보 자료는 매분 본다) — 없으면: 포털 지도 서버에 매분 요청이 는다
+let _splitZoneList = { at: 0, code: null };
+/**
+ * [구역 분할] 포털 특보구역 지도 목록에 새 구역코드가 올라왔는지 본다(5분에 한 번, 그 사이는 마지막 결과).
+ *   특보 자료(warn/list·ready)에는 특보가 걸린 구역만 온다(실측 2026-11-24: 발효 82줄, 등급 0 줄 없음) — 특보가 없는 시간에 기상청이 구역을 바꾸면
+ *   특보 자료만으로는 모른다. 지도 목록은 44개 구역이 코드와 함께 늘 온다(같은 날 실측: S1324020 「제주도 남쪽 바깥먼바다」).
+ *   못 받으면 「못 봤다」(null)로 둔다 — 전환 조건 ②와 특보 자료 쪽 감지가 따로 있다.
+ * 예: 목록에 S1324220 이 있으면 'S1324220', 없으면 null
+ * @returns {Promise<string|null>}
+ * [연계] ← _observeZoneSplit(이 파일)
+ */
+async function _newCodeInZoneList() {
+    if (Date.now() - _splitZoneList.at < SPLIT_ZONE_LIST_EVERY_MS) return _splitZoneList.code;
+    _splitZoneList.at = Date.now();
+    try {
+        const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 10000);
+        const res = await fetch(SPLIT_ZONE_LIST_URL, { signal: ctl.signal }); clearTimeout(t);
+        const j = res.ok ? await res.json() : null;
+        const codes = j && Array.isArray(j.features) ? j.features.map((f) => f && f.properties && f.properties.WarnCode) : [];
+        _splitZoneList.code = Object.keys(ZONE_SPLIT.NEW_CODES).find((c) => codes.includes(c)) || null;
+    } catch (e) {
+        _splitZoneList.code = null;
+        console.warn('[구역 분할] 특보구역 지도 목록을 못 받음(다음에 다시):', e && e.message);
     }
+    return _splitZoneList.code;
+}
+
+/**
+ * [구역 분할] 이번 주기 MMIS 자료를 보고 전환할지 정하고, 전환했으면 관리자에게 한 번 알린다.
+ *   전환 조건(config/zone_split.js 머리): ① MMIS 가 새 구역코드를 쓰기 시작(특보 자료 또는 지도 목록) ② 준비 시각 뒤 옛 구역에 특보 없음. 각각 2주기 연속.
+ * 예: 이번 주기 warnList 에 S1324220 줄이 있고 직전 주기에도 있었다 → 전환 + 관리자 푸시 「특보구역 전환됨 …」
+ * @param {{warnList: Array, warnReady: Array}} fetched 이번 주기 MMIS 응답  @param {StateSnapshot} curr 이번 스냅샷(접기 전)
+ * @returns {Promise<boolean>} 이번에 전환했으면 true
+ * [연계] ← run(이 파일, 스케줄러가 부른 주기 — opts.zoneSplitDetect) / → config/zone_split.observe · services/admin_push
+ */
+async function _observeZoneSplit(fetched, curr) {
+    if (ZONE_SPLIT.isActive()) return false;
+    const rows = [].concat(fetched.warnList || [], fetched.warnReady || []);
+    const inRows = Object.keys(ZONE_SPLIT.NEW_CODES).find((c) => rows.some((r) => r && r.warn_zone_cd === c)) || null;
+    const newCodeSeen = inRows || await _newCodeInZoneList();
+    const oldZoneHasWarning = curr.parents.has(ZONE_SPLIT.OLD) || curr.upcomings.has(ZONE_SPLIT.OLD);
+    const r = ZONE_SPLIT.observe({ newCodeSeen, oldZoneHasWarning, mmisOk: true });
+    if (!r.activated) return false;
+    // 사람이 알게 한다 — 전환은 조용히 일어난다(화면·푸시 이름이 바뀐다). 관리자 휴대폰에 한 통.
+    try {
+        await require('./services/admin_push').sendAdminPush('🗺️ 제주 바깥먼바다 특보구역 전환됨',
+            `${r.reason}. 지금부터 제주도남서쪽·남동쪽바깥먼바다 2구역으로 표출·푸시합니다. 운영 화면을 한 번 확인해 주세요.`);
+    } catch (e) { console.warn('[구역 분할] 전환 알림(관리자 푸시) 실패:', e && e.message); }
+    return true;
 }
 
 /** zone tree leaf 노드 (current + children 보유) 를 부모 이름 → 노드 Map 으로 수집. */
@@ -3534,9 +3574,6 @@ function _writeWeatherAlertsJson(prevSnap, currSnap) {
                 if (old && Array.isArray(old.history)) leaf.history = old.history;
             }
         }
-
-        // [구역 분할 2026-11-26] 제주 바깥먼바다 2구역만 통보문 기준 값으로(전환 전에는 아무 일도 안 한다)
-        _graftBulletinSplitZones(newCurrent, newPrevious, disk);
 
         const merged = {
             updatedAt: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
@@ -4501,6 +4538,14 @@ async function run(opts = {}) {
         //    [테스트] forceBaseline 이 true 면 이 가드를 1회 우회 →
         //    빈 prev vs 현재 발효+예비 를 "전부 신규" 로 diff 하여 실제 푸시 발사.
         //    (관리자 "장부 초기화(테스트 푸시)" 버튼 전용. opts 또는 예약 플래그로 지정)
+        // [구역 분할] ① 전환할 때인지 본다(스케줄러가 부른 주기에서만 — 검사·관리자 수동 실행은 전환을 일으키지 않는다)
+        //   ② 전환 뒤에는 옛 구역으로 든 특보를 새 두 구역으로 옮긴다(이번·직전 스냅샷 모두 — _foldOldSplitZone 주석).
+        if (opts.zoneSplitDetect && !opts.dryRun) {
+            try { await _observeZoneSplit(fetched, curr); }
+            catch (e) { console.warn('[구역 분할] 전환 감지 실패(이번 주기 건너뜀):', e && e.message); }
+        }
+        if (ZONE_SPLIT.isActive()) { _foldOldSplitZone(curr); _foldOldSplitZone(_prevSnapshot); }
+
         const forceBaseline = !!opts.forceBaselinePush || _forceBaselinePending;
         if (_isSnapshotEmpty(_prevSnapshot) && !forceBaseline && isFirstLoad) {
             console.log('[Marine] 콜드 부팅 + 빈 prev — push skip, state 저장만 (현재 발효 부모=' +
@@ -4632,8 +4677,6 @@ async function run(opts = {}) {
                 //   장부 초기화(테스트 푸시) 버튼이 forceBaselinePush + adminToken 으로 호출.
                 const userOpts = opts.adminToken ? { adminToken: opts.adminToken }
                     : (_baselineTokenCarry ? { adminToken: _baselineTokenCarry } : {});
-                // [구역 분할 2026-11-26] 보류실(예비취소 판정 등)에 남아 있던 옛 이름 건이 뒤늦게 나와도 푸시로 가지 않게 한 번 더 거른다(push_sender 도 같은 것을 거른다)
-                _userChanges = _userChanges.filter((c) => !(c && ZONE_SPLIT.isPushBlocked(c.zone)));
                 await pushSender.processChanges(_userChanges, userOpts);
             } catch (e) {
                 console.error('[marine_warning_crawler] 사용자 push 발사 실패 (관리자 push 영향 없음):', e && e.message);
@@ -4715,7 +4758,8 @@ module.exports = {
     _STATE_FILE,
     // [Followup E-2] weather_alerts.json 갱신 (테스트용 노출)
     _buildZoneTreeFromSnapshot,
-    _graftBulletinSplitZones,     // [구역 분할 2026-11-26] 검사용
+    _foldOldSplitZone,            // [구역 분할] 검사용
+    _observeZoneSplit,
     _writeWeatherAlertsJson,
     _WEATHER_ALERTS_FILE,
     _isSnapshotEmpty,

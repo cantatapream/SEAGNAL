@@ -265,6 +265,13 @@ router.get('/api/weather-alerts', (req, res) => {
     }
 });
 
+// 1-0. [구역 분할] 화면이 「지금 새 구역 기준인가」를 묻는다 — 켜 둔 화면이 전환을 알아채 한 번 새로 고치려고(client/js/core/zone_split.js).
+//      예: GET /api/zone-split → {"active":false}
+router.get('/api/zone-split', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ active: require('../config/zone_split').isActive() });
+});
+
 // 1-1. 해상 예특보구역 폴리곤 (정적 GeoJSON)
 //      해양종합정보 지도의 "특보구역" 토글 버튼이 호출
 //      KMA marine 포털(geoserver/mmis/wms)의 mmis:shp_wrn_poly 레이어를
@@ -286,8 +293,8 @@ router.get('/api/warn-zones', (req, res) => {
         //   효과: 클라이언트 ?v= 캐시버스트 키에 의존하지 않게 됨 → 향후 갱신 시
         //         수동 v 키 bump 불필요 (배포만 하면 다음 요청부터 새 데이터).
         res.setHeader('Cache-Control', 'no-cache, must-revalidate');
-        // [구역 분할 2026-11-26] 00:00 KST 부터 「제주도 남쪽 바깥먼바다」를 둘로 나눈 그림(45개)을 내보낸다 — 원본 파일은 그대로(services/warn_zones_split.js).
-        //   사용자 확정: 「특보구역 경계선을 그리고, 26일 00시부로 적용되어 사용자들에게 표출되도록」. no-cache 라 자정 뒤 다음 요청부터 바뀐다.
+        // [구역 분할] 전환(config/zone_split.js) 뒤 「제주도 남쪽 바깥먼바다」를 둘로 나눈 그림(45개)을 내보낸다 — 원본 파일은 그대로(services/warn_zones_split.js).
+        //   no-cache 라 전환 뒤 다음 요청부터 바뀐다.
         if (require('../config/zone_split').isActive()) {
             return res.type('application/json').send(require('../services/warn_zones_split').body());
         }

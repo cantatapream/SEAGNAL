@@ -5,7 +5,7 @@
  * 역할  : 기상청 해상 특보구역 개편(2026-11-26)의 「언제부터·무엇이 무엇으로」를 한 군데에 둔다.
  *         「제주도남쪽바깥먼바다」 1개가 동경 126°17'40" 선을 경계로
  *         「제주도남서쪽바깥먼바다」(서쪽)·「제주도남동쪽바깥먼바다」(동쪽) 2개로 나뉜다(구역 44 → 45).
- *         서버는 미리 배포해 두고, 이 파일의 시각(2026-11-26 00:00 KST)이 되면 스스로 갈아탄다.
+ *         서버는 미리 배포해 두고, 아래 「전환 조건」이 되면 스스로 갈아탄다(한 번 넘어가면 되돌아가지 않는다 — data/zone_split_state.json).
  * 사용자 확정 2026-11-22(원문):
  *   「위 내용은 모두 26일자부터 자동 적용될 수 있도록 설계해야해. 당장 오늘부터 위처럼 작동하도록 만드는게 아니라.」
  *   「제주도남쪽바깥먼바다는 이제 제주도남서쪽바깥먼바다와 제주도남동쪽바깥먼바다로 구분되고 이 두구역 모두 해당되는 경우에서는
@@ -13,44 +13,119 @@
  *   「제주도먼바다라고 표현하는 경우에도 … 총 4구역이 모두 포함」 · 「제주도전해상의 경우 앞바다와 위 제주도먼바다 모든 해역이 모두 포함」
  *   「푸시는 26일부터는 보내지 말것. 인덱스 페이지 메인화면과, 특보구역(해양종합정보탭에서) 대해서만 표출」 — 이 두 구역(옛 이름 포함)에만 해당, 다른 구역 푸시는 정상.
  *   「26일부터는 … 통보문 mmis가 아닌 통보문 기준으로 표출」 — 이 두 구역만. 나머지는 MMIS.
+ * 사용자 확정 2026-11-24(원문) — 전환을 시각이 아니라 MMIS 가 새 구역을 쓰기 시작하는 때로, 특보는 MMIS 로, 푸시도 연다:
+ *   「특보도 mmis로 바꾸어서 보자. 푸시도 열고 기상버튼 등 해당버튼은 회색으로 비활성화상태로 두자.」 「부이버튼은 활성화해줘」
+ *   「기존 남쪽바깥먼바다 구독자는 해당 2개해역을 그대로 이어받아 푸시받을수있도록」
+ *   「특보가 살아있는 동안에는 그 해역에 대해서 특보 정보를 바꿀 수가 없다고 했거든 … 실질적으로 남서쪽, 남동쪽 바깥 먼바다로 전환돼서
+ *     MMIS에서 표출하는 그 시점에 그걸 인식해서 UI를 변경하고, 그 시점에 그 남서쪽과 남동쪽으로 나눠서 특보를 보내고자 하는 거야.」
+ *   「전환시점을 mmis에서 새로운 구역 신호줄때와 내일 남쪽바깥먼바다에 특보가 없을때 1개로 나누어서 하는건 어때」
+ *   기상청 회신(사용자 전달 2026-11-24): 옛 S1324020 폐지 · 남동쪽 S1324120 · 남서쪽 S1324220 · 예보코드 남서쪽 12B10421 · 남동쪽 12B10422.
+ *   ※ 2026-11-22 의 「이 두 구역은 통보문 기준 표출·푸시 차단」은 위 지시로 대체됐다(코드에서 걷어냄).
+ * [전환 조건 — 둘 중 먼저 오는 쪽, 각각 2주기(약 2분) 연속일 때]
+ *   ① MMIS 가 새 구역코드(S1324120·S1324220)를 쓰기 시작 — 특보 자료(발효·예비)에 보이거나, 포털 특보구역 지도 목록에 보일 때.
+ *      (특보 자료에는 특보가 걸린 구역만 온다 — 실측 2026-11-24. 지도 목록은 44개 구역이 늘 온다.)
+ *   ② QUIET_FROM(2026-11-25 00:00 KST — 「내일 특보가없는 순간」) 뒤, 옛 구역에 특보(예비 포함)가 하나도 없을 때 — 기상청은 특보가 없을 때만 구역을 바꿀 수 있다.
+ *   전환 뒤에도 MMIS 가 옛 코드로 특보를 주면(기상청 작업 전) 그 특보 = 새 두 구역 모두의 특보로 읽는다(marine_warning_crawler._foldOldSplitZone).
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : 없음
  *  - 서버 API      : 없음
- *  - 나를 쓰는 곳  : marine_warning_crawler(구역 뼈대·통보문 값 끼움) · push_sender(푸시 차단) ·
+ *  - 나를 쓰는 곳  : marine_warning_crawler(구역 뼈대·전환 감지·옛 코드 접기) ·
  *                   analysis/bulletin_survey/lifecycle_check(통보문 해역 해석) · config/zone_group_map(묶음 사전) ·
  *                   services/push_helpers(구독 계층) · routes/weather(/api/warn-zones 분할본) · 검사 test_zone_split
  *  - 화면 쪽 짝    : client/js/core/zone_split.js (같은 시각·같은 이름 — 둘을 함께 고친다)
- *  - 환경변수      : ZONE_SPLIT_AT — 전환 시각을 바꾼다(ISO 시각. 스테이징에서 미리 보거나, 기상청이 미루면 늦추려고). 없으면 2026-11-26T00:00:00+09:00.
+ *  - 저장          : data/zone_split_state.json — {active, at, reason}. 전환은 한 번이고 서버를 다시 켜도 이어진다.
+ *  - 환경변수      : ZONE_SPLIT_AT — 전환 조건 ②가 시작되는 시각(시간대까지 적은 ISO 시각. 없으면 2026-11-25T00:00:00+09:00) ·
+ *                   ZONE_SPLIT_FORCE=on|off — 손으로 켜거나(감지가 안 될 때) 끈다(스테이징 미리보기·되돌리기). 저장된 상태보다 먼저 본다.
  * [로드 순서] 없음(서버 모듈)
  * ============================================================================
  */
+const fs = require('fs');
+const path = require('path');
+
 const OLD = '제주도남쪽바깥먼바다';
 const NEW_WEST = '제주도남서쪽바깥먼바다';
 const NEW_EAST = '제주도남동쪽바깥먼바다';
 const NEW = [NEW_WEST, NEW_EAST];
-const DEFAULT_AT = '2026-11-26T00:00:00+09:00';
-const AT_MS = (() => {
+// 기상청 회신(2026-11-24): 옛 코드는 폐지, 새 코드 둘. 전환 감지와 MMIS 코드표(marine_warning_crawler.MMIS_CODE_TO_NAME)가 함께 쓴다.
+const OLD_CODE = 'S1324020';
+const NEW_CODES = { S1324220: NEW_WEST, S1324120: NEW_EAST };
+const STATE_FILE = process.env.ZONE_SPLIT_STATE_FILE || path.join(__dirname, '..', 'data', 'zone_split_state.json');
+const DEFAULT_QUIET_FROM = '2026-11-25T00:00:00+09:00';   // 사용자 2026-11-24 「내일 정오로 보지말고 내일 특보가없는 순간에 변경하는것으로 보자」 — 25일이 되는 순간부터
+const QUIET_FROM_MS = (() => {
     const env = process.env.ZONE_SPLIT_AT;
-    // 시간대(+09:00·Z)가 없는 값은 받지 않는다 — 서버 시계가 UTC 라 「2026-11-26」이 26일 09:00 KST 로 읽힌다(독립 검토 2026-11-23)
+    // 시간대(+09:00·Z)가 없는 값은 받지 않는다 — 서버 시계가 UTC 라 「2026-11-25」가 25일 09:00 KST 로 읽힌다(독립 검토 2026-11-23)
     const ms = env && /(Z|[+-]\d{2}:?\d{2})$/.test(env.trim()) ? Date.parse(env) : NaN;
-    if (env && isNaN(ms)) console.warn('[구역 분할] ZONE_SPLIT_AT 을 못 읽어(시간대까지 적어야 한다 — 예 2026-11-26T00:00:00+09:00) 기본 시각을 쓴다:', env);
-    return isNaN(ms) ? Date.parse(DEFAULT_AT) : ms;
+    if (env && isNaN(ms)) console.warn('[구역 분할] ZONE_SPLIT_AT 을 못 읽어(시간대까지 적어야 한다 — 예 2026-11-25T00:00:00+09:00) 기본 시각을 쓴다:', env);
+    return isNaN(ms) ? Date.parse(DEFAULT_QUIET_FROM) : ms;
 })();
-let _forced = null;   // 검사용 — true/false 로 고정, null 이면 시계를 본다
+const CONFIRM_CYCLES = 2;   // 같은 신호가 이만큼 연속으로 보여야 전환 — 없으면: MMIS 가 한 주기 빈 응답을 주는 순간(실제로 있다 — 의심 가드가 그것 때문에 있다)에 「특보 없음」으로 읽고 넘어간다
+let _forced = null;         // 검사용 — true/false 로 고정
+let _state = null;          // 파일에서 읽은 상태(처음 물을 때 한 번 읽는다)
+const _streak = { code: 0, quiet: 0 };
 
 const norm = (s) => String(s == null ? '' : s).replace(/\s+/g, '');
 
+function _load() {
+    if (_state) return _state;
+    try { const j = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')); _state = (j && typeof j === 'object') ? j : {}; }
+    catch (e) { if (e && e.code !== 'ENOENT') console.warn('[구역 분할] 상태 파일을 못 읽어 「전환 전」으로 본다:', e.message); _state = {}; }
+    return _state;
+}
+
 /**
- * 지금 새 구역 기준인가.
- * 예: isActive(Date.parse('2026-11-25T23:59:00+09:00')) → false · isActive(Date.parse('2026-11-26T00:00:00+09:00')) → true
- * @param {number} [nowMs] 기준 시각(ms). 없으면 지금.
+ * 지금 새 구역 기준인가 — 전환이 한 번 일어났으면 계속 true.
+ * 예: (전환 전) isActive() → false · (activate() 뒤) isActive() → true
  * @returns {boolean}
- * [연계] ← 이 파일을 쓰는 모든 곳 — 26일 전에는 종전과 똑같이 동작하게 하려고 매번 묻는다(서버를 다시 켜지 않아도 자정에 바뀐다)
+ * [연계] ← 이 파일을 쓰는 모든 곳 — 전환 전에는 종전과 똑같이 동작하게 하려고 매번 묻는다(서버를 다시 켜지 않아도 그 순간 바뀐다)
  */
-function isActive(nowMs) {
+function isActive() {
     if (_forced !== null) return _forced;
-    return (nowMs == null ? Date.now() : nowMs) >= AT_MS;
+    const f = String(process.env.ZONE_SPLIT_FORCE || '').toLowerCase();
+    if (f === 'on') return true;
+    if (f === 'off') return false;
+    return !!_load().active;
+}
+
+/**
+ * 전환한다(한 번만 — 이미 전환됐으면 아무 일도 안 한다). 상태를 파일에 남긴다.
+ * 예: activate('MMIS 특보 자료에 새 구역코드 S1324220') → true (처음일 때)
+ * @param {string} reason 무엇을 보고 전환했나(관리자 알림·로그에 그대로 쓴다)
+ * @param {number} [nowMs]
+ * @returns {boolean} 이번에 전환했으면 true
+ * [연계] ← observe(이 파일) · 검사
+ */
+function activate(reason, nowMs) {
+    if (_load().active) return false;
+    _state = { active: true, at: new Date(nowMs == null ? Date.now() : nowMs).toISOString(), reason: String(reason || '') };
+    try {
+        fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true });
+        fs.writeFileSync(STATE_FILE + '.tmp', JSON.stringify(_state)); fs.renameSync(STATE_FILE + '.tmp', STATE_FILE);
+    } catch (e) { console.error('[구역 분할] ⚠ 전환 상태를 파일에 못 남겼다(이 프로세스 안에서는 전환됨 — 재시작하면 다시 감지한다):', e && e.message); }
+    console.log(`[구역 분할] ★전환 — ${_state.reason} (${_state.at})`);
+    return true;
+}
+
+/**
+ * 한 주기의 관찰을 받아 전환할지 정한다(전환 조건 ①·② — 파일 머리). 이미 전환됐으면 아무 일도 안 한다.
+ * 예: observe({ newCodeSeen: 'S1324220', oldZoneHasWarning: false }) 를 두 주기 연속 → { activated: true, reason: 'MMIS 가 새 구역코드 S1324220 …' }
+ * @param {{newCodeSeen?: string|null, oldZoneHasWarning?: boolean, mmisOk?: boolean, nowMs?: number}} o
+ *   newCodeSeen = 이번 주기에 MMIS(특보 자료·구역 지도 목록)에서 본 새 구역코드(없으면 null) · oldZoneHasWarning = 옛 구역에 특보·예비가 있나 ·
+ *   mmisOk = 이번 주기 MMIS 특보 자료를 제대로 받았나(못 받았으면 「특보 없음」으로 세지 않는다)
+ * @returns {{activated: boolean, reason?: string}}
+ * [연계] ← marine_warning_crawler.run (스케줄러가 부른 주기에서만)
+ */
+function observe(o) {
+    o = o || {};
+    if (_forced !== null || String(process.env.ZONE_SPLIT_FORCE || '') || _load().active) return { activated: false };
+    const nowMs = o.nowMs == null ? Date.now() : o.nowMs;
+    _streak.code = o.newCodeSeen ? _streak.code + 1 : 0;
+    _streak.quiet = (o.mmisOk !== false && nowMs >= QUIET_FROM_MS && o.oldZoneHasWarning === false) ? _streak.quiet + 1 : 0;
+    let reason = null;
+    if (_streak.code >= CONFIRM_CYCLES) reason = `MMIS 가 새 구역코드(${o.newCodeSeen})를 쓰기 시작했다`;
+    else if (_streak.quiet >= CONFIRM_CYCLES) reason = '전환 준비 시각이 지났고 제주도남쪽바깥먼바다에 특보가 없다';
+    if (!reason) return { activated: false };
+    return { activated: activate(reason, nowMs), reason };
 }
 
 /**
@@ -68,49 +143,10 @@ function splitNames(names) {
     return out;
 }
 
-/**
- * 이 구역의 푸시를 막아야 하나 — 전환 뒤의 옛 이름·새 두 이름.
- * 예: (26일 이후) isPushBlocked('제주도 남서쪽 바깥먼바다') → true · isPushBlocked('제주도남동쪽안쪽먼바다') → false
- * @param {string} zone 구역 이름(띄어쓰기 무관)
- * @returns {boolean}
- * [연계] ← push_sender.processAndSendNotifications · marine_warning_crawler.run — 이 두 구역 푸시는 별도 검토 뒤 연다(사용자 확정)
- */
-function isPushBlocked(zone) {
-    return isActive() && isSplitZone(zone);
-}
+/** 전환 상태(관리자 화면·화면 쪽 짝이 읽는다). 예: status() → { active: true, at: '2026-11-25T04:13:00.000Z', reason: '…' } */
+function status() { const s = _load(); return { active: isActive(), at: s.at || null, reason: s.reason || null }; }
 
-/**
- * 특보 푸시 묶음(payload.items)에서 막을 구역을 뺀다 — 그 구역만 빼고, 구역이 하나도 안 남은 묶음은 버린다.
- * 예: (26일 이후) [{zones:['제주도남부앞바다','제주도남쪽바깥먼바다']}, {zones:['제주도남서쪽바깥먼바다']}] → {items:[{zones:['제주도남부앞바다']}], cut:2}
- * @param {Array<{zones?: string[]}>} items
- * @returns {{items: Array, cut: number}} cut = 뺀 구역 수(0 이면 items 는 받은 그대로)
- * [연계] ← routes/push.js POST /api/push-custom 의 특보 묶음 분기 — 자동·재시도·관리자 「발송」 버튼이 모두 지나는 곳
- */
-function filterPushItems(items) {
-    if (!Array.isArray(items) || !isActive()) return { items, cut: 0 };
-    let cut = 0;
-    const out = [];
-    for (const it of items) {
-        if (!it || !Array.isArray(it.zones)) { out.push(it); continue; }
-        const kept = it.zones.filter((z) => !isPushBlocked(z));
-        cut += it.zones.length - kept.length;
-        if (kept.length) out.push(kept.length === it.zones.length ? it : Object.assign({}, it, { zones: kept }));
-    }
-    return { items: cut ? out : items, cut };
-}
+/** 검사용: 전환 여부를 고정한다(true/false), null 이면 저장된 상태를 본다. 기억해 둔 상태·연속 횟수도 비운다. [연계] ← test_zone_split 등 */
+function _forceForTest(v) { _forced = (v === true || v === false) ? v : null; _state = null; _streak.code = 0; _streak.quiet = 0; }
 
-/**
- * 이 구역이 분할 대상인가 — 옛 이름·새 두 이름, 그리고 MMIS 가 줄여 줄 수 있는 꼴(「제주도남서쪽 바깥」)까지. 전환 여부와 무관.
- *   제주 해역 중 이름에 「바깥」이 든 것은 이 구역(들)뿐이다 — 기상청이 26일부터 줄 이름을 아직 모르므로 넓게 잡는다(독립 검토 2026-11-23:
- *   모르는 코드 + 줄인 이름이 오면 완전 일치만으로는 푸시가 샌다).
- * 예: isSplitZone('제주도남쪽바깥먼바다') → true · isSplitZone('제주도남서쪽 바깥') → true · isSplitZone('제주도남서쪽안쪽먼바다') → false · isSplitZone('서해남부남쪽바깥먼바다') → false
- * @param {string} zone
- * @returns {boolean}
- * [연계] ← isPushBlocked(이 파일)
- */
-function isSplitZone(zone) { return /^제주.*바깥/.test(norm(zone)); }
-
-/** 검사용: 전환 여부를 고정한다(true/false), null 이면 다시 시계를 본다. [연계] ← test_zone_split 등 */
-function _forceForTest(v) { _forced = (v === true || v === false) ? v : null; }
-
-module.exports = { OLD, NEW, NEW_WEST, NEW_EAST, AT_MS, isActive, splitNames, isPushBlocked, filterPushItems, isSplitZone, _forceForTest };
+module.exports = { OLD, NEW, NEW_WEST, NEW_EAST, OLD_CODE, NEW_CODES, QUIET_FROM_MS, STATE_FILE, isActive, activate, observe, splitNames, status, _forceForTest };
