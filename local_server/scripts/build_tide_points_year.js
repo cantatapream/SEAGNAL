@@ -234,7 +234,8 @@ function main() {
         }
         if (method === '표준항3곳') { const r = rowsByIDW(p.lat, p.lon); rows = r.rows; ref = r.used.join('·'); }
         bump(method === '없음' ? '자료 없음(만들지 않음)' : rows ? method : '대기');
-        index.push({ id: +p.id, name: p.name, region: p.region, lat: p.lat, lon: p.lon, method, ref, shiftMin, ready: !!rows, note });
+        index.push({ id: +p.id, name: p.name, region: p.region, lat: p.lat, lon: p.lon, method, ref, shiftMin, ready: !!rows, note,
+            ...(v && v.qLat ? { qLat: +v.qLat, qLon: +v.qLon, nudgeKm: v.nudgeKm } : {}) });
         if (cmp) detail.push({ id: +p.id, name: p.name, region: p.region, ref, shiftMin, ...cmp });
         if (WRITE && rows) fs.writeFileSync(path.join(PD, 'p', p.id + '.json'), JSON.stringify({ id: +p.id, name: p.name, year: +YEAR, method, ref, rows }));
     }
@@ -260,6 +261,21 @@ function main() {
         ...fail.sort((x, y) => Math.max(y.dMin, y.dCm) - Math.max(x.dMin, x.dCm)).map(d => `| ${d.id} | ${d.name} | ${d.region} | ${d.ref} | ${d.shiftMin} | ${d.dMin} | ${d.dCm} | ${d.worst} |`), '');
     if (cntDiff.length) lines.push('## 고조·저조 개수가 다른 곳(위 40곳)', '', '| id | 지점 | 해역 | 기준항 | 안 맞은 건수 |', '|---:|---|---|---|---:|',
         ...cntDiff.sort((x, y) => y.unmatched - x.unmatched).slice(0, 40).map(d => `| ${d.id} | ${d.name} | ${d.region} | ${d.ref} | ${d.unmatched} |`), '');
+    // ── 리스트업(사용자 2026-11-24: 「대조결과 차이 2분 이상 차이나는 개소 등 정리해서 리스트업」) ──
+    const row = d => `| ${d.id} | ${d.name} | ${d.region} | ${d.ref} | ${d.shiftMin} | ${d.dMin} | ${d.dCm} | ${d.unmatched} | ${d.worst || ''} |`;
+    const head = ['| id | 지점 | 해역 | 기준항 | 조시차(분) | 시각 최대 차(분) | 높이 최대 차(cm) | 개수 다른 건 | 가장 나쁜 날 |', '|---:|---|---|---|---:|---:|---:|---:|---|'];
+    const t2 = detail.filter(d => d.dMin >= 2).sort((x, y) => y.dMin - x.dMin || x.id - y.id);
+    const c2 = detail.filter(d => d.dCm >= 2 && d.dMin < 2).sort((x, y) => y.dCm - x.dCm || x.id - y.id);
+    lines.push(`## 리스트업 ① 시각이 2분 이상 차이 난 곳 — ${t2.length}곳`, '', ...(t2.length ? [...head, ...t2.map(row)] : ['없음']), '',
+        `## 리스트업 ② 높이가 2cm 이상 차이 난 곳(①에 없는 곳) — ${c2.length}곳`, '', ...(c2.length ? [...head, ...c2.map(row)] : ['없음']), '');
+    const moved = index.filter(i => i.nudgeKm).sort((x, y) => y.nudgeKm - x.nudgeKm || x.id - y.id);
+    lines.push(`## 리스트업 ③ 좌표를 옮겨 TideBED 를 받은 곳 — ${moved.length}곳 (최대 2km)`, '',
+        ...Object.entries(moved.reduce((m, i) => { m[i.nudgeKm] = (m[i.nudgeKm] || 0) + 1; return m; }, {})).map(([k, v]) => `- 약 ${k}km: ${v}곳`), '',
+        '| id | 지점 | 해역 | 옮긴 거리(km) | 기준항 |', '|---:|---|---|---:|---|', ...moved.map(i => `| ${i.id} | ${i.name} | ${i.region} | ${i.nudgeKm} | ${i.ref} |`), '');
+    const none = index.filter(i => i.method === '없음');
+    lines.push(`## 리스트업 ④ 자료를 만들지 않은 곳 — ${none.length}곳`, '', '| id | 지점 | 해역 | 위도 | 경도 | 까닭 |', '|---:|---|---|---:|---:|---|', ...none.map(i => `| ${i.id} | ${i.name} | ${i.region} | ${i.lat} | ${i.lon} | ${i.note} |`), '');
+    const idw = index.filter(i => i.method === '표준항3곳');
+    lines.push(`## 리스트업 ⑤ 표준항 3곳 섞기로 만든 곳(동해 36도 이북) — ${idw.length}곳`, '', '| id | 지점 | 섞인 표준항 |', '|---:|---|---|', ...idw.map(i => `| ${i.id} | ${i.name} | ${i.ref} |`), '');
     const notes = {};
     for (const i of index) if (i.note) notes[i.note.replace(/「.*?」/, '「…」')] = (notes[i.note.replace(/「.*?」/, '「…」')] || 0) + 1;
     lines.push('## 따로 적을 것', '', ...Object.entries(notes).map(([k, v]) => `- ${k}: ${v}곳`), '');

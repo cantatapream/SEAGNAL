@@ -101,7 +101,8 @@ TIDEBED_KEYS="키1,키2,키3" NODE_USE_ENV_PROXY=1 node --no-warnings local_serv
   `points_2027/VERIFY_REPORT.md`(전체 「완전히 같음 / ±1분·1cm / ±2 / 그 이상」 비율, 지점별 최대 차, 기준 넘은 지점 목록, 하루 고조·저조 개수가 다른 날 수).
 - 기본값 3 대로 기준 넘은 지점 처리.
 
-**⑤ 마무리** — 커밋·푸시 · `handoff.py done` · `.claude/memory/MEMORY.md` 한 줄 · 예약 작업 둘 끄기(`update_trigger enabled=false`) ·
+**⑤ 마무리** — (★사용자 2026-11-24: *「모든 작업이 모두 완료되면 이제 비교하여 리스트업하자. 리스트업에는 대조결과 차이 2분 이상 차이나는 개소 등 정리해서 리스트업 해줘.」*
+→ ④ 도구가 `points_2027/VERIFY_REPORT.md` 에 리스트업 ①~⑤(시각 2분 이상 · 높이 2cm 이상 · 좌표 옮긴 곳 · 자료 없는 곳 · 표준항 3곳 섞기)를 쓴다. 마지막 보고에 ①②④를 그대로 싣고 ③⑤는 곳 수와 파일 위치를 알린다.) 커밋·푸시 · `handoff.py done` · `.claude/memory/MEMORY.md` 한 줄 · 예약 작업 둘 끄기(`update_trigger enabled=false`) ·
 사용자에게 한글·쉬운 말 보고(무엇을 받았나 · 검증 수치 · 남은 문제 · 사용자가 돌아와 정할 것: main 반영·앱이 임의항 파일을 읽게 할지).
 
 ## 막혔을 때
