@@ -102,7 +102,7 @@ async function call(app, method, url, headers = {}, body) {
     const ap = read('client/js/push/alert_push.js');
     check('발송 기록 삭제 3종이 거절(401 등)을 화면에 알린다(종전에는 아무 표시 없음)', (ap.match(/\} else \{\s*_alertHistoryDeleteFailed\(res\);\s*\}/g) || []).length === 3 && /res\.status === 401\) alert\('관리자 로그인이 필요합니다/.test(ap));
     check('index2.html 이 바뀐 promo.js·alert_push.js 를 새로 받는다(캐시 번호)', /promo\.js\?v=PushAuth_20261120/.test(read('client/index2.html')) && /alert_push\.js\?v=(PushAuth|AutoPathCheck)_20261120/.test(read('client/index2.html')));
-    check('index2.html 이 바뀐 admin.js 를 새로 받는다(캐시 번호)', /js\/admin\/admin\.js\?v=PushAuth_20261120/.test(read('client/index2.html')));
+    check('index2.html 이 바뀐 admin.js 를 새로 받는다(캐시 번호)', /js\/admin\/admin\.js\?v=(PushAuth_20261120|Maint_20261123b?)/.test(/* 2026-11-23 점검 목록 개편으로 번호가 다시 올랐다 */ read('client/index2.html')));
     // 서버 안에서 이 주소들을 HTTP 로 부르는 곳이 두 곳뿐인지 — 새로 생기면 내부 열쇠를 빠뜨리지 않았는지 이 시험이 알려 준다.
     const offenders = [];
     const walk = (dir) => { for (const n of fs.readdirSync(dir)) { if (n === 'node_modules' || n === 'knowledge' || n === 'scripts' || n.startsWith('.')) continue; const p = path.join(dir, n); const st = fs.statSync(p); if (st.isDirectory()) walk(p); else if (/\.js$/.test(n)) { const s = fs.readFileSync(p, 'utf8'); if (/localhost:\d+\/api\/(push-custom|push-typhoon|push-history)/.test(s)) offenders.push(path.relative(root, p)); } } };

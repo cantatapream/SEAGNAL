@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 175 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 177 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -283,6 +283,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_push_pagination` | 2026-07-13 실사고: 전국 구독자에게 여러 해역 동시 "발표"(publish) 푸시가 |
 | `test_bulletin_cancel_scanner` | bulletin_cancel_scanner 단위 테스트 |
 | `test_parent_release_debounce` | 부모 해제 디바운스 검증 |
+| `test_zone_split` | 구역 분할(제주도남쪽바깥먼바다 → 남서쪽·남동쪽바깥먼바다) 검사. |
 | `test_zone_tree_wiring` | 해역·항해구역 트리(zone_tree.json) 실서빙 배선 회귀 테스트 |
 | `test_ask_context` | 이해확인 · 상황질문(범위좁히기) · 온디바이스 프로필 확인 회귀 테스트 |
 | `test_naver_term_step` | 모르는 구어 해소(네이버 뜻 확인) 회귀 테스트 |
@@ -338,7 +339,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_admin_cards` | ★관리자 검토 카드 **7종의 HTML 을 못박는다**. (4-1 · 4-3) |
 | `test_review_sources` | ★⚠수치검증 카드의 「원문 보기」를 못박는다. (2026-11-02 사용자 요청) |
 | `test_review_replay` | 관리자 검토 센터에서 누른 「승인」이 **배포 뒤에도 남는지** 확인한다. |
-| `test_ocean_menu_ui` | 해양종합정보 「새 모드」(탭 10번 누르면 켜지는 통합 메뉴)를 실제 브라우저로 눌러 본다. |
+| `test_ocean_menu_ui` | 해양종합정보 새 메뉴 화면(통합 메뉴 — 2026-11-23 부터 앱이 뜨면 바로 이 화면)을 실제 브라우저로 눌러 본다. |
 | `test_codex_bridge` | Codex 개발자 모드(services/codex_bridge.js)의 삼중 잠금·중계를 고정한다. |
 | `test_bulletin_ai` | 「AI 모델 설정」(종전 「AI 특보 분석」) 기능별 AI 순서(services/bulletin_ai.js — ① 특보 읽기·② 참고사항 해석·④ 연안 안전 브리핑)와 그 API·일감별 실행 위치를… |
 | `test_bulletin_ai_ui` | 관리자 「AI 모델 설정」 탭(client/js/admin/admin_bulletin_ai.js)의 기능별 AI 순서 목록을 실제 Chromium 으로 그려 본다 — |
@@ -424,6 +425,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_news_collector` | 오늘의 뉴스(services/news_collector · services/news_judge) 검사 — 모으기·겹침 지우기·확실한 것만 거르기·AI 판정·같은 사건 묶기· |
 | `test_bulletin_escalation` | 격상 가능성(services/bulletin_escalation) 검사 — 통보문 참고사항·날씨해설에서 「풍랑경보로 변경될 가능성」「태풍특보로 변경될 가능성」의 |
 | `test_regional_sea_summary` | 지방청 단기 전망 「해상 기상 요약」 검사 — 바다 항목 뽑기(규칙) · AI 답의 원문 대조(check) · 요약 흐름(없음/요약됨/원문 그대로) · |
+| `test_ai_compare_trial` | 「AI 비교 시험」(services/ai_compare_trial) · 관리자 창구(routes/bulletin_watch) · 화면 카드(client/js/admin/admin_bulletin_a… |
 | `test_regional_sea_ui` | 「지방기상청 단기 전망」 칸(2026-11-19 종전 「종합 예보」 칸 + 지방청 카드를 한 단계로)의 모양을 실제 Chromium 으로 index2.html 전체를 띄워 본다(2026-11-19 … |
 | `test_zone_trend_ui` | 특보 카드 뱃지의 오르내림 화살표를 실제 화면(Chromium)으로 본다. |
 | `test_bulletin_compare` | MMIS ↔ 통보문 비교 기록(services/bulletin_compare) · 메인 출처 전환 버튼(client/js/forecast/alerts/alert_source_toggle.js) 검사… |

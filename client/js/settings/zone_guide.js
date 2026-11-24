@@ -209,7 +209,7 @@
         const icon = isNew ? '📍' : '🔔';
         const title = isNew
             ? '관심 해역을 설정해보세요'
-            : '현재 모든 해역(35개)의\n특보 알림을 받고 있어요';
+            : '현재 모든 해역(' + Object.values(SUB_REGION_ZONES).reduce((n, a) => n + a.length, 0) + '개)의\n특보 알림을 받고 있어요';   // 구역 수는 목록에서 센다(2026-11-26 부터 45개)
         const description = isNew
             ? '관심 해역만 선택하면\n꼭 필요한 특보 알림만 받을 수 있어요'
             : '관심 해역만 선택하면\n꼭 필요한 알림만 받을 수 있어요';

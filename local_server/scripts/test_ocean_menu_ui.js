@@ -1,13 +1,13 @@
 /**
  * ============================================================================
  * 파일명: local_server/scripts/test_ocean_menu_ui.js
- * 역할  : 해양종합정보 「새 모드」(탭 10번 누르면 켜지는 통합 메뉴)를 실제 브라우저로 눌러 본다.
+ * 역할  : 해양종합정보 새 메뉴 화면(통합 메뉴 — 2026-11-23 부터 앱이 뜨면 바로 이 화면)을 실제 브라우저로 눌러 본다.
  *         (초보자용: 사이드바 스위치·[보기]·[끄기]·안내 줄이 약속대로 움직이는지, 그리고
- *          새 모드를 켜지 않은 평소 화면은 그대로인지 확인한다.)
+ *          시험 창구로 끄면 옛 화면이 그대로 돌아오는지 확인한다.)
  * ----------------------------------------------------------------------------
  * [무엇을 보나 — 사용자 확정 2026-11-22]
- *  ① 평소 화면: [메뉴]·사이드바 없음, 아래 탭 4개, 오른쪽 버튼 줄 보임
- *  ② 「해양종합정보」 탭 10번 → 새 모드(탭 3개·버튼 줄 숨김·[메뉴]) / 9번으로는 안 켜짐 / 새로 열면 평소 화면
+ *  ① 앱이 뜨면 바로 새 메뉴 화면(탭 3개·버튼 줄 숨김·[전체 메뉴]) — 2026-11-23 「트리거없이 메인화면에」
+ *  ② 「해양종합정보」 탭을 10번 눌러도 꺼지지 않는다(예전 누름 장치 없음)
  *  ③ 사이드바: 폴더 4개(즐겨찾기·해양기상정보·해양안전정보·해양생활지수)와 줄 순서, 지도(바깥)를 누르면 닫힘, 뒤로가기 닫힘
  *  ④ 함께 켤 수 없는 묶음(특보구역·현황/파고/풍향/유향/천기) — 새로 켜면 먼저 켠 것이 꺼짐. 기상부이·해구기상은 함께
  *  ⑤ 배경지도: 파고=해안도, 해구기상을 함께 켜면 기본맵(파고는 그대로 켜져 있음), 끄면 해안도, 다 끄면 처음 배경
@@ -18,9 +18,9 @@
  *  ⑧ 사고발생 이력 분석: 사고이력[선박]/[인명]=현황+그 종류, 「필터」는 접힌 채 시작·누르면 펼침,
  *     「선택 초기화」는 필터가 걸렸을 때만 / 사고분석=분석+「전국 통계」
  *  ⑨ 태풍(활성 없음)은 맨 뒤·회색, 해수욕(개장 없음)은 맨 뒤·회색·「개장 해수욕장 없음」·눌러도 안 열림
- *  ⑩ 즐겨찾기·접은 폴더는 저장돼 다시 열어도 남는다(새 모드 자체는 저장 안 함)
+ *  ⑩ 즐겨찾기·접은 폴더는 저장돼 다시 열어도 남는다
  *  ⑪ 새 모드에서 특보 현황을 켠 채 지도를 누르면 특보 상자가 가로채지 않는다(tryHandleClick → false)
- *  ⑫ 다시 10번 → 평소 화면으로(보던 화면 닫힘)
+ *  ⑫ 시험 창구 setMode(false) → 옛 화면으로(보던 화면 닫힘)
  * [방법] 저장소의 client/ 를 그대로 올린 작은 서버 + 진짜 크로뮴. /api 는 404(해수욕지수만 가짜 자료),
  *        127.0.0.1 밖 요청은 모두 끊는다. 시각 의존 없음(해수욕 판정 함수는 오늘 날짜 키를 직접 만들어 넣는다).
  * [연계] → client/js/ocean-map/menu/ocean_menu.js(window.OceanMenu) · ocean_menu.css ·
@@ -84,7 +84,7 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
         oceanTabOn: q('.tab-btn[data-target="ocean-map-section"]').classList.contains('active'),
         banner: vis(q('#om-banner')) ? q('#om-banner .om-banner-text').textContent : '', bannerH: q('#om-banner') ? q('#om-banner').offsetHeight : 0,
         sideX: q('#om-sidebar') ? Math.round(q('#om-sidebar').getBoundingClientRect().left) : null,
-        subs: [...document.querySelectorAll('#om-subs button')].map(b => b.textContent + (b.classList.contains('om-sub-dead') ? '×' : '') + (b.classList.contains('active') ? '●' : '')),
+        subs: [...document.querySelectorAll('#om-subs button')].map(b => b.textContent.replace(/\s+/g, '') + (b.classList.contains('om-sub-dead') ? '×' : '') + (b.classList.contains('active') ? '●' : '')),
         stack: (window.PopupStack && window.PopupStack.list ? window.PopupStack.list() : []).filter(x => /^om-/.test(x)),
         folders: [...document.querySelectorAll('#om-sidebar .om-folder')].map(f => f.querySelector('.om-folder-title').textContent + ':' + [...f.querySelectorAll('.om-row .om-name')].map(n => n.firstChild.textContent).join(',')),
         toast: (q('#locate-toast.visible .lt-text') || {}).textContent || ''
@@ -92,17 +92,43 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
     });
 
     await load();
-    await check('① 평소 화면 — [메뉴]·사이드바 없음 · 아래 탭 4개 · 오른쪽 버튼 줄 보임', async () => {
-      await tapOcean(1); await wait(1200); const s = await S();
-      assert.equal(s.mode, false); assert.equal(s.menuBtn, false); assert.equal(s.rail, true);
-      assert.deepEqual(s.tabs, ['특보정보', '해양종합정보', '해양안전생활', '뉴스·공지·어황']);
-      assert.ok(!/om-/.test(s.cls), s.cls);
-    });
-    await check('② 9번으로는 안 켜지고(이미 1번 + 8번), 10번째에 켜진다 → 탭 3개 · 버튼 줄 숨김 · [메뉴]', async () => {
-      await tapOcean(8); await wait(200); assert.equal((await S()).mode, false);
-      await tapOcean(1); await wait(500); const s = await S();
+    await check('① 앱이 뜨면 바로 새 메뉴 화면 — [전체 메뉴] 보임 · 아래 탭 3개 · 오른쪽 버튼 줄 숨김 (2026-11-23 「트리거없이 메인화면에」)', async () => {
+      let s = await S(); assert.equal(s.mode, true, '누르기 전에 이미 켜져 있다'); assert.ok(/om-mode/.test(s.cls), s.cls);
+      await tapOcean(1); await wait(1200); s = await S();
       assert.equal(s.mode, true); assert.equal(s.menuBtn, true); assert.equal(s.rail, false);
       assert.deepEqual(s.tabs, ['특보정보', '해양종합정보', '뉴스·공지·어황']);
+      assert.equal(s.toast, '', '뜰 때는 안내 토스트 없음');
+    });
+    await check('② 「해양종합정보」 탭을 10번 눌러도 꺼지지 않는다(예전의 켜고 끄는 누름 장치는 없앴다)', async () => {
+      await tapOcean(10); await wait(500); const s = await S();
+      assert.equal(s.mode, true); assert.equal(s.menuBtn, true);
+    });
+    await check('[2026-11-23] 위쪽 버튼 한 줄(기본맵→내 위치→안내 · 「진북 정렬」 버튼은 없고 늘 진북 고정) · 넓은 [전체 메뉴](글자 크게 설정에도 같은 크기) · 사이드바 폭 60% · 이름 한 줄', async () => {
+      const m = () => page.evaluate(() => {
+        const r = (el) => { const b = el.getBoundingClientRect(); return { x: Math.round(b.left), y: Math.round(b.top), w: Math.round(b.width), h: Math.round(b.height) }; };
+        const q = (s) => document.querySelector(s);
+        return { base: r(q('#ocean-basemap-toggle')), northShown: q('#ocean-northup-btn').offsetParent !== null, northLocked: q('#ocean-northup-btn').classList.contains('northup-locked'), lsLock: localStorage.getItem('oceanMap.northUp.locked'), my: r(q('#ocean-myloc-btn')), info: r(q('#ocean-info-btn')),
+          menu: r(q('#om-menu-btn')), menuText: q('#om-menu-btn .om-menu-label').textContent,
+          search: r(q('#ocean-map-section .ocean-search-container')) };
+      });
+      let g = await m();
+      assert.equal(g.northShown, false, '진북 정렬 버튼은 안 보인다'); assert.equal(g.northLocked, true, '진북 고정 상태'); assert.equal(g.lsLock, null, '고정은 저장하지 않는다(앱을 껐다 켜면 원래대로)'); assert.equal(g.menuText, '전체 메뉴');
+      assert.ok(g.base.x < g.my.x && g.my.x < g.info.x, JSON.stringify(g));
+      assert.ok(Math.abs(g.base.y - g.my.y) <= 2 && Math.abs(g.base.y - g.info.y) <= 2, '한 줄 ' + JSON.stringify(g));
+      assert.ok(g.base.y >= g.search.y + g.search.h, '검색란 아래'); assert.ok(g.menu.w >= 90 && g.menu.h <= 46 && Math.abs(g.menu.y - g.base.y) <= 4, JSON.stringify(g.menu));
+      assert.ok(g.info.x + g.info.w < g.menu.x, '안내 버튼과 [전체 메뉴]가 겹치지 않는다');
+      assert.deepEqual([g.my.w, g.my.h, g.info.w, g.info.h], [g.base.w, g.base.h, g.base.w, g.base.h], '세 버튼이 기본맵 버튼과 같은 크기 ' + JSON.stringify(g));
+      assert.ok(g.menu.h === g.base.h, '[전체 메뉴] 높이도 같다');
+      const before = g.menu;
+      await page.evaluate(() => { document.documentElement.setAttribute('data-font-size', 'large'); document.documentElement.style.fontSize = '18px'; }); await wait(300);
+      g = await m(); assert.deepEqual([g.menu.w, g.menu.h], [before.w, before.h], '글자 크게에도 [전체 메뉴] 크기 그대로');
+      await click('#om-menu-btn'); await wait(700);
+      const sb = await page.evaluate(() => ({ w: Math.round(document.getElementById('om-sidebar').getBoundingClientRect().width),
+        over: [...document.querySelectorAll('#om-sidebar .om-name')].filter(e => e.clientWidth && e.scrollWidth > e.clientWidth + 1).map(e => e.textContent),
+        twoLine: [...document.querySelectorAll('#om-sidebar .om-row')].filter(e => e.offsetHeight > 70).length,
+        pad: getComputedStyle(document.querySelector('#om-sidebar .om-folder[data-folder="wx"] .om-row')).paddingLeft }));
+      assert.equal(sb.w, Math.round(390 * 0.6)); assert.deepEqual(sb.over, []); assert.equal(sb.twoLine, 0); assert.equal(sb.pad, '10px');
+      await page.evaluate(() => { document.documentElement.removeAttribute('data-font-size'); document.documentElement.style.fontSize = ''; window.OceanMenu.close(); }); await wait(300);
     });
     await check('③ 사이드바 — 폴더·줄 순서(태풍·해수욕은 맨 뒤) · 바깥(지도)을 누르면 닫힘 · 뒤로가기로 닫힘', async () => {
       await click('#om-menu-btn'); await wait(450); let s = await S();
@@ -110,7 +136,7 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
       assert.deepEqual(s.folders, [
         '즐겨찾기:',
         '해양기상정보:특보구역·현황,파고·파향,풍향·풍속,유향·유속,기상부이,해구기상,천기,태풍',
-        '해양안전정보:항행경보 현황,위험예측,사고발생 이력 분석,사고이력,사고분석,위험지형,갯벌 수위 예측,출입통제·낚시금지,관제구역·항로,CCTV',
+        '해양안전정보:항행경보 현황,위험예측,사고발생 이력·분석,사고이력,사고분석,위험지형,갯벌 수위 예측,출입통제·낚시금지,관제구역·항로,CCTV',
         '해양생활지수:바다낚시,서핑,스킨스쿠버,갯벌체험,바다갈라짐,너울,해수욕']);
       await clean(); await page.mouse.click(20, 400); await wait(450); s = await S(); assert.equal(s.open, false); assert.deepEqual(s.stack, []);
       await click('#om-menu-btn'); await wait(300);
@@ -164,6 +190,8 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
       assert.equal(s.banner, '위험지형 화면 표출 중 해양기상정보는 표시되지 않습니다.');
       assert.ok(s.bannerH > 30 && s.secTop === s.bannerH, 'secTop=' + s.secTop + ' bannerH=' + s.bannerH);
       assert.ok(s.on.includes('ocean-terrain-toggle-btn') && !s.on.includes('wind') && !s.on.includes('ocean-buoy-toggle-btn'), JSON.stringify(s.on));
+      assert.deepEqual(await page.evaluate(() => [document.querySelector('#om-banner .om-banner-off').textContent, document.querySelector('#om-sidebar .om-viewbox-off').textContent, getComputedStyle(document.querySelector('#om-banner .om-banner-off')).backgroundColor]),
+        ['끄기', '화면 끄기', 'rgb(37, 99, 235)'], '위는 「끄기」, 사이드바는 「화면 끄기」 — 파란색으로 채운 버튼');
       assert.equal(s.oceanTabOn, true); assert.deepEqual(s.tabs, ['특보정보', '해양종합정보', '뉴스·공지·어황']); assert.deepEqual(s.stack, ['om-view']);
       assert.equal(s.lsRail, false);
     });
@@ -175,24 +203,48 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
       assert.deepEqual(s.on, ['ocean-seaway-toggle-btn', 'ocean-vts-toggle-btn']); assert.equal(s.view, 'vts');
       assert.equal(s.banner, '관제구역·항로 화면 표출 중 해양기상정보는 표시되지 않습니다.');
     });
+    await check('[2026-11-23] 갯벌 수위 예측 [보기] — 배경이 위성지도(인증을 못 받는 시험 서버에서는 기본맵) · 다른 [보기]로 가면 그 화면의 배경으로', async () => {
+      await click('#om-menu-btn'); await wait(300); await view('mud'); await wait(1800); let s = await S();
+      assert.equal(s.view, 'mud'); assert.ok(s.base === 'vworld' || s.base === 'rltm', 'base=' + s.base);
+      const asked = await page.evaluate(() => { const o = window.oceanSetBasemap, seen = []; window.oceanSetBasemap = function (b) { seen.push(b); return o.apply(this, arguments); }; window.OceanMenu.openView('terr'); window.OceanMenu.openView('mud'); window.oceanSetBasemap = o; return seen; });
+      assert.ok(asked.includes('vworld'), '갯벌 수위 예측을 열 때 위성지도를 청한다 ' + JSON.stringify(asked));
+      await wait(1500); await click('#om-menu-btn'); await wait(300); await view('vts'); await wait(1400); s = await S(); assert.equal(s.base, 'enc');
+    });
     await check('⑧ 사고이력[인명] — 현황·인명사고 · 「필터」 접힌 채 시작 → 누르면 펼침 · 「선택 초기화」는 숨김 / 사고분석 — 「전국 통계」', async () => {
       await click('#om-menu-btn'); await wait(300); await view('accPerson');
+      assert.equal(await page.evaluate(() => { const b = document.getElementById('om-loading'); return !b.hidden && getComputedStyle(b).display !== 'none'; }), true, '자료를 받는 동안 가운데 로딩 표시');
       await page.waitForFunction(() => { const b = document.querySelector('#accident-source-toggle button.active'); return b && b.getAttribute('data-source') === 'person' && getComputedStyle(document.getElementById('accident-filter-bar')).display !== 'none'; }, null, { timeout: 30000 });
       await wait(500);
       const a = () => page.evaluate(() => { const g = id => getComputedStyle(document.getElementById(id)); const bar = document.getElementById('accident-filter-bar');
         return { mode: document.querySelector('#ocean-accident-mode-toggle button.active').getAttribute('data-mode'), modeVis: g('ocean-accident-mode-toggle').visibility, srcDisp: g('accident-source-toggle').display,
           barH: bar.offsetHeight, open: bar.classList.contains('om-open'), reset: g('accident-filter-reset-btn').display, nw: g('accident-nationwide-btn').display, head: g('om-acc-filter-head').display }; });
       let r = await a();
+      assert.equal(await page.evaluate(() => document.getElementById('om-loading').hidden), true, '다 받으면 로딩 표시가 내려간다');
       assert.equal(r.mode, 'status'); assert.equal(r.modeVis, 'hidden'); assert.equal(r.srcDisp, 'none'); assert.equal(r.head, 'flex');
       assert.ok(r.barH <= 50 && !r.open, 'barH=' + r.barH); assert.equal(r.reset, 'none');
       await click('#om-acc-filter-head'); await wait(450); r = await a(); assert.ok(r.open && r.barH > 120, 'barH=' + r.barH);
+      assert.equal(await page.evaluate(() => document.getElementById('om-acc-filter-head').textContent.trim()), '필터 선택');
+      await click('#accident-filter-reset-btn'); await wait(450); r = await a(); assert.ok(!r.open && r.barH <= 50, '선택 초기화를 누르면 필터가 접힌다 barH=' + r.barH);
       assert.equal((await S()).view, 'accPerson');
       await click('#om-menu-btn'); await wait(300); await view('accStat'); await wait(1500); r = await a();
       assert.equal(r.mode, 'analysis'); assert.equal(r.nw, 'block'); assert.equal((await S()).banner, '사고분석 화면 표출 중 해양기상정보는 표시되지 않습니다.');
     });
+    await check('[2026-11-23] 사고분석 「전국 통계」 시트 — [전체 메뉴] 버튼 아래까지만 올라오고 · 본문이 옆으로 넘치지 않는다', async () => {
+      await click('#accident-nationwide-btn');
+      await page.waitForFunction(() => document.getElementById('accident-stats-sheet').classList.contains('open') && document.querySelector('#accident-stats-body .ash-chips'), null, { timeout: 30000 });
+      await wait(700);
+      const g = await page.evaluate(() => { const sh = document.getElementById('accident-stats-sheet').getBoundingClientRect(), mb = document.getElementById('om-menu-btn').getBoundingClientRect(), b = document.getElementById('accident-stats-body');
+        let over = 0; b.querySelectorAll('*').forEach(e => { const r = e.getBoundingClientRect(); if (r.width && r.right > innerWidth + 0.5) over++; });
+        return { top: Math.round(sh.top), menuBottom: Math.round(mb.bottom), sw: b.scrollWidth, cw: b.clientWidth, over }; });
+      assert.ok(g.top >= g.menuBottom + 4, '시트 윗변이 버튼 아래 ' + JSON.stringify(g));
+      assert.ok(g.sw <= g.cw && g.over === 0, '옆으로 넘침 없음 ' + JSON.stringify(g));
+      await click('#accident-stats-close'); await wait(500);
+    });
     await check('⑦ 바다낚시 [보기] — 활동 화면 · 갯바위(먼저)·선상 버튼 · 지도 섹션이 안내 줄만큼 내려감', async () => {
       await click('#om-menu-btn'); await wait(300); await view('fish'); await wait(1500); const s = await S();
       assert.equal(s.sec, 'fishing-section'); assert.equal(s.view, 'fish'); assert.deepEqual(s.subs, ['갯바위●', '선상']);
+      assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#om-subs .om-gubun')].map(b => { const r = b.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height), b.querySelector('i').className.replace('fa-solid ', '')]; })),
+        [[48, 42, 'fa-mountain'], [48, 42, 'fa-ship']], '갯바위·선상 버튼 — 왼쪽 버튼과 같은 크기 + 선 그림');
       assert.ok(s.secTop === s.bannerH && s.bannerH > 30, 'secTop=' + s.secTop); assert.equal(s.lsRail, false); assert.equal(s.menuBtn, true);
       await click('#om-subs [data-om="gubun"][data-id="선상"]'); await wait(500); assert.deepEqual((await S()).subs, ['갯바위', '선상●']);
     });
@@ -232,33 +284,164 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
       await sw('buoy'); await wait(2200); assert.equal((await S()).base, 'enc');
       await sw('buoy'); await wait(300); await page.evaluate(() => { window.oceanSetBasemap('coast'); window.OceanMenu.close(); }); await wait(300);
     });
-    await check('⑪ 새 모드 — 특보 현황이 켜져 있어도 지도 누름을 특보 상자가 가로채지 않는다', async () => {
+    await check('⑪ 특보 현황이 켜져 있어도 특보가 없는 자리를 누르면 특보 상자가 가로채지 않는다(바텀시트 흐름으로)', async () => {
       const r = await page.evaluate(() => {
         if (!window.OceanWarnActive || !window.OceanWarnActive.tryHandleClick) return 'no-module';
         const st = window.OceanWarnActive._state || (window.OceanWarnActive.state);
         const was = st ? st.active : null; if (st) st.active = true;
-        const out = window.OceanWarnActive.tryHandleClick(window.getOceanMap && window.getOceanMap(), { pixel: [100, 300] });
+        const m = window.getOceanMap && window.getOceanMap();
+        const out = window.OceanWarnActive.tryHandleClick(m, { pixel: [100, 300], coordinate: m ? m.getCoordinateFromPixel([100, 300]) : [0, 0] });
         if (st) st.active = was; return st ? out : 'no-state';
       });
       assert.ok(r === false || r === 'no-state' || r === 'no-module', String(r));
     });
-    await check('⑩ 즐겨찾기·접은 폴더는 저장된다 — 다시 열어 새 모드를 켜면 그대로(새 모드 자체는 꺼진 채 시작)', async () => {
+    await check('[2026-11-23 특보 팝업] 특보 해역 팝업 — 화면 가운데 · 뱃지 ▲ · 발표시각/발효시각/해제예정 · 다가오는 특보 · [해당 해점 기상정보 보기] → 팝업 닫고 바텀시트 · 뒤로가기로 닫힘 · 격상/격하 세모 규칙', async () => {
+      const r = await page.evaluate(() => {
+        const ns = window.OceanWarnActive; if (!ns || !ns._state || !ns._showBox) return 'no-module';
+        const st = ns._state, A = (type, level, pre) => ({ warnType: type, level, isPreliminary: !!pre, tmFc: '2026년 11월 23일 오전 11시', tmEf: '2026년 11월 23일 오후 03시', tmCc: '2026년 11월 25일 오전 06시' });
+        const T = (cur, ups) => ns._zoneTrendOf('시험해역', { allCurrents: cur, allUpcomings: ups });
+        const trends = [T([A('풍랑', '주의보')], [A('풍랑', '경보', 1)]), T([A('풍랑', '경보')], [A('풍랑', '주의보', 1)]), T([A('풍랑', '주의보')], []), T([A('강풍', '주의보'), A('풍랑', '주의보')], [A('태풍', '주의보', 1)]), T([A('풍랑', '경보')], [A('풍랑', '예비', 1)])];
+        const calls = [], origSheet = window.showOceanBottomSheet, origHas = window.hasOceanGridData;
+        window.showOceanBottomSheet = (lat, lon) => calls.push([lat, lon]); window.hasOceanGridData = () => true;
+        const keep = st.activeMap['시험해역'];
+        st.activeMap['시험해역'] = { allCurrents: [A('풍랑', '주의보')], allUpcomings: [A('풍랑', '경보', 1)] };
+        st.omClick = { lat: 34.5, lon: 128.2, coord: [0, 0] };
+        ns._showBox('시험해역', [10, 10]);
+        const b = document.querySelector('.warn-active-box'), mapR = document.getElementById('ocean-map').getBoundingClientRect(), br = b.getBoundingClientRect();
+        const out = { trends, om: b.classList.contains('warn-om-pop'), text: b.innerText.replace(/\s+/g, ' '), badge: (b.querySelector('.warn-om-badge') || {}).textContent, tri: !!b.querySelector('.warn-om-badge .badge-trend-up'),
+          // 나타나는 움직임(0.22초) 중이라 화면 자리 대신 놓인 값으로 본다: 가로 가운데(left 50% + 제 폭의 절반만큼 당김) · 세로는 지도 가운데
+          centered: Math.abs(parseFloat(getComputedStyle(b).left) - innerWidth / 2) <= 1 && Math.abs(parseFloat(b.style.top) - (mapR.top + mapR.height / 2)) <= 1 && /warnOmPop/.test(getComputedStyle(b).animationName), inView: br.width <= innerWidth - 40,
+          btn: (b.querySelector('.warn-om-sheet-btn') || {}).textContent, stack: window.PopupStack.list().includes('warn-om-pop') };
+        b.querySelector('.warn-om-sheet-btn').click();
+        out.afterBtn = { box: !!document.querySelector('.warn-active-box'), calls: calls.slice(), stack: window.PopupStack.list().includes('warn-om-pop') };
+        ns._showBox('시험해역', [10, 10]); window.PopupStack.popLast(); out.afterBack = !!document.querySelector('.warn-active-box');
+        // 육지처럼 자료가 없는 자리면 버튼이 없다
+        window.hasOceanGridData = () => false; ns._showBox('시험해역', [10, 10]); out.noDataBtn = !!document.querySelector('.warn-om-sheet-btn'); ns._hideBox();
+        if (keep) st.activeMap['시험해역'] = keep; else delete st.activeMap['시험해역'];
+        window.showOceanBottomSheet = origSheet; window.hasOceanGridData = origHas; st.omClick = null;
+        return out;
+      });
+      if (r === 'no-module') throw new Error('특보 현황 모듈이 없다');
+      assert.deepEqual(r.trends, ['up', 'down', '', 'up', ''], '세모: 높은 특보가 다가오면 ▲ · 낮은 특보면 ▼ · 없으면 없음 · 강풍은 견주지 않음 · 예비특보는 견주지 않음');
+      assert.ok(r.om && r.centered && r.inView, '화면(지도) 가운데 ' + JSON.stringify(r));
+      assert.equal(r.badge.replace(/\s+/g, ' ').trim(), '풍랑 주의보 ▲'); assert.equal(r.tri, true);
+      for (const w of ['시험해역', '풍랑주의보 발효', '발표시각', '발효시각', '해제예정', '다가오는 특보', '풍랑경보 발표', '해당 해점 기상정보 보기']) assert.ok(r.text.includes(w), '팝업에 「' + w + '」 — ' + r.text);
+      assert.ok(!/변경 가능성/.test(r.text), '경보가 이미 발표됐으면 「경보 변경 가능성」 상자는 없다');
+      assert.equal(r.btn, '해당 해점 기상정보 보기'); assert.equal(r.stack, true);
+      assert.deepEqual(r.afterBtn, { box: false, calls: [[34.5, 128.2]], stack: false }, '버튼 → 팝업 닫힘 + 그 지점 바텀시트');
+      assert.equal(r.afterBack, false, '뒤로가기로 닫힌다'); assert.equal(r.noDataBtn, false, '자료 없는 자리에는 버튼이 없다');
+    });
+    await check('⑩ 즐겨찾기·접은 폴더는 저장된다 — 앱을 다시 열어도 그대로', async () => {
       await click('#om-menu-btn'); await wait(300);
       await click('#om-sidebar [data-om="fav"][data-id="wav"]'); await click('#om-sidebar [data-om="fav"][data-id="surf"]');
       await click('#om-sidebar .om-folder[data-folder="life"] .om-folder-head'); await wait(400);
       let s = await S(); assert.equal(s.folders[0], '즐겨찾기:파고·파향,서핑');
-      await load(); s = await S(); assert.equal(s.mode, false); assert.equal(s.menuBtn, false);
-      await tapOcean(10); await wait(700); await click('#om-menu-btn'); await wait(300); s = await S();
+      await load(); await tapOcean(1); await wait(1200); s = await S(); assert.equal(s.mode, true); assert.equal(s.menuBtn, true);
+      await click('#om-menu-btn'); await wait(300); s = await S();
       assert.equal(s.mode, true); assert.equal(s.folders[0], '즐겨찾기:파고·파향,서핑');
       const closed = await page.evaluate(() => [...document.querySelectorAll('#om-sidebar .om-folder.closed')].map(f => f.getAttribute('data-folder')));
       assert.deepEqual(closed, ['life']);
     });
-    await check('⑫ 다시 10번 → 평소 화면(보던 화면 닫힘 · 탭 4개 · 버튼 줄 다시 보임)', async () => {
+    await check('[2026-11-23 점검] 관리자가 막은 기능 — 사이드바 줄이 회색 + 「점검 중」 · 눌러도(스위치·[보기]·미뤄 둔 값) 켜지지 않고 안내 창 · 관리자 모드는 통과 · 풀면 원래대로', async () => {
+      // 사이드바가 열린 채 시작(⑩ 끝). 서버 /api 는 404 라 차단 목록은 화면의 적용 함수에 직접 넣는다(실제 앱은 /api/block-status 가 5분마다 넣는다)
+      const block = (list) => page.evaluate((l) => { window.applyFeatureBlocks ? window.applyFeatureBlocks(l) : applyFeatureBlocks(l); }, list);
+      const row = (id) => page.evaluate((i) => { const b = document.querySelector('#om-sidebar .om-folder:not([data-folder="fav"]) [data-id="' + i + '"]:not(.om-star)'); const r = b.closest('.om-row'); return { blocked: r.classList.contains('om-blocked'), text: r.textContent.replace(/\s+/g, ' ').trim() }; }, id);
+      const popup = () => page.evaluate(() => { const p = document.getElementById('blocked-feature-popup') || document.querySelector('.blocked-feature-popup, #feature-blocked-popup'); const shown = !!p && getComputedStyle(p).display !== 'none'; if (p) p.remove(); return shown; });
+      await page.evaluate(() => localStorage.removeItem('seagnal_admin_mode'));
+      let s = await S(); const wasOn = s.on.slice();
+      await block(['ov-wave', 'ov-warn-zone', 'sf-terrain', 'sf-vts', 'sf-accident', 'surfing', 'ls-gubun']); await wait(300);
+      for (const id of ['wav', 'zone', 'terr', 'vts', 'accStat', 'surf']) { const r = await row(id); assert.ok(r.blocked && /점검 중/.test(r.text), id + ' ' + JSON.stringify(r)); }
+      assert.equal((await row('wind')).blocked, false, '안 막은 줄은 그대로');
+      assert.equal(await page.evaluate(() => (window._blockedFeatures || []).includes('ov-warn-active') && window._blockedFeatures.includes('sf-seaway')), true, '한 줄로 합쳐진 항목은 원래 버튼 두 개를 함께 막는다');
+      // 끄는 것은 된다 — 켜져 있던 파고를 먼저 끄고, 다시 켜려 하면 막힌다
+      if (s.on.includes('wave')) { await sw('wav'); await wait(600); }
+      await sw('wav'); await wait(700); s = await S(); assert.ok(!s.on.includes('wave'), '막힌 파고는 켜지지 않는다 ' + JSON.stringify(s.on));
+      await sw('zone'); await wait(700); s = await S(); assert.ok(!s.on.includes('ocean-warn-zone-toggle-btn'), JSON.stringify(s.on));
+      for (const id of ['terr', 'vts', 'accStat', 'surf']) { await view(id); await wait(900); s = await S(); assert.equal(s.view, '', id + ' 는 열리지 않는다'); assert.equal(s.tab, 'ocean-map-section'); }
+      // [보기] 중(스위치는 미뤄 둠)에도 막힌 것은 미뤄 둔 값에 안 들어간다
+      await click('#om-menu-btn').catch(() => {}); await wait(200);
+      if (!(await S()).open) { await click('#om-menu-btn'); await wait(300); }
+      await view('navw'); await wait(1500); assert.equal((await S()).view, 'navw', '안 막은 [보기]는 열린다');
+      await click('#om-menu-btn'); await wait(300); await sw('wav'); await wait(300); s = await S(); assert.ok(!s.pending || !s.pending.wav, '막힌 스위치는 미뤄 둔 값에도 안 켜진다 ' + JSON.stringify(s.pending));
+      await page.evaluate(() => window.OceanMenu.closeView()); await wait(1300); s = await S(); assert.ok(!s.on.includes('wave'));
+      // 관리자 모드 기기는 다른 차단과 같이 그대로 쓴다
+      await page.evaluate(() => localStorage.setItem('seagnal_admin_mode', 'true')); await block(['ov-wave', 'sf-terrain']); await wait(300);
+      if (!(await S()).open) { await click('#om-menu-btn'); await wait(300); }
+      assert.equal((await row('wav')).blocked, false, '관리자 모드에서는 막힌 표시가 없다');
+      await page.evaluate(() => localStorage.removeItem('seagnal_admin_mode'));
+      // 풀면 원래대로
+      await block([]); await wait(300);
+      for (const id of ['wav', 'zone', 'terr', 'surf']) assert.equal((await row(id)).blocked, false, id + ' 풀림');
+      await sw('wav'); await wait(900); s = await S(); assert.ok(s.on.includes('wave'), '풀린 뒤에는 켜진다 ' + JSON.stringify(s.on));
+      await popup();
+      if (!(await S()).open) { await click('#om-menu-btn'); await wait(300); }
+      void wasOn;
+    });
+    await check('[2026-11-23 통계] 스위치 켬 1건(끔 0건) · [전체 메뉴] 열기 · 즐겨찾기 담기 · [보기] 한 번 = 1건(관제구역·항로 · 사고 세 갈래, 보던 것 다시 누름은 0건) · 막힌 천기 하위 버튼은 안 켜짐', async () => {
+      const used = [];
+      await page.route('**/api/usage', (r) => { try { const b = JSON.parse(r.request().postData() || '{}'); used.push(...(b.features || [b.feature])); } catch (e) { /* 본문이 없으면 무시 */ } r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }); });
+      const take = async () => { await wait(350); return used.splice(0).sort(); };
+      if (!(await S()).open) { await click('#om-menu-btn'); await wait(300); }
+      await take();
+      const buoyOn = (await S()).on.includes('ocean-buoy-toggle-btn');
+      if (buoyOn) { await sw('buoy'); await wait(500); assert.deepEqual(await take(), [], '끄는 것은 세지 않는다'); }
+      await sw('buoy'); await wait(600); assert.deepEqual(await take(), ['ocean.buoy']);
+      await sw('buoy'); await wait(500); assert.deepEqual(await take(), [], '끄는 것은 세지 않는다');
+      await click('#om-sidebar [data-om="close"]'); await wait(300); await click('#om-menu-btn'); await wait(300); assert.deepEqual(await take(), ['menu.open']);
+      await click('#om-sidebar .om-folder:not([data-folder="fav"]) [data-om="fav"][data-id="buoy"]'); assert.deepEqual(await take(), ['menu.fav_add']);
+      await click('#om-sidebar .om-folder:not([data-folder="fav"]) [data-om="fav"][data-id="buoy"]'); assert.deepEqual(await take(), [], '즐겨찾기를 푸는 것은 세지 않는다');
+      await view('vts'); await wait(1600); assert.deepEqual(await take(), ['safety.vts'], '관제구역·항로 [보기] 한 번 = 1건(항로 버튼은 조용히)');
+      await click('#om-menu-btn'); await wait(300); await take();
+      await view('accShip'); await wait(2500); assert.deepEqual(await take(), ['safety.accident.ship'], '사고이력(선박) = 갈래 키 1건(사고정보 버튼은 조용히)');
+      await click('#om-menu-btn'); await wait(300); await take();
+      await view('accShip'); await wait(800); assert.deepEqual(await take(), [], '보던 것을 다시 누르면 세지 않는다');
+      await click('#om-menu-btn'); await wait(300); await take();
+      await view('accStat'); await wait(1500); assert.deepEqual(await take(), ['safety.accident.stats']);
+      await click('#om-menu-btn'); await wait(300); await take();
+      await sw('wind'); assert.deepEqual(await take(), ['ocean.wind'], '[보기] 중 미뤄 둔 스위치도 켠 때 1건');
+      await page.evaluate(() => window.OceanMenu.closeView()); await wait(1400); assert.deepEqual(await take(), [], '[끄기] 뒤 지도에 반영할 때는 다시 세지 않는다');
+      // 천기 하위 버튼 — 천기가 점검으로 막히면 새 그림을 켜지 않는다(독립 검토 지적)
+      await click('#om-menu-btn'); await wait(300); await sw('wx'); await wait(900);
+      await page.evaluate(() => { localStorage.removeItem('seagnal_admin_mode'); (window.applyFeatureBlocks || applyFeatureBlocks)(['ov-other-wx']); }); await wait(300);
+      const before = await page.evaluate(() => [...document.querySelectorAll('#ocean-overlay-controls .ocean-overlay-btn.active')].map(b => b.id || b.dataset.shrt || b.dataset.layer).sort());
+      await page.evaluate(() => { const b = [...document.querySelectorAll('#om-subs [data-om="wx"]')].find(x => !x.classList.contains('active') && !x.classList.contains('om-sub-dead')); if (b) b.click(); }); await wait(900);
+      const after = await page.evaluate(() => [...document.querySelectorAll('#ocean-overlay-controls .ocean-overlay-btn.active')].map(b => b.id || b.dataset.shrt || b.dataset.layer).sort());
+      assert.deepEqual(after, before, '막힌 천기의 하위 버튼을 눌러도 켜지지 않는다');
+      await page.evaluate(() => (window.applyFeatureBlocks || applyFeatureBlocks)([])); await wait(200);
+      await page.evaluate(() => { const p = document.getElementById('blocked-feature-popup'); if (p) p.remove(); });
+      await page.unroute('**/api/usage');
+      if (!(await S()).open) { await click('#om-menu-btn'); await wait(300); }
+    });
+    await check('⑫ 시험 창구 setMode(false) → 옛 화면(보던 화면 닫힘 · 탭 4개 · 버튼 줄 다시 보임) — 옛 화면을 보는 다른 시험들이 쓰는 길', async () => {
       await view('terr'); await wait(1400); assert.equal((await S()).view, 'terr');
       await page.evaluate(() => window.OceanMenu.setMode(false)); await wait(900); const s = await S();
       assert.equal(s.mode, false); assert.equal(s.tab, 'ocean-map-section'); assert.equal(s.menuBtn, false); assert.equal(s.rail, true);
       assert.deepEqual(s.tabs, ['특보정보', '해양종합정보', '해양안전생활', '뉴스·공지·어황']); assert.ok(!/om-/.test(s.cls), s.cls); assert.equal(s.secTop, 0);
       assert.ok(!s.on.includes('ocean-terrain-toggle-btn'), JSON.stringify(s.on));
+    });
+    await check('[2026-11-23] 새 모드를 끄면 진북 정렬 버튼이 다시 보이고 고정이 풀린다 · 태풍 「해역표출 강제(디버그)」는 화면·코드에 없다 · 범례 아래 참고 문구는 유럽(ECMWF)·일본(JMA)만 남김', async () => {
+      const fs = require('fs');
+      assert.deepEqual(await page.evaluate(() => { const b = document.getElementById('ocean-northup-btn'); return [b.offsetParent !== null, b.classList.contains('northup-locked')]; }), [true, false]);
+      assert.equal(await page.evaluate(() => !!document.getElementById('tphn-dbg-row')), false);
+      const src = fs.readFileSync(path.join(root, 'client/js/typhoon/ocean_typhoon.js'), 'utf8');
+      assert.ok(!/_debugKorea|tphn-dbg|해역표출 강제/.test(src) && !/tphn-dbg|해역표출 강제/.test(fs.readFileSync(path.join(root, 'client/index2.html'), 'utf8')));
+      assert.ok(src.includes("var KEEP_NOTE = { ecmwf: true, jma: true };") && src.includes("if (!KEEP_NOTE[_src] && !extra) { el.textContent = ''; el.style.display = 'none'; return; }"), '유럽(ECMWF)·일본(JMA)만 출처 줄을 남긴다');
+    });
+    await check('[2026-11-24 진북 고정] 앱을 켜고 한참(7.5초) 뒤에 해양종합정보를 처음 열어도 고정이 걸린다 · 지도가 돌아가도 곧바로 북쪽이 위로', async () => {
+      // 종전에는 지도가 만들어지기를 6초만 기다리고 포기해, 다른 탭에 오래 있다 오면 두 손가락 회전이 살아 있었다(사용자 「고정이 풀리는경우가 있네?」)
+      await load();
+      assert.equal(await page.evaluate(() => !!(window.getOceanMap && window.getOceanMap())), false, '이 탭을 열기 전에는 지도가 없다(그래야 이 시험이 뜻이 있다)');
+      await wait(7500);
+      await tapOcean(1); await wait(2500);
+      const r = await page.evaluate(() => { const m = window.getOceanMap(), b = document.getElementById('ocean-northup-btn'), v = m.getView();
+        const rot = m.getInteractions().getArray().filter(i => i instanceof ol.interaction.PinchRotate || i instanceof ol.interaction.DragRotate).map(i => i.getActive());
+        v.setRotation(0.6); const after = v.getRotation();
+        return { locked: b.classList.contains('northup-locked'), rot, after, ls: localStorage.getItem('oceanMap.northUp.locked') }; });
+      assert.equal(r.locked, true, JSON.stringify(r)); assert.ok(r.rot.length >= 1 && r.rot.every(x => x === false), '회전 손짓이 꺼져 있다 ' + JSON.stringify(r.rot));
+      assert.equal(r.after, 0, '각도가 들어와도 곧바로 0'); assert.equal(r.ls, null, '고정은 저장하지 않는다');
+      // 다른 탭에 갔다 와도 그대로
+      await page.evaluate(() => window.switchMainTab('weather-group')); await wait(500); await tapOcean(1); await wait(900);
+      assert.equal(await page.evaluate(() => document.getElementById('ocean-northup-btn').classList.contains('northup-locked')), true);
     });
     await check('화면 오류 없음', async () => { assert.deepEqual(errors, []); });
   } catch (e) { console.error('❌ 시험 준비 실패', e.message); fail++; }

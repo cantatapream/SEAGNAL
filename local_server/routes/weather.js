@@ -265,6 +265,13 @@ router.get('/api/weather-alerts', (req, res) => {
     }
 });
 
+// 1-0. [구역 분할] 화면이 「지금 새 구역 기준인가」를 묻는다 — 켜 둔 화면이 전환을 알아채 한 번 새로 고치려고(client/js/core/zone_split.js).
+//      예: GET /api/zone-split → {"active":false}
+router.get('/api/zone-split', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ active: require('../config/zone_split').isActive() });
+});
+
 // 1-1. 해상 예특보구역 폴리곤 (정적 GeoJSON)
 //      해양종합정보 지도의 "특보구역" 토글 버튼이 호출
 //      KMA marine 포털(geoserver/mmis/wms)의 mmis:shp_wrn_poly 레이어를
@@ -286,6 +293,11 @@ router.get('/api/warn-zones', (req, res) => {
         //   효과: 클라이언트 ?v= 캐시버스트 키에 의존하지 않게 됨 → 향후 갱신 시
         //         수동 v 키 bump 불필요 (배포만 하면 다음 요청부터 새 데이터).
         res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+        // [구역 분할] 전환(config/zone_split.js) 뒤 「제주도 남쪽 바깥먼바다」를 둘로 나눈 그림(45개)을 내보낸다 — 원본 파일은 그대로(services/warn_zones_split.js).
+        //   no-cache 라 전환 뒤 다음 요청부터 바뀐다.
+        if (require('../config/zone_split').isActive()) {
+            return res.type('application/json').send(require('../services/warn_zones_split').body());
+        }
         res.sendFile(filePath);
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -1206,10 +1218,15 @@ router.get('/api/zone-bulletins', async (req, res) => {
         const regionalOffice =
             (staticHome && staticHome !== NATIONAL_GO) ? staticHome      // 정적 매핑이 실제 지방청
             : (homeByZone[z] || staticHome || null);                     // 아니면 빈도 휴리스틱(105 등)
+        // [구역 분할] 전환 뒤 새 두 구역 카드의 통보문은 옛 이름 줄도 받는다 — 기상청이 작업을 마치기 전에는 MMIS 줄이 옛 이름(S1324020)으로 온다.
+        //   없으면: 카드에는 특보가 뜨는데(옛 코드 특보 = 두 구역 모두) 📋 팝업은 「통보문이 없습니다」가 된다(독립 검토 2026-11-24).
+        const _zs = require('../config/zone_split');
+        const _zbAlso = (_zs.isActive() && _zs.NEW.includes(z)) ? _zs.OLD : null;
+        const _zbSame = (nm) => { const n = _zbNorm(nm); return n === z || (_zbAlso !== null && n === _zbAlso); };
         // 발효(이벤트) 단위로 묶고, 관할 지방청 > 그 외 지방청 > 전국(108) 순으로 PDF 선택
         const groups = new Map();   // key -> rows[]
         for (const r of rows) {
-            if (_zbNorm(r.kor_nm) !== z) continue;
+            if (!_zbSame(r.kor_nm)) continue;
             const tmFc = String(r.tm_fc || '').trim();
             const cmd = String(r.warn_cmd_nm || '').trim();
             const tp = String(r.warn_tp_nm || '').trim();
@@ -1252,7 +1269,7 @@ router.get('/api/zone-bulletins', async (req, res) => {
         //   "종류무관 최신 통보문(날씨해설 등)"을 띄우므로, stn/kind/date 로 좁혀야 정확하다.
         const prelimStn = regionalOffice || NATIONAL_GO;   // 관할 지방청 우선, 미상이면 전국(108) 폴백
         for (const r of (readyRows || [])) {
-            if (_zbNorm(r.warn_zone_nm) !== z) continue;
+            if (!_zbSame(r.warn_zone_nm)) continue;
             const tp = String(r.warn_tp_nm || '').trim();
             const lvl = String(r.warn_lvl_nm || '').trim();   // 예: '예비특보'
             const cmd = String(r.warn_cmd_nm || '').trim();   // 예: '발표'

@@ -129,7 +129,7 @@
         // 특보구역[2026-09-09 개편] — "특보 ON" 은 별도 버튼이 아니라 이 버튼에 딸린
         //   곁가지(같은 .ocean-warn-zone-wrap 안 두 조각)라, 옛 "특보 ON/OFF" 탭을 여기 합쳤다.
         { id: 'warnzone', label: '특보구역', bodyHtml:
-            '<p><i class="fa-solid fa-circle-check"></i> 해상 특보가 발표되는 <strong>예보구역 경계선</strong>을 보여줍니다. 앞바다·먼바다 등 <strong>44개 구역</strong>이 노란 점선으로 그려지고, 지도를 충분히 확대하면 <strong>연안바다·평수구역 49개</strong>가 청록 점선으로 더 나타납니다.</p>'
+            '<p><i class="fa-solid fa-circle-check"></i> 해상 특보가 발표되는 <strong>예보구역 경계선</strong>을 보여줍니다. 앞바다·먼바다 등 <strong>' + ((typeof ZoneSplit !== 'undefined' && ZoneSplit.isActive()) ? 45 : 44) + '개 구역</strong>이 노란 점선으로 그려지고, 지도를 충분히 확대하면 <strong>연안바다·평수구역 49개</strong>가 청록 점선으로 더 나타납니다.</p>'
           + '<p><i class="fa-solid fa-circle-check"></i> <strong>지금 발효 중이거나 곧 발효될 특보가 있을 때만</strong>, 이 버튼 왼쪽에 <strong>「특보 ON」</strong> 버튼이 함께 나타납니다. 누르면 특보가 걸린 해역을 색으로 칠해 한눈에 보여줍니다(다시 누르면 「특보 OFF」).</p>'
           + '<p><i class="fa-solid fa-circle-check"></i> 색은 <strong>풍랑=초록 · 태풍=빨강</strong> 두 가지이며, 발효 전(발표) → 주의보 → 경보 순으로 진해집니다.</p>'
           + '<p><i class="fa-solid fa-circle-check"></i> 「특보 ON」이 켜져 있으면 배경지도가 <strong>해안도</strong>로 자동 전환되고, 색칠된 구역을 누르면 특보 종류·등급·발효 시각·해제 예정 시각을 볼 수 있습니다.</p>'

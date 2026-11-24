@@ -170,7 +170,28 @@
         rootEl.querySelectorAll('.ocean-info-panel').forEach(function (panel) { textFit(panel, 'p'); });
     }
 
+    /**
+     * 짧은 글 한 칸(안내 줄·칩 글자)이 좁은 화면에서 두 줄로 넘어가면, 글자 간격을 좁혀 한 줄에 넣는다.
+     * 한도(MAX_EM, 글자 크기의 12%)보다 더 좁혀야 하면 손대지 않고 두 줄 그대로 둔다(글자가 붙어 읽기 어려워지므로).
+     * 사용자 2026-11-23 「화면이 작아서 텍스트가 두줄로 표현되는 경우에는 한줄로 표출될 수 있도록 자간을 자동으로 줄여서」.
+     * 예: window.textFitOneLine(document.querySelector('#om-banner .om-banner-text')) → true(한 줄에 들어감)
+     * @param {Element} el - 글이 든 칸(폭이 정해진 block·flex 칸) @returns {boolean} 한 줄에 들어갔는가
+     * [연계] ← ocean-map/menu/ocean_menu.js(안내 줄) · marine-life/safety/accident_info.js renderStatsBody(통계 칩)
+     */
+    function textFitOneLine(el) {
+        if (!el || !el.clientWidth) return false;
+        el.style.letterSpacing = ''; el.style.whiteSpace = 'nowrap';
+        var over = el.scrollWidth - el.clientWidth;
+        if (over <= 0) { el.style.whiteSpace = ''; return true; }
+        var n = Array.from(el.textContent).length || 1, ls = over / n + 0.05;
+        if (ls > MAX_EM * parseFloat(getComputedStyle(el).fontSize)) { el.style.whiteSpace = ''; return false; }
+        el.style.letterSpacing = (-ls).toFixed(2) + 'px';
+        if (el.scrollWidth > el.clientWidth) { el.style.letterSpacing = ''; el.style.whiteSpace = ''; return false; }
+        return true;
+    }
+
     root.textFit = textFit;
+    root.textFitOneLine = textFitOneLine;
     root.textFitInfo = textFitInfo;
     // 글꼴이 늦게 받아지면 글자 폭이 바뀌므로 한 번 더 맞춘다
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { watched.forEach(run); });

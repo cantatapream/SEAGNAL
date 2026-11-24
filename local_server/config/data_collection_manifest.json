@@ -22,7 +22,9 @@
     { "id": "komsa", "name": "해양교통안전공단" },
     { "id": "kto", "name": "한국관광공사" },
     { "id": "kma-beach", "name": "기상청 해수욕장 날씨(공공데이터포털)" },
-    { "id": "seagnal", "name": "우리 서버 생성" }
+    { "id": "seagnal", "name": "우리 서버 생성" },
+    { "id": "naver", "name": "네이버 검색 API" },
+    { "id": "nifs", "name": "국립수산과학원" }
   ],
   "items": [
     {
@@ -105,7 +107,7 @@
         "text": "1분마다",
         "everyMinutes": 1,
         "evidence": [
-          { "file": "local_server/scheduler.js", "quote": "marineWarningCrawler.run().catch(err => log(`⚠️ [marine] 크롤러 오류: ${err.message}`));" }
+          { "file": "local_server/scheduler.js", "quote": "marineWarningCrawler.run({ zoneSplitDetect: true }).catch(err => log(`⚠️ [marine] 크롤러 오류: ${err.message}`));" }
         ]
       },
       "state": { "risk": "warnings", "file": "weather_alerts.json", "collectedField": "updatedAt", "collectedFormat": "koLocale" },
@@ -123,7 +125,7 @@
         "everyMinutes": 1,
         "nextFrom": "checked",
         "evidence": [
-          { "file": "local_server/scheduler.js", "quote": "marineWarningCrawler.run().catch(err => log(`⚠️ [marine] 크롤러 오류: ${err.message}`));" },
+          { "file": "local_server/scheduler.js", "quote": "marineWarningCrawler.run({ zoneSplitDetect: true }).catch(err => log(`⚠️ [marine] 크롤러 오류: ${err.message}`));" },
           { "file": "local_server/services/gale_warning_store.js", "quote": "본문 savedAt은 변경 시각, risk_forecast/gale_status.json checkedAt은 성공 확인 시각" }
         ]
       },
@@ -812,6 +814,36 @@
       },
       "state": { "file": "bulletin_watch/state.json", "collectedField": "listsOkMs", "collectedFormat": "epochMs" },
       "graceMinutes": 10
+    },
+    {
+      "id": "news",
+      "stage": 2,
+      "name": "오늘의 뉴스 (네이버 뉴스 검색 + AI 판정)",
+      "provider": "naver",
+      "endpoint": "네이버 뉴스 검색(검색어마다 최신순) → 해양 기사만 AI 로 골라 카드로 저장(services/news_collector.js) — 앱 「뉴스·공지·어황」 탭",
+      "official": { "kind": null, "text": "확인 필요", "evidence": [] },
+      "schedule": {
+        "text": "매시 02분 KST + 기동 2분 뒤 1회(운영 서버에서만)",
+        "minutes": [2],
+        "evidence": [{ "file": "local_server/services/news_collector.js", "quote": "timer = setInterval(() => { if (new Date(now() + 9 * 3600000).getUTCMinutes() === 2) run().catch(() => {}); }, 60000);" }]
+      },
+      "state": { "file": "news/state.json", "collectedField": "lastRun", "collectedFormat": "iso" },
+      "graceMinutes": 20
+    },
+    {
+      "id": "fishcond",
+      "stage": 2,
+      "name": "어황정보 (국립수산과학원 게시판)",
+      "provider": "nifs",
+      "endpoint": "국립수산과학원 「어황정보」 게시판의 새 글·첨부 PDF 를 받아 쪽 그림으로 저장(services/fishcond_collector.js) — 앱 「뉴스·공지·어황」 탭",
+      "official": { "kind": null, "text": "확인 필요", "evidence": [] },
+      "schedule": {
+        "text": "매시 07분 KST + 기동 직후 1회(운영 서버에서만)",
+        "minutes": [7],
+        "evidence": [{ "file": "local_server/services/fishcond_collector.js", "quote": "timer = setInterval(() => { if (new Date(now() + 9 * 3600000).getUTCMinutes() === 7) run().catch(() => {}); }, 60000);" }]
+      },
+      "state": { "file": "fishcond/state.json", "collectedField": "lastRun", "collectedFormat": "iso" },
+      "graceMinutes": 20
     }
   ]
 }

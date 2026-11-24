@@ -160,6 +160,43 @@
         }
     }
 
+    /** 이름표 글자 폭(px) — 세모를 이름 바로 오른쪽에 놓기 위해 잰다. 같은 이름은 한 번만 잰다. [연계] ← _coloredStyle */
+    var _lwCache = {}, _lwCtx = null;
+    function _labelWidth(name) {
+        if (_lwCache[name]) return _lwCache[name];
+        try {
+            if (!_lwCtx) { _lwCtx = document.createElement('canvas').getContext('2d'); }
+            _lwCtx.font = 'bold 11px "Pretendard", sans-serif';
+            return (_lwCache[name] = _lwCtx.measureText(name).width);
+        } catch (e) { return name.length * 11; }   // 캔버스를 못 쓰는 환경 — 글자 수로 어림
+    }
+
+    /**
+     * 그 특보구역에 달 세모 — 'up'(더 높은 단계로 오를 수 있음) · 'down'(더 낮은 특보가 다가옴) · ''(없음).
+     * 첫 화면 특보 카드(forecast/alerts/render.js)와 같은 규칙이다: 다가오는 특보로 본 오르내림(zoneTrend)이 먼저이고,
+     * 그것이 없으면 기상청이 글로 알린 「경보·태풍 변경 가능성」(zoneEscalations)이 있을 때 'up'.
+     * 예: 풍랑주의보 발효 + 풍랑경보 발표 → 'up' / 풍랑경보 발효 + 풍랑주의보 발표 → 'down' / 주의보만 → ''
+     * @param {string} zoneName 특보구역 이름 @param {object} info state.activeMap 의 그 구역(allCurrents·allUpcomings) @returns {'up'|'down'|''}
+     * [연계] ← _coloredStyle(지도 이름표) · ocean_warn_active5.js(팝업 머리 뱃지) / → window.zoneTrend·zoneEscalations(forecast/alerts/escalation.js)
+     */
+    /** 카드가 쓰는 꼴({current, upcoming})로 바꾼다 — 발효 중인 것 가운데 풍랑·태풍 특보(높은 것 먼저)를 대표로 삼는다(강풍 등은 오르내림을 견주지 않는다). */
+    ns._zoneCardState = function (info) {
+        var rank = function (a) {
+            var t = String((a && a.warnType) || ''), l = String((a && a.level) || '');
+            return (t.indexOf('태풍') >= 0 ? 20 : t.indexOf('풍랑') >= 0 ? 10 : 0) + (l.indexOf('경보') >= 0 ? 2 : l.indexOf('주의') >= 0 ? 1 : 0);
+        };
+        var curs = ((info && info.allCurrents) || []).slice().sort(function (a, b) { return rank(b) - rank(a); });
+        return { current: curs[0] || null, upcoming: (info && info.allUpcomings) || [] };
+    };
+    ns._zoneTrendOf = function (zoneName, info) {
+        if (!info) return '';
+        var st = ns._zoneCardState(info);
+        var t = typeof window.zoneTrend === 'function' ? window.zoneTrend(st) : '';
+        if (t === 'up' || t === 'down') return t;
+        var esc = typeof window.zoneEscalations === 'function' ? window.zoneEscalations(zoneName, st) : [];
+        return esc && esc.length ? 'up' : '';
+    };
+
     function _coloredStyle(info, kind, feature, isSelected) {
         var palette = ns._const.ALERT_COLORS[info.paletteKey];
         if (!palette) return null;
@@ -242,6 +279,26 @@
                 overflow: false,
                 placement: 'point'
             }));
+            // [새 메뉴 화면 — 2026-11-23] 구역 이름 오른쪽에 격상(빨강 ▲)·격하(초록 ▼) 세모 — 첫 화면 특보 카드의 세모와 같은 규칙.
+            //   사용자 「구역명칭 오른쪽에 격상, 격하를 의미하는 화살표 … 그 해역은 격상, 격하 가능성이 있다는 사항을 나타내고자」.
+            //   글자색을 한 이름표 안에서 나눌 수 없어, 이름 폭을 재서 그 오른쪽에 세모만 따로 그린다.
+            var trend = document.body.classList.contains('om-mode') ? ns._zoneTrendOf(name, info) : '';
+            if (trend) {
+                var tri = new ol.style.Style({ text: new ol.style.Text({
+                    text: trend === 'down' ? '▼' : '▲',
+                    // 크기 — 사용자 2026-11-23 「세모가 너무 작은것 같은데 글씨크기의 3/4정도는 되어야」. 세모 글자는 제 글자 크기의 약 6할 높이로 그려져,
+                    //   이름표(11px) 높이의 3/4(약 8px)이 되려면 14px 로 적는다.
+                    font: 'bold 14px Arial, sans-serif',
+                    fill: new ol.style.Fill({ color: trend === 'down' ? '#10b981' : '#ff3b3b' }),
+                    stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,0.95)', width: 2.5 }),
+                    offsetX: Math.round(_labelWidth(name) / 2) + 10,
+                    overflow: true,          // 세모는 작다 — 이름표가 보이는 한 같이 보이게(이름표가 가려질 만큼 좁은 구역에서는 세모만 남는다)
+                    placement: 'point'
+                }) });
+                tri._omTrend = true;         // ocean_warn_zone.js _onlyStrokeAndText 가 이 표시를 보고 선·이름표 층에 함께 싣는다
+                if (isSelected) tri.setZIndex(1000);
+                styles.push(tri);
+            }
         }
         // 자식(sub) feature 의 라벨은 _styler 가 _subLabelOnlyStyle 로 분기해 처리.
         // 여기까지 'sub' kind 가 도달하지 않으므로 별도 분기 불필요.

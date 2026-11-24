@@ -265,7 +265,7 @@ const NONE = { updateAvailable: false, flexibleAllowed: false, inProgress: false
     check('관리자 센터 미리 보기용으로 내보낸다', /window\.SeagnalUpdatePopup = \{/.test(src));
     const adminSrc = fs.readFileSync(path.join(root, 'client', 'js', 'admin', 'admin.js'), 'utf8');
     check('관리자 버전 탭에 미리 보기 버튼·입력 안내가 있다', /onclick="previewUpdatePopup\(\)"/.test(adminSrc) && /window\.previewUpdatePopup = function/.test(adminSrc) && /「\|」 뒤 = 작은 설명/.test(adminSrc));
-    check('index2.html 이 바뀐 안내 창 코드를 새로 받는다(캐시 번호)', /capacitor-plugins\.js\?v=UpdatePopupC_20261120/.test(fs.readFileSync(path.join(root, 'client', 'index2.html'), 'utf8')));
+    check('index2.html 이 바뀐 안내 창 코드를 새로 받는다(캐시 번호)', /capacitor-plugins\.js\?v=ZoneSplit_20261123/.test(fs.readFileSync(path.join(root, 'client', 'index2.html'), 'utf8')));
     check('안내 창 아이콘 그림 파일이 있다', fs.existsSync(path.join(root, 'client', 'assets', 'app_update_icon.png')));
 
     console.log(`\n결과: ${pass} PASS / ${fail} FAIL`);
