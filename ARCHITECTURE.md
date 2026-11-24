@@ -2,7 +2,7 @@
 
 > 이 문서 하나로 앱의 전체 구조·중점 원칙·각 파일의 특징을 파악할 수 있습니다.
 > 자동 생성: `node scripts/refactor/gen_architecture.js > ARCHITECTURE.md` (구조 변경 시 재생성)
-> 마지막 생성 기준: 프론트 JS 138개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
+> 마지막 생성 기준: 프론트 JS 139개 · 코드 추가·수정 규칙은 `DEVELOPMENT_GUIDE.md` 참고.
 
 ---
 
@@ -210,7 +210,6 @@ client/js/
 │       ├── mappings.js
 │       ├── usage_keys.js
 │       ├── utils.js
-├── tutorial/
 └── typhoon/  ← ⚡ 태풍
     ├── location_alert_typhoon_runtime.js
     ├── ocean_typhoon.js
@@ -267,7 +266,7 @@ client/js/
 | `backbutton.js` | 하드웨어 뒤로가기 버튼 처리 + 팝업 스택 관리 |
 | `config.js` | 전역 설정(CONFIG), 해역 상수, 윈디 매핑, 해역 분류 체계 |
 | `index2_patch.js` | 1. 하단 탭 바 구조에 맞춰 탭 그룹 매핑 데이터를 오버라이드 |
-| `zone_split.js` | 기상청 해상 특보구역 개편(2026-11-26)을 화면이 「그날 00시(한국시각)부터」 스스로 따르게 한다. |
+| `zone_split.js` | 기상청 해상 특보구역 개편을 화면이 「서버가 전환한 순간부터」 스스로 따르게 한다(전환은 서버가 MMIS 를 보고 정한다). |
 
 ### `client/js/engagement/`
 

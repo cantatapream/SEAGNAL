@@ -19,7 +19,7 @@ const months = args.filter((a) => /^\d{4}-\d{2}$/.test(a));
 const SHOW = +((args.find((a) => a.startsWith('--show=')) || '--show=15').split('=')[1]);
 
 const norm = (s) => String(s || '').replace(/\s+/g, '').replace(/[.]/g, '·');
-// 2026-11-26 구역 분할(config/zone_split.js): 새 두 이름은 MMIS 코드표에 없다(새 코드를 아직 모른다) — 통보문이 새 이름을 쓰면 읽을 수 있게 여기서 더한다.
+// 구역 분할(config/zone_split.js): 통보문이 새 두 이름을 쓰면 읽을 수 있게 한다(코드표에도 새 코드가 있지만 여기서도 분명히 더해 둔다).
 //   없으면: 「제주도남서쪽바깥먼바다」를 「바다가 아님」으로 버리고, 「제주도먼바다(제주도남서쪽바깥먼바다)」는 괄호 안을 몰라 묶음 전체(안쪽먼바다까지)에 특보를 붙인다.
 const PARENTS = new Set([...Object.values(MMIS_CODE_TO_NAME).filter((n) => !Object.values(PARENT_TO_CHILDREN).flat().includes(n)), ...ZONE_SPLIT.NEW]);
 const childrenOf = (p) => PARENT_TO_CHILDREN[p] || [];

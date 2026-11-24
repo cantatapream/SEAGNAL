@@ -24,7 +24,7 @@
  * [전환 조건 — 둘 중 먼저 오는 쪽]
  *   ① MMIS 가 새 구역코드(S1324120·S1324220)를 쓰기 시작 — 특보 자료(발효·예비)에 보이거나, 포털 특보구역 지도 목록에 보일 때. 보는 즉시.
  *      (특보 자료에는 특보가 걸린 구역만 온다 — 실측 2026-11-24. 지도 목록은 44개 구역이 늘 온다.)
- *   ② QUIET_FROM(2026-11-25 00:00 KST — 「내일 특보가없는 순간」) 뒤, 옛 구역에 특보(예비 포함)가 하나도 없을 때 — 2주기(약 2분) 연속, 해제 디바운스까지 끝난 뒤. 기상청은 특보가 없을 때만 구역을 바꿀 수 있다.
+ *   ② QUIET_FROM(2026-11-25 00:00 KST — 「내일 특보가없는 순간」) 뒤, 옛 구역에 특보(예비 포함)가 하나도 없을 때 — 10주기(약 10분) 연속, 해제 디바운스까지 끝난 뒤. 기상청은 특보가 없을 때만 구역을 바꿀 수 있다.
  *   전환 뒤에도 MMIS 가 옛 코드로 특보를 주면(기상청 작업 전) 그 특보 = 새 두 구역 모두의 특보로 읽는다(marine_warning_crawler._foldOldSplitZone).
  * ----------------------------------------------------------------------------
  * [연계]
@@ -33,7 +33,7 @@
  *  - 나를 쓰는 곳  : marine_warning_crawler(구역 뼈대·전환 감지·옛 코드 접기) ·
  *                   analysis/bulletin_survey/lifecycle_check(통보문 해역 해석) · config/zone_group_map(묶음 사전) ·
  *                   services/push_helpers(구독 계층) · routes/weather(/api/warn-zones 분할본) · 검사 test_zone_split
- *  - 화면 쪽 짝    : client/js/core/zone_split.js (같은 시각·같은 이름 — 둘을 함께 고친다)
+ *  - 화면 쪽 짝    : client/js/core/zone_split.js (같은 이름 — 둘을 함께 고친다. 전환은 이 파일이 정한다)
  *  - 저장          : data/zone_split_state.json — {active, at, reason}. 전환은 한 번이고 서버를 다시 켜도 이어진다.
  *  - 환경변수      : ZONE_SPLIT_AT — 전환 조건 ②가 시작되는 시각(시간대까지 적은 ISO 시각. 없으면 2026-11-25T00:00:00+09:00) ·
  *                   ZONE_SPLIT_FORCE=on|off — 손으로 켜거나(감지가 안 될 때) 끈다(스테이징 미리보기·되돌리기). 저장된 상태보다 먼저 본다.
@@ -59,7 +59,7 @@ const QUIET_FROM_MS = (() => {
     if (env && isNaN(ms)) console.warn('[구역 분할] ZONE_SPLIT_AT 을 못 읽어(시간대까지 적어야 한다 — 예 2026-11-25T00:00:00+09:00) 기본 시각을 쓴다:', env);
     return isNaN(ms) ? Date.parse(DEFAULT_QUIET_FROM) : ms;
 })();
-const CONFIRM_CYCLES = 2;   // 같은 신호가 이만큼 연속으로 보여야 전환 — 없으면: MMIS 가 한 주기 빈 응답을 주는 순간(실제로 있다 — 의심 가드가 그것 때문에 있다)에 「특보 없음」으로 읽고 넘어간다
+const CONFIRM_CYCLES = 10;  // 「특보 없음」이 이만큼(약 10분) 연속이어야 전환 — 없으면: MMIS 가 몇 분 동안 통째로 빈 응답을 주는 때(실제로 있다 — 2026-11-24 검사 서버에서 4분간 31개 구역이 사라졌다 돌아옴)에 특보가 살아 있는데 넘어간다. 해제 디바운스(3분)보다 넉넉히 길게.
 let _forced = null;         // 검사용 — true/false 로 고정
 let _state = null;          // 파일에서 읽은 상태(처음 물을 때 한 번 읽는다)
 const _streak = { quiet: 0 };

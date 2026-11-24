@@ -20,7 +20,7 @@
  *  - 마크업        : 없음
  *  - 나를 쓰는 곳  : core/config.js(구역 목록) · capacitor-plugins.js(푸시 구독 목록) · forecast/alerts/render.js·
  *                   forecast/outlook/windy.js(카드 버튼) · forecast/alerts/zone_avg.js(평균·시정 칸)
- *  - 서버 쪽 짝    : local_server/config/zone_split.js (같은 시각·같은 이름 — 둘을 함께 고친다)
+ *  - 서버 쪽 짝    : local_server/config/zone_split.js (같은 이름 — 둘을 함께 고친다. 전환은 서버가 정한다)
  * [로드 순서] 구역 표를 싣는 첫 파일(zoneOverlayConfig.js)보다 앞 — 저장값 이어받기가 settings.js·capacitor-plugins.js 보다 먼저 끝나야 한다. 순서 변경 금지
  * ============================================================================
  */
@@ -141,6 +141,8 @@
             if (typing || unsaved) { root.setTimeout(reloadNow, 20000); return; }
         } catch (e) { /* 판정 실패 — 그냥 새로 고친다 */ }
         _reloading = true;
+        // 한 화면(탭)에서 한 번만 — 기억을 못 남기는 기기(저장소 막힘)가 전환 표시 없는 문서를 받으면 복귀할 때마다 새로 고치게 된다(독립 검토 2026-11-24)
+        try { if (root.sessionStorage.getItem(ACTIVE_KEY + '_reloaded') === '1') return; root.sessionStorage.setItem(ACTIVE_KEY + '_reloaded', '1'); } catch (e) { return; }
         try { root.location.reload(); } catch (e) { /* 새로 고침이 막힌 환경 — 다음 실행 때 반영 */ }
     }
     function checkSwitched() {

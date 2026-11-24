@@ -1218,10 +1218,15 @@ router.get('/api/zone-bulletins', async (req, res) => {
         const regionalOffice =
             (staticHome && staticHome !== NATIONAL_GO) ? staticHome      // 정적 매핑이 실제 지방청
             : (homeByZone[z] || staticHome || null);                     // 아니면 빈도 휴리스틱(105 등)
+        // [구역 분할] 전환 뒤 새 두 구역 카드의 통보문은 옛 이름 줄도 받는다 — 기상청이 작업을 마치기 전에는 MMIS 줄이 옛 이름(S1324020)으로 온다.
+        //   없으면: 카드에는 특보가 뜨는데(옛 코드 특보 = 두 구역 모두) 📋 팝업은 「통보문이 없습니다」가 된다(독립 검토 2026-11-24).
+        const _zs = require('../config/zone_split');
+        const _zbAlso = (_zs.isActive() && _zs.NEW.includes(z)) ? _zs.OLD : null;
+        const _zbSame = (nm) => { const n = _zbNorm(nm); return n === z || (_zbAlso !== null && n === _zbAlso); };
         // 발효(이벤트) 단위로 묶고, 관할 지방청 > 그 외 지방청 > 전국(108) 순으로 PDF 선택
         const groups = new Map();   // key -> rows[]
         for (const r of rows) {
-            if (_zbNorm(r.kor_nm) !== z) continue;
+            if (!_zbSame(r.kor_nm)) continue;
             const tmFc = String(r.tm_fc || '').trim();
             const cmd = String(r.warn_cmd_nm || '').trim();
             const tp = String(r.warn_tp_nm || '').trim();
@@ -1264,7 +1269,7 @@ router.get('/api/zone-bulletins', async (req, res) => {
         //   "종류무관 최신 통보문(날씨해설 등)"을 띄우므로, stn/kind/date 로 좁혀야 정확하다.
         const prelimStn = regionalOffice || NATIONAL_GO;   // 관할 지방청 우선, 미상이면 전국(108) 폴백
         for (const r of (readyRows || [])) {
-            if (_zbNorm(r.warn_zone_nm) !== z) continue;
+            if (!_zbSame(r.warn_zone_nm)) continue;
             const tp = String(r.warn_tp_nm || '').trim();
             const lvl = String(r.warn_lvl_nm || '').trim();   // 예: '예비특보'
             const cmd = String(r.warn_cmd_nm || '').trim();   // 예: '발표'

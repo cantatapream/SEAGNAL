@@ -4,7 +4,7 @@
  * 파일명: local_server/services/warn_zones_split.js
  * 역할  : 해상 특보구역 그림(client/assets/warn_zones.geojson, 44개)에서 「제주도 남쪽 바깥먼바다」 도형 하나를
  *         동경 126°17'40" 선으로 잘라 「제주도 남서쪽 바깥먼바다」·「제주도 남동쪽 바깥먼바다」 두 개로 바꾼 그림(45개)을 만든다.
- *         2026-11-26 00:00 KST 부터 /api/warn-zones 가 이 그림을 내보낸다(routes/weather.js). 원본 파일은 고치지 않는다.
+ *         전환(config/zone_split.js) 뒤 /api/warn-zones 가 이 그림을 내보낸다(routes/weather.js). 원본 파일은 고치지 않는다.
  * 왜 파일을 따로 두지 않고 그때그때 만드나: 원본이 1.5MB 이고 구멍 도형(_holedGeometry) 등이 다시 만들어질 수 있다 —
  *         사본을 두면 둘이 어긋난다. 원본에서 도형 하나만 바꿔 만들면 늘 원본과 같다.
  * 경계(사용자 확정 2026-11-18·22 — 기상청 담당자 확인):
@@ -65,8 +65,8 @@ function splitFeatures(fc) {
     const [west, east] = meanLon(sideA) < meanLon(sideB) ? [sideA, sideB] : [sideB, sideA];
     const make = (name, r, tag) => ({
         type: 'Feature',
-        // WarnCode 는 비운다 — 기상청 새 구역코드를 아직 모른다(지어내지 않는다). 화면은 이름으로만 맞춘다.
-        properties: Object.assign({}, f.properties, { id: f.properties.id + tag, WarnCode: '', name: name.replace('제주도', '제주도 ').replace('바깥먼바다', ' 바깥먼바다'), splitFrom: f.properties.name }),
+        // WarnCode = 기상청 회신 코드(config/zone_split.NEW_CODES). 화면은 이름으로 맞춘다.
+        properties: Object.assign({}, f.properties, { id: f.properties.id + tag, WarnCode: Object.keys(ZONE_SPLIT.NEW_CODES).find((c) => ZONE_SPLIT.NEW_CODES[c] === name) || '', name: name.replace('제주도', '제주도 ').replace('바깥먼바다', ' 바깥먼바다'), splitFrom: f.properties.name }),
         geometry: { type: 'MultiPolygon', coordinates: [[r]] },
     });
     const features = fc.features.slice();

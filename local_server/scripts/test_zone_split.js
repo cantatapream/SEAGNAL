@@ -55,14 +55,15 @@ const info = (lv) => ({ wrnTp: 'V', wrnTpNm: '풍랑', wrnLvlNm: lv, tmFc: '2026
         ok('전환은 파일에 남는다(다시 켜도 이어진다)', JSON.parse(fs.readFileSync(process.env.ZONE_SPLIT_STATE_FILE, 'utf8')).active === true && (ZS._forceForTest(null), ZS.isActive()));
         ok('전환 뒤에는 다시 전환하지 않는다', ZS.observe({ newCodeSeen: 'S1324120', oldZoneHasWarning: false, nowMs: NOON + 1 }).activated === false);
         reset();
-        ok('② 준비 시각 전에는 특보가 없어도 안 넘어간다', ZS.observe({ oldZoneHasWarning: false, nowMs: NOON - 1 }).activated === false && ZS.observe({ oldZoneHasWarning: false, nowMs: NOON - 1 }).activated === false && !ZS.isActive());
+        const quiet = (n, from, has, ok2) => { let r = null; for (let k = 0; k < n; k++) r = ZS.observe({ oldZoneHasWarning: !!has, mmisOk: ok2 !== false, nowMs: from + k * 60e3 }); return r; };
+        ok('② 준비 시각 전에는 특보가 없어도(20분) 안 넘어간다', quiet(20, NOON - 30 * 60e3, false).activated === false && !ZS.isActive());
         reset();
-        ok('② 준비 시각 뒤라도 옛 구역에 특보가 있으면 안 넘어간다', ZS.observe({ oldZoneHasWarning: true, nowMs: NOON + 60e3 }).activated === false && ZS.observe({ oldZoneHasWarning: true, nowMs: NOON + 120e3 }).activated === false && !ZS.isActive());
-        ok('② 특보 없음 한 주기 → 아직(MMIS 한 주기 빈 응답에 속지 않는다)', ZS.observe({ oldZoneHasWarning: false, nowMs: NOON + 180e3 }).activated === false && !ZS.isActive());
-        ok('② 사이에 특보가 다시 보이면 다시 센다', ZS.observe({ oldZoneHasWarning: true, nowMs: NOON + 240e3 }).activated === false && ZS.observe({ oldZoneHasWarning: false, nowMs: NOON + 300e3 }).activated === false);
-        ok('② MMIS 를 못 받은 주기는 「특보 없음」으로 세지 않는다', ZS.observe({ oldZoneHasWarning: false, mmisOk: false, nowMs: NOON + 360e3 }).activated === false && ZS.observe({ oldZoneHasWarning: false, nowMs: NOON + 420e3 }).activated === false);
-        const r2 = ZS.observe({ oldZoneHasWarning: false, nowMs: NOON + 480e3 });
-        ok('② 준비 시각 뒤 특보 없음 두 주기 연속 → 전환', r2.activated === true && ZS.isActive(), r2);
+        ok('② 준비 시각 뒤라도 옛 구역에 특보가 있으면 안 넘어간다', quiet(20, NOON, true).activated === false && !ZS.isActive());
+        ok('② 특보 없음 9분 → 아직(MMIS 가 몇 분 빈 응답을 줘도 속지 않는다)', quiet(9, NOON + 3600e3, false).activated === false && !ZS.isActive());
+        ok('② 사이에 특보가 다시 보이면 처음부터 다시 센다', quiet(1, NOON + 2 * 3600e3, true).activated === false && quiet(9, NOON + 3 * 3600e3, false).activated === false && !ZS.isActive());
+        ok('② MMIS 를 못 받은 주기는 「특보 없음」으로 세지 않는다(다시 센다)', quiet(1, NOON + 4 * 3600e3, false, false).activated === false && quiet(9, NOON + 5 * 3600e3, false).activated === false && !ZS.isActive());
+        const r2 = quiet(1, NOON + 6 * 3600e3, false);
+        ok('② 준비 시각 뒤 특보 없음 10분 연속 → 전환', r2.activated === true && ZS.isActive(), r2);
         reset();
         process.env.ZONE_SPLIT_FORCE = 'on'; ok('손으로 켜기(ZONE_SPLIT_FORCE=on)', ZS.isActive() === true && ZS.observe({ newCodeSeen: 'S1324220' }).activated === false);
         process.env.ZONE_SPLIT_FORCE = 'off'; ok('손으로 끄기(ZONE_SPLIT_FORCE=off)', ZS.isActive() === false);
@@ -205,7 +206,7 @@ const info = (lv) => ({ wrnTp: 'V', wrnTpNm: '풍랑', wrnLvlNm: lv, tmFc: '2026
         ok('두 도형 넓이의 합 = 옛 도형(바깥 테두리 불변)', Math.abs(area(rw) + area(re) - area(old)) < 1e-4, [area(rw), area(re), area(old)]);
         ok('남서쪽이 더 크다', area(rw) > area(re));
         ok('도형이 닫혀 있다', key(rw[0]) === key(rw[rw.length - 1]) && key(re[0]) === key(re[re.length - 1]));
-        ok('새 구역코드는 지어내지 않는다(빈 값)', fw.properties.WarnCode === '' && fe.properties.WarnCode === '');
+        ok('새 도형의 구역코드 = 기상청 회신 코드(남서쪽 S1324220 · 남동쪽 S1324120)', fw.properties.WarnCode === 'S1324220' && fe.properties.WarnCode === 'S1324120');
         // 부이 소속(사용자: 부이의 경위도로 다시 매핑) — client/buoyLocations.js 좌표
         const bl = fs.readFileSync(path.join(__dirname, '..', '..', 'client', 'buoyLocations.js'), 'utf8');
         const lonOf = (id) => +((bl.match(new RegExp('"' + id + '":\\s*\\{[^}]*lon:\\s*([0-9.]+)')) || [])[1]);
