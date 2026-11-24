@@ -9,6 +9,7 @@
     "tide.js",
     "tide_calendar.js",
     "seaZonesData.js",
+    "zone_split.js",
     "zoneOverlayConfig.js",
     "gridCalibrationData.js",
     "fix_popup_logic.js",

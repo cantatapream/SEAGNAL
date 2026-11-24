@@ -357,7 +357,8 @@ router.post('/api/push-custom', requireAdminOrInternal, async (req, res) => {
                 } else {
                     // [기존 커스텀 모드]
                     const sendAll = sendToAllSubscribers || targetZones.includes('전체 해역') || targetZones.includes('전체해역') || targetZones.includes('구독자 전원');
-                    const zoneList = sendAll ? [] : targetZones.split(',').map(z => z.trim());
+                    // [구역 분할 2026-11-26] 대상에 옛 이름을 적어도 전환 뒤에는 새 두 구역으로 본다(구독 쪽 expandToMinorZones 와 같은 규칙)
+                    const zoneList = sendAll ? [] : require('../config/zone_split').splitNames(targetZones.split(',').map(z => z.trim()));
 
                     if (sendAll || (user.options && user.options.target === 'all')) {
                         shouldSend = true;

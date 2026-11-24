@@ -7,6 +7,7 @@
  * 실제 함수(push_sender.processChanges → 보내는 내용 → routes/push.js 와 같은 generateMessage)를 돌리고, 서버로 보내는 순간만 가로챈다(네트워크 없음).
  */
 'use strict';
+require('../config/zone_split')._forceForTest(false);   // 2026-11-26 구역 분할 전 기준으로 고정 — 이 검사는 옛 이름(제주도남쪽바깥먼바다)을 쓴다. 전환 뒤 동작은 test_zone_split 이 본다(시각 의존 금지)
 const Module = require('module');
 const sent = [];
 const fakeFetch = async (url, o) => { sent.push(JSON.parse(o.body)); return { ok: true, status: 200, json: async () => ({ success: true, successCount: 0 }), text: async () => '' }; };

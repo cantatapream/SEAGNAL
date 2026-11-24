@@ -164,11 +164,10 @@ function createZoneStructure() {
                 "제주도남부앞바다": { current: null, upcoming: null, history: [], children: { "제주도남부앞바다중연안바다": null } },
                 "제주도서부앞바다": { current: null, upcoming: null, history: [], children: { "제주도서부앞바다중북서연안바다": null, "제주도서부앞바다중남서연안바다": null, "제주도서부앞바다중가파도연안바다": null } }
             },
-            "제주도먼바다": {
-                "제주도남쪽바깥먼바다": { current: null, upcoming: null, history: [], children: {} },
-                "제주도남동쪽안쪽먼바다": { current: null, upcoming: null, history: [], children: {} },
-                "제주도남서쪽안쪽먼바다": { current: null, upcoming: null, history: [], children: {} }
-            }
+            // [구역 분할 2026-11-26] 전환 뒤 옛 잎 1개 → 새 잎 2개(config/zone_split.js — marine_warning_crawler._createZoneSkeleton 과 같게)
+            "제주도먼바다": Object.assign({},
+                ...require('./config/zone_split').splitNames(["제주도남쪽바깥먼바다", "제주도남동쪽안쪽먼바다", "제주도남서쪽안쪽먼바다"])
+                    .map((n) => ({ [n]: { current: null, upcoming: null, history: [], children: {} } })))
         }
     };
 }
