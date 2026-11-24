@@ -10,8 +10,11 @@
  *   임의항(ok)  : TideBED 가 응답에 준 기준 표준항·조시차·보정식으로 **계산** —
  *                 시각 = 기준항 시각 + shiftMin 분, 높이 = round(a × 기준항 높이 + b)  (a·b = 12일 보정식의 중앙값).
  *                 밀린 시각이 자정을 넘으면 그 날짜로 옮긴다(그래서 기준항의 앞뒤 하루 _edge.csv 가 있으면 쓴다).
- *   동해북부 · 격자 없음 · 기준항을 못 찾음 : 지금 앱 방식 — 자료 있는 가까운 표준항 3곳을 거리 제곱 반비례로 섞는다
+ *   동해북부(위도≥36·경도≥128) : 지금 앱 방식 — 자료 있는 가까운 표준항 3곳을 거리 제곱 반비례로 섞는다
  *                 (client/tide.js findNearestStationsWithData → interpolateTideByIDW 를 **그대로 옮겼다**. 고치면 거기와 함께).
+ *   그 밖에 TideBED 로 못 만드는 임의항(격자 없음 · 기준항을 못 찾음 · 기준항이 날짜마다 바뀜) : **만들지 않는다**(method '없음').
+ *                 사용자 확정 2026-11-24: 「동해 36도 이북 해역에 대해서만 3곳 보정하고 나머지 위치(표준항을 제외한 임의항)에 대해서는
+ *                 보간법을 사용하지 말도록 해줘.」
  *
  * [쓰는 법]
  *   node local_server/scripts/build_tide_points_year.js 2027            # 계산·대조만(보고서만 쓴다)
@@ -204,9 +207,9 @@ function main() {
             method = 'tidebed계산'; ref = v.ref; shiftMin = v.shiftMin;
             const code = nameToCode.get(norm(v.ref));
             const ev = code && loadStd(code);
-            if (!code) { method = '표준항3곳'; note = `기준항 「${v.ref}」을 표준항 목록에서 못 찾음`; }
+            if (!code) { method = '없음'; note = `기준항 「${v.ref}」을 표준항 목록에서 못 찾음`; }
             else if (!ev) note = '기준 표준항 자료 대기';
-            else if (v.refChanged) { method = '표준항3곳'; note = '날짜에 따라 기준항·조시차가 바뀜'; }
+            else if (v.refChanged) { method = '없음'; note = '날짜에 따라 기준항·조시차가 바뀜'; }
             else {
                 const fits = Object.values(v.days).map(d => d.fit);
                 const a = median(fits.map(f => f.a)), b = median(fits.map(f => f.b));
@@ -220,12 +223,15 @@ function main() {
                     cmp.dMin = Math.max(cmp.dMin, c.dMin); cmp.dCm = Math.max(cmp.dCm, c.dCm); cmp.unmatched += c.unmatched; cmp.n += c.n;
                 }
             }
+        } else if (p.kind === '동해북부') {
+            method = '표준항3곳'; note = '동해 36도 이북(TideBED 미제공)';
         } else {
-            method = '표준항3곳';
-            note = p.kind === '동해북부' ? '동해 36도 이북(TideBED 미제공)' : (v && v.status === 'no_grid' ? 'TideBED 격자 없음(둘레에도 없음)' : 'TideBED 자료 불완전');
+            // 표준항 3곳 섞기는 동해 36도 이북에만 쓴다(사용자 확정 2026-11-24) — 그 밖의 임의항은 TideBED 로 못 만들면 자료를 만들지 않는다.
+            method = '없음';
+            note = v && v.status === 'no_grid' ? 'TideBED 격자 없음(둘레에도 없음)' : 'TideBED 자료 불완전';
         }
         if (method === '표준항3곳') { const r = rowsByIDW(p.lat, p.lon); rows = r.rows; ref = r.used.join('·'); }
-        bump(rows ? method : '대기');
+        bump(method === '없음' ? '자료 없음(만들지 않음)' : rows ? method : '대기');
         index.push({ id: +p.id, name: p.name, region: p.region, lat: p.lat, lon: p.lon, method, ref, shiftMin, ready: !!rows, note });
         if (cmp) detail.push({ id: +p.id, name: p.name, region: p.region, ref, shiftMin, ...cmp });
         if (WRITE && rows) fs.writeFileSync(path.join(PD, 'p', p.id + '.json'), JSON.stringify({ id: +p.id, name: p.name, year: +YEAR, method, ref, rows }));
