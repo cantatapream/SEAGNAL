@@ -1,11 +1,10 @@
 {
- "ran_at": "2026-11-21 03:13 KST",
- "source": "인계문 /tmp/claude-0/-home-user-SEAGNAL/23ebc27e-4cf2-5331-afe1-5a92b555b738/scratchpad/brief.md",
+ "ran_at": "2026-11-24 03:13 KST",
+ "source": "인계문 /tmp/claude-0/-home-user-SEAGNAL/f2d973ce-ec3e-586b-8853-1ac787114908/scratchpad/brief.md",
  "summary": {
   "행정규칙": {
-   "보류": 5,
-   "수집": 3,
-   "이미 현행": 2
+   "보류": 3,
+   "수집": 2
   }
  },
  "results": [
@@ -24,22 +23,6 @@
    "status": "보류(시행 전 20270101 — 그날 뒤에 다시 돌린다)"
   },
   {
-   "id": "chg_20261121_cbd062",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "국립수산과학원 수산과학조사선 관리운영지침",
-   "status": "보류(관련 법 8개 — 둘 폴더를 사람이 정한다: --place chg_20261121_cbd062=<법slug>)",
-   "note": "선박법 · 선박직원법 · 선원법 · 어선법 · 어촌ㆍ어항법 · 항만법 · 해상교통안전법 · 해양환경관리법"
-  },
-  {
-   "id": "chg_20261121_bab226",
-   "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "수산자원의 이식승인 기준",
-   "status": "수집",
-   "note": "옛 판번호 2100000259134 로 찾은 1파일 — 갱신 local_server/knowledge/legal/raw/05_수산어업/수산자원관리법/행정규칙/수산자원의이식승인기준.txt · 별표: 새로썼다 1, 새판에없음 1"
-  },
-  {
    "id": "chg_20261121_5b4cdf",
    "kind": "admrul_unknown_new",
    "layer": "행정규칙",
@@ -47,44 +30,20 @@
    "status": "보류(시행 전 20270220 — 그날 뒤에 다시 돌린다)"
   },
   {
-   "id": "chg_20261121_eadc69",
-   "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "(낙동강유역환경청)공공폐수처리시설 기본계획 통합 고시",
-   "status": "이미 현행",
-   "note": "1파일"
-  },
-  {
-   "id": "chg_20261121_06ee90",
+   "id": "chg_20261124_e5266d",
    "kind": "admrul_unknown_new",
    "layer": "행정규칙",
-   "title": "환경성적표지 작성지침",
-   "status": "보류(관련 법 2개 — 둘 폴더를 사람이 정한다: --place chg_20261121_06ee90=<법slug>)",
-   "note": "물환경보전법 · 폐기물관리법"
-  },
-  {
-   "id": "chg_20261121_3e0978",
-   "kind": "admrul_unknown_new",
-   "layer": "행정규칙",
-   "title": "수열에너지의 범위 지정에 관한 고시",
+   "title": "환경유해인자 시험·검사기관의 지정 등에 관한 규정",
    "status": "수집",
-   "note": "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법/행정규칙/수열에너지의범위지정에관한고시.txt · 별표: 별표없음 1"
+   "note": "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/행정규칙/환경유해인자시험·검사기관의지정등에관한규정.txt · 별표: 새로썼다 12"
   },
   {
-   "id": "chg_20261121_04efd3",
-   "kind": "admrul_amended",
-   "layer": "행정규칙",
-   "title": "(평택해양경찰서) 유선ㆍ도선 및 유선장ㆍ도선장 게시사항 및 게시장소에 관한 고시",
-   "status": "이미 현행",
-   "note": "1파일"
-  },
-  {
-   "id": "chg_20261121_014d7f",
+   "id": "chg_20261124_e2180c",
    "kind": "admrul_unknown_new",
    "layer": "행정규칙",
-   "title": "전통식품품질·식품의 산업표준(KS) 인증기관 지정 관리 및 인증품 관리 요령",
+   "title": "해양경찰청 연구개발사업 운영규칙",
    "status": "수집",
-   "note": "local_server/knowledge/legal/raw/12_수산물유통/농수산물품질관리법/행정규칙/전통식품품질·식품의산업표준(KS)인증기관지정관리및인증품관리요령.txt · 별표: 새로썼다 19"
+   "note": "local_server/knowledge/legal/raw/02_해양경비구조/해양경찰법/행정규칙/해양경찰청연구개발사업운영규칙.txt · 별표: 새로썼다 2"
   }
  ]
 }

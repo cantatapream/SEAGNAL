@@ -2583,6 +2583,9 @@
  "해양경찰청명예해양환경감시원운영규칙.txt": [
   "local_server/knowledge/legal/raw/07_해양환경생태/해양환경관리법"
  ],
+ "해양경찰청연구개발사업운영규칙.txt": [
+  "local_server/knowledge/legal/raw/02_해양경비구조/해양경찰법"
+ ],
  "해양경찰청함정내구연한에관한규칙.txt": [
   "local_server/knowledge/legal/raw/02_해양경비구조/해양경비법"
  ],
@@ -2843,6 +2846,9 @@
   "local_server/knowledge/legal/raw/15_관련타부처/물환경보전법"
  ],
  "환경오염물질배출시설등에관한통합지도·점검규정.txt": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
+ ],
+ "환경유해인자시험·검사기관의지정등에관한규정.txt": [
   "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법"
  ],
  "훈련기록부에관한규정.txt": [
