@@ -2219,15 +2219,24 @@ function getLunarDate(year, month, date) {
         2024: { solar: new Date(2024, 1, 10), lunarYear: 2024 },
         2025: { solar: new Date(2025, 0, 29), lunarYear: 2025 },
         2026: { solar: new Date(2026, 1, 17), lunarYear: 2026 },
-        2027: { solar: new Date(2027, 1, 6), lunarYear: 2027 },
-        2028: { solar: new Date(2028, 0, 26), lunarYear: 2028 },
+        // [2026-11-24 바로잡음] 우리나라 음력의 초하루 = 삭(달이 안 보이는 순간)이 든 **한국 날짜**다.
+        //   2027년 삭 2월 7일 00:56 · 2028년 삭 1월 27일 00:12(서울 시각 — timeanddate.com 서울 달 위상표로 대조).
+        //   종전 값(2월 6일·1월 26일)은 자정을 한 시간 앞선 중국 시각 기준 날짜였다.
+        2027: { solar: new Date(2027, 1, 7), lunarYear: 2027 },
+        2028: { solar: new Date(2028, 0, 27), lunarYear: 2028 },
     };
 
     const lunarMonthDays = {
         2024: [30, 29, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29],
         2025: [30, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29],
-        2026: [30, 29, 30, 30, 29, 30, 29, 29, 30, 29, 30, 29],
-        2027: [30, 29, 30, 29, 30, 30, 29, 30, 29, 30, 29, 30],
+        // [2026-11-24 바로잡음] 서울 시각 삭 날짜로 다시 셌다(timeanddate.com 서울 달 위상표):
+        //   2026: 2/17 · 3/19 · 4/17 · 5/17 · 6/15 · 7/14 · 8/13 · 9/11 · 10/11 · 11/9 · 12/9 · (2027)1/8 · 2/7
+        //   2027: 2/7 · 3/8 · 4/7 · 5/6 · 6/5 · 7/4 · 8/2 · 9/1 · 9/30 · 10/29 · 11/28 · 12/28 · (2028)1/27
+        //   종전 2026 값 [30,29,30,30,29,30,29,29,30,29,30,29] 은 5~8월·10월 초하루가 하루 늦어, 예를 들어
+        //   2026-11-27 이 음력 10월 18일로 나왔다(삭이 11월 9일 16:02 이므로 10월 19일이 맞다).
+        //   ⚠2025 이전·2028 이후 줄은 이번에 대조하지 않았다(2028 은 달 길이 표가 없어 어림 길이를 쓴다).
+        2026: [30, 29, 30, 29, 29, 30, 29, 30, 29, 30, 30, 30],
+        2027: [29, 30, 29, 30, 29, 29, 30, 29, 29, 30, 30, 30],
     };
 
     const leapMonths = { 2025: 6 };
@@ -2422,93 +2431,48 @@ function isWestSea(lat, lon) {
 }
 
 /**
- * 음력(월령) 기반 물때(만조·간조 강도) 계산 — 바다타임과 동일 방식.
- * SunCalc 월령으로 가장 가까운 조금(neap) 까지의 거리로 물때 결정.
+ * 음력 날짜 기준 물때 — 물때표와 같은 방식(2026-11-24 월령·반올림 방식에서 바꿈. 까닭은 함수 안 첫 주석).
+ * 같은 날짜면 시각과 무관하게 같은 값이다. 예: computeMulddae(null,null,null,null,new Date(2026,10,30),35,129.3) → { label:'13물' }
  *
  * [반환] { mul, name, descr } — 1~15 사이 정수 + "조금"/"한사리" 등 명칭.
  * [연계] 조석 팝업 카드 + 어업 정보 표출.
  */
 function computeMulddae(todayPeaks, yesterdayPeaks, tomorrowPeaks, tideBedDataRow, dateObj, lat, lon) {
-    // ── 음력(월령) 기반 물때 계산 ─────────────────────────────────────────
-    // 바다타임과 동일한 방식: SunCalc 월령으로 가장 가까운 조금까지의
-    // 거리를 구하여 물때 번호를 산출한다.
-    //
-    // 물때 주기 구조 (한 반주기 ≈ 14.77일):
-    //   조금(15물) → 1물 → ... → 7물 → 8물(한사리) → 9물 → ... → 14물 → 조금
-    //
-    // 조금 기준점: 상현 직후 ≈ 월령 7.38일, 하현 직후 ≈ 월령 22.14일
-    // ─────────────────────────────────────────────────────────────────────
+    // ── 음력 날짜 기준 물때 (2026-11-24 바꿈) ─────────────────────────────
+    // 사용자: 「12물에서 갑자기 14물로 점프」「날짜를 변경하지 않았음에도 불구하고 왔다 갔다」 → (제안: 음력 날짜 기준) 「추천대로」
+    // 종전에는 달 모양(월령, SunCalc)에서 "조금까지 며칠"을 재 0.984일 한 칸으로 반올림했다. 그 방식은
+    //   ① 월령이 하루에 딱 한 칸씩 늘지 않아(하루 1.1 까지) 한 칸을 건너뛰고(화면의 12물 → 14물),
+    //   ② 넘겨받은 **시각**까지 계산에 들어가 같은 날에도 바뀌었다(예: 2026-11-30 0~9시 13물, 9시부터 14물).
+    // 이제는 물때표가 쓰는 방식 그대로 **음력 날짜**로 정한다 — 같은 날이면 시각과 무관하게 늘 같다.
+    //   남해·동해(8물때식): 음력 1일·16일 = 8물, 8일·23일 = 조금, 9일·24일 = 1물 …  → (음력일 + 7) % 15, 0 이면 조금
+    //   서해(7물때식)      : 남해보다 한 칸 늦고 조금 다음 날이 무시  → 1일·16일 = 7물, 8일·23일 = 조금, 9일·24일 = 무시, 10일·25일 = 1물
+    //   (작은달 29일 다음 초하루로 넘어갈 때 한 칸이 빠지는 것은 음력 물때표의 원래 성질이다)
+    // ─────────────────────────────────────────────────────────────
 
-    if (!dateObj || typeof SunCalc === 'undefined') return null;
+    if (!dateObj || typeof getLunarDate !== 'function') return null;
 
     try {
-        // 1. SunCalc으로 월령(lunar age) 산출 (0 ~ 29.53일)
-        var moonIllum = SunCalc.getMoonIllumination(dateObj);
-        var lunarAge  = moonIllum.phase * 29.53;
+        // 1. 그 날짜의 음력 일(1~30) — 시각은 쓰지 않는다
+        var lm = /(\d+)월\s+(\d+)일$/.exec(getLunarDate(dateObj.getFullYear(), dateObj.getMonth() + 1, dateObj.getDate()) || '');
+        var lunarDay = lm ? parseInt(lm[2], 10) : NaN;
+        if (!(lunarDay >= 1 && lunarDay <= 30)) return null;
 
-        // 2. 조금 기준점 목록 (상현 후·하현 후)
-        var JOGEOM_POINTS = [7.38, 22.14];
-        var HALF_CYCLE    = 14.765;          // 29.53 / 2 (반주기, 일)
-        var STEP_SIZE     = HALF_CYCLE / 15; // 물때 1단계 ≈ 0.984일
-
-        // 3. 가장 가까운 조금까지의 부호 있는 거리 계산
-        //    양수: 조금 이후(사리 방향), 음수: 조금 이전(한사리→조금 방향)
-        var nearestDist = null;
-        JOGEOM_POINTS.forEach(function(jp) {
-            var d = lunarAge - jp;
-            // 29.53일 주기로 정규화 → [-HALF_CYCLE, +HALF_CYCLE] 범위
-            while (d >  HALF_CYCLE) d -= 29.53;
-            while (d < -HALF_CYCLE) d += 29.53;
-            if (nearestDist === null || Math.abs(d) < Math.abs(nearestDist)) {
-                nearestDist = d;
-            }
-        });
-
-        if (nearestDist === null) return null;
-
-        // 4. 물때 단계(step) 계산
-        //    step 범위: -7(한사리) ~ 0(조금) ~ +7(한사리 직전)
-        var step = Math.round(nearestDist / STEP_SIZE);
-        step = Math.max(-7, Math.min(7, step));
-
-        // 5. 물때 번호 결정
-        //    남해/동해 기준 (공통):
-        //      step =  0       → 15 (조금)
-        //      step =  1 ~  7  → 1물 ~ 7물  (조금 후, 사리 방향)
-        //      step = -1 ~ -7  → 14물 ~ 8물 (사리 후, 조금 방향)
-        //    서해 보정 (-1 shift, 무시 포함):
-        //      step =  0       → 조금 (동일)
-        //      step =  1       → 무시 (조류 극히 약해 조업 의미 없는 날)
-        //      step =  2 ~  7  → 1물 ~ 6물
-        //      step = -1 ~ -7  → 13물 ~ 7물
+        // 2. 남해·동해 번호(0 = 조금)
+        var n = (lunarDay + 7) % 15;
         var westSea = isWestSea(lat, lon);
         var number, label;
-
-        if (step === 0) {
-            // 조금: 서해/남해 동일
-            number = 15;
-            label  = '조금';
+        if (n === 0) {
+            number = 15; label = '조금';
         } else if (westSea) {
-            // ── 서해 사이클 (무시 포함) ────────────────────────────────
-            if (step === 1) {
-                number = 0;
-                label  = '무시';                   // 조금 다음날 = 조류 극소
-            } else if (step > 1) {
-                number = step - 1;                 // 2→1물, 3→2물, ..., 7→6물
-                label  = number + '물';
-            } else {
-                number = 14 + step;                // -1→13물, -2→12물, ..., -7→7물
-                label  = number + '물';
-            }
+            if (n === 1) { number = 0; label = '무시'; }          // 조금 다음 날
+            else { number = n - 1; label = number + '물'; }       // 남해보다 한 칸 늦다
         } else {
-            // ── 남해/동해 사이클 (표준) ───────────────────────────────
-            if (step > 0) {
-                number = step;                     // 1물 ~ 7물
-            } else {
-                number = 15 + step;                // 8물 ~ 14물
-            }
-            label = number + '물';
+            number = n; label = n + '물';
         }
+
+        // 디버그용 월령(달 모양) — 계산에는 쓰지 않는다
+        var lunarAge = (typeof SunCalc !== 'undefined') ? SunCalc.getMoonIllumination(dateObj).phase * 29.53 : NaN;
+        var nearestDist = (n >= 1 && n <= 7) ? 1 : -1;            // 조금 → 사리로 커지는 구간(1~7물)이면 +
 
         // 6. 결과 반환
         var direction = nearestDist >= 0 ? 'rising' : 'falling'; // 사리 방향 or 조금 방향
@@ -2517,6 +2481,7 @@ function computeMulddae(todayPeaks, yesterdayPeaks, tomorrowPeaks, tideBedDataRo
             label:     label,       // '7물', '조금', '무시' 등 화면 표시 문자열
             direction: direction,
             westSea:   westSea,     // 디버그용 해역 구분
+            lunarDay:  lunarDay,    // 음력 일 — 물때를 정한 값
             lunarAge:  Math.round(lunarAge * 10) / 10  // 디버그용 월령(일)
         };
 

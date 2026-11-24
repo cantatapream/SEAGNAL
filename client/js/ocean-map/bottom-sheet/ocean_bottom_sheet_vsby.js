@@ -184,6 +184,8 @@
         }
 
         var token = ++_fetchToken;
+        // 받는 중 표시 — 시트 높이를 붙잡는 쪽(5.js holdSheetHeight)이 「시정이 아직 안 왔다」를 알 수 있게(2026-11-24. 받는 동안 칸이 숨어 있다)
+        if (OS.state) OS.state._vsbyPending = true;
         var url = '/api/vsby-smallzone/point?lat=' + encodeURIComponent(lat) +
                   '&lon=' + encodeURIComponent(lon);
 
@@ -191,6 +193,7 @@
             .then(function (r) { return r.json(); })
             .then(function (res) {
                 if (token !== _fetchToken) return;     // 더 새 fetch 가 시작됨 → 무시
+                if (OS.state) OS.state._vsbyPending = false;
                 if (!res || res.success !== true || !Array.isArray(res.series) || !res.series.length) {
                     _cacheKey = null; _cacheSeries = null;
                     _setValue('정보 없음');
@@ -202,6 +205,7 @@
             })
             .catch(function () {
                 if (token !== _fetchToken) return;
+                if (OS.state) OS.state._vsbyPending = false;
                 _cacheKey = null; _cacheSeries = null;
                 _setValue('정보 없음');
             });
@@ -210,5 +214,6 @@
     /** [공개 API] 진행 중 fetch 무효화 (시트 닫힐 때). 카드 DOM/캐시 는 그대로 둠. */
     OS.hideVsbyCard = function () {
         _fetchToken++;
+        if (OS.state) OS.state._vsbyPending = false;
     };
 })();

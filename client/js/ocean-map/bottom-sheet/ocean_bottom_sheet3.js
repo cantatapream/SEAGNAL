@@ -48,6 +48,10 @@
 
     var POLL_INTERVAL_MS = 500;
     var POLL_MAX_TRIES = 120; // 60초
+    // 조석 칸은 3일치(어제·오늘·내일)가 다 모인 뒤 한 번만 그린다. 이 시간이 지나도 덜 모였으면 받은 것으로 먼저 한 번 보여 준다
+    //   (2026-11-24 — 재어 보니 오늘 것은 약 1.8초에 오는데 어제·내일이 6초 넘게 걸리는 날이 있어, 6초로 두면 칸이 너무 늦게 뜬다.
+    //    2.5초 안에 다 모이면 한 번, 아니면 2.5초에 받은 것으로 한 번 + 다 모였을 때 내용이 달라진 경우에만 한 번 더).
+    var TIDE_WAIT_ALL_MS = 2500;
 
     /* --------------------------------------------------------------
      * ❷ 첫 렌더 성공 플래그 — 폴링 중 'error' 응답으로 카드 사라짐 방지.
@@ -471,6 +475,19 @@
      *   동일 (lat, lon, dayKey) 조합이 캐시되어 있으면 즉시 renderTideData 만
      *   호출하고 API 호출은 skip. neighbors (어제/내일 데이터) 도 캐시에서 조합.
      * ------------------------------------------------------------ */
+    /**
+     * 이 조석 요청이 낡았는가 — 요청한 뒤 사용자가 다른 날짜나 다른 지점으로 옮겼으면 true.
+     * 예: 11월 25일 자료를 받는 중에 [다음 날]을 눌러 26일을 보고 있다 → 25일 요청은 true(그리지 않는다)
+     * @param {number} lat @param {number} lon @param {Date} dateObj 요청할 때의 지점·날짜 @returns {boolean}
+     * [연계] ← fetchTideForSheet 의 폴링·동해 보간 응답
+     */
+    function isStaleTideRequest(lat, lon, dateObj) {
+        var st = OS.state || {};
+        var sheet = document.getElementById('ocean-bottom-sheet');
+        if (!st.date || !sheet || !sheet.classList.contains('open')) return true;   // 시트가 닫혔다
+        return st.lat !== lat || st.lon !== lon || dayKeyOf(st.date) !== dayKeyOf(dateObj);
+    }
+
     OS.fetchTideForSheet = function (lat, lon, dateObj) {
         // 캐시 hit — API 호출 없이 즉시 렌더
         var key = dayKeyOf(dateObj);
@@ -497,6 +514,7 @@
         // 동해북부 우회 (4.js)
         if (lat >= 36 && lon >= 128 && typeof OS.tryEastSeaIdw === 'function') {
             OS.tryEastSeaIdw(lat, lon, dateObj, function (result, errMsg) {
+                if (isStaleTideRequest(lat, lon, dateObj)) return;   // 그 사이 다른 날짜·지점으로 옮겼다
                 if (result && result.today) {
                     OS.renderTideData(result.today, /*isIdw=*/true, dateObj, {
                         yesterday: result.yesterday,
@@ -584,6 +602,11 @@
         function pollThreeDayFiles(files, dateObj) {
             var tries = 0;
             var collected = { yesterday: null, today: null, tomorrow: null };
+            // [2026-11-24 한 번만 그리기] 사용자 「로딩이 완벽하게 되지 않았음에도 로딩된 데이터부터 표출하려고 하는 것 때문에 …
+            //   버벅이, 깜빡임, 내용의 변경이 반복」. 종전에는 오늘 임시 결과가 오자마자 그리고, 어제·내일·최종 결과가 올 때마다
+            //   칸을 통째로 다시 그렸다(전일 대비 값·시각·줄 수가 그때마다 바뀜). 이제는 3일치가 다 모이고 오늘 것이 최종일 때
+            //   한 번 그린다. 그때까지는 「불러오는 중」 그대로. 다만 너무 늦으면(TIDE_WAIT_ALL_MS) 받은 것으로 먼저 한 번 보여 준다.
+            var startedAt = Date.now(), shownEarly = false;
 
             // 단일 파일 폴링.
             // 인정 상태:
@@ -618,8 +641,13 @@
             }
 
             (function loop() {
+                // 그 사이 사용자가 다른 날짜·다른 지점으로 옮겼으면 이 요청은 버린다(2026-11-24).
+                //   종전에는 이전 날짜의 폴링이 계속 돌다가 늦게 도착한 자료로 **지금 보고 있는 날짜의 칸을 덮어썼다** —
+                //   날짜를 안 바꿨는데 물때·시각이 이전 날 것으로 돌아갔다 다시 바뀌는 「왔다 갔다」의 한 원인(화면에서 재현: 음력 18일에 9물).
+                if (isStaleTideRequest(lat, lon, dateObj)) return;
                 Promise.all([fetchOne('yesterday'), fetchOne('today'), fetchOne('tomorrow')])
                     .then(function () {
+                        if (isStaleTideRequest(lat, lon, dateObj)) return;
                         // ❷ today 가 'error' 라도 이미 첫 렌더 성공했으면 무시
                         // (폴링 재 fetch 중 server padded 빈 결과로 'error' 덮어쓰기 보호).
                         if (collected.today && collected.today.tideBedStatus === 'error') {
@@ -631,14 +659,6 @@
                             return;
                         }
                         if (collected.today) {
-                            // 오늘 데이터 + 현재까지 모인 이웃 데이터로 렌더
-                            OS.renderTideData(collected.today, /*isIdw=*/false, dateObj, {
-                                yesterday: collected.yesterday,
-                                tomorrow: collected.tomorrow,
-                                lat: lat, lon: lon   // 서해 판별용 좌표 전달
-                            });
-                            // ❷ 첫 렌더 성공 마킹
-                            _tideFirstRenderSucceeded = true;
                             // 추가 폴링이 필요한 조건:
                             //   - today 가 'complete-quick' (이웃 도착 후 final 'complete' 기다림)
                             //   - 또는 yesterday/tomorrow 미도착
@@ -647,6 +667,19 @@
                                 || !collected.yesterday
                                 || !collected.tomorrow
                             );
+                            var lastTry = (tries + 1) >= POLL_MAX_TRIES;
+                            // 그리는 때: ①다 모였다(끝) ②더 못 기다린다(마지막 시도) ③너무 늦어 받은 것으로 먼저 한 번
+                            var early = stillPolling && !lastTry && !shownEarly && (Date.now() - startedAt) >= TIDE_WAIT_ALL_MS;
+                            if (!stillPolling || lastTry || early) {
+                                if (early) shownEarly = true;
+                                OS.renderTideData(collected.today, /*isIdw=*/false, dateObj, {
+                                    yesterday: collected.yesterday,
+                                    tomorrow: collected.tomorrow,
+                                    lat: lat, lon: lon   // 서해 판별용 좌표 전달
+                                });
+                                // ❷ 첫 렌더 성공 마킹
+                                _tideFirstRenderSucceeded = true;
+                            }
                             if (stillPolling && ++tries < POLL_MAX_TRIES) {
                                 setTimeout(loop, POLL_INTERVAL_MS);
                             }
@@ -863,10 +896,18 @@
         var card = document.getElementById('ocean-card-tide');
         if (!card) return;
         card.style.display = '';
+        card.__tideHtml = null;      // 조석 내용이 아닌 것을 그렸다 — 다음 renderTideData 는 반드시 다시 끼운다
+        // 물때는 날짜(음력)만으로 정해지므로 조석 자료를 기다리지 않고 바로 보여 준다 — 나중에 칸이 그려져도 같은 글자다(2026-11-24)
+        var loadingMul = '';
+        try {
+            var mi = (typeof computeMulddae === 'function' && OS.state && OS.state.date)
+                ? computeMulddae(null, null, null, null, OS.state.date, OS.state.lat, OS.state.lon) : null;
+            if (mi) loadingMul = '<span class="ocean-tide-mulddae-badge">(' + mi.label + ')</span>';
+        } catch (e) { loadingMul = ''; }   // 물때를 못 구해도 로딩 표시는 그대로 띄운다
         card.innerHTML =
             '<div class="ocean-tide-wrap">' +
               '<div class="ocean-tide-title-row">' +
-                '<div class="ocean-tide-title"><i class="fa-solid fa-water"></i> 조석</div>' +
+                '<div class="ocean-tide-title"><i class="fa-solid fa-water"></i> 조석' + loadingMul + '</div>' +
               '</div>' +
               '<div class="ocean-tide-loading">' +
                 '<div class="ocean-tide-spinner"></div>' +
@@ -950,7 +991,7 @@
         }
 
         card.style.display = '';
-        card.innerHTML =
+        var tideHtml =
             '<div class="ocean-tide-wrap">' +
               '<div class="ocean-tide-title-row">' +
                 '<div class="ocean-tide-title"><i class="fa-solid fa-water"></i> 조석' +
@@ -961,6 +1002,11 @@
               headHtml +
               peaksHtml +
             '</div>';
+        // 내용이 같으면 칸을 갈아 끼우지 않는다 — 같은 그림을 다시 끼우는 것만으로도 깜빡인다(2026-11-24)
+        if (card.__tideHtml !== tideHtml || !card.firstChild) {
+            card.innerHTML = tideHtml;
+            card.__tideHtml = tideHtml;
+        }
 
         // [멀티 데이 캐시 저장 — 2026-05]
         // 같은 해점에서 방문한 모든 날짜를 누적 보관.
@@ -1047,6 +1093,9 @@
     OS.refreshTideGaugeForTime = function (sheetDate) {
         var renderState = OS.state && OS.state._tideRenderState;
         if (!renderState) return false;
+        // 게이지만 고쳐 그리면 칸 안 내용이 마지막으로 끼운 것과 달라진다 — 다음 renderTideData 가 「같은 내용」으로 보고 건너뛰지 않게 표시를 지운다
+        var gaugeCard = document.getElementById('ocean-card-tide');
+        if (gaugeCard) gaugeCard.__tideHtml = null;
 
         // [좌표 일치 검증] 다른 좌표로 시트 재오픈된 직후 슬라이더 release 시
         // 이전 좌표의 stale peaks 로 게이지 표시되지 않도록 차단.
