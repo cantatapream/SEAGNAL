@@ -3321,6 +3321,29 @@ function _newCodeInZoneList() {
     return _splitZoneList.code;
 }
 
+/**
+ * [구역 분할] 통보문이 새 두 구역 이름으로 특보·예비특보를 내기 시작했나 — 방재기상플랫폼 통보문(services/bulletin_watch)의 **구역 칸**만 본다.
+ *   사용자 2026-11-24 「변경시점에 추가로 통보문에서 그렇게 나누어서 발표하는 시점도 포함하면 될것같은데」.
+ *   보는 칸: 특보 통보문(rpt 6)의 해당 구역(t2)·발효 현황(t6), 예비특보 통보문(rpt 7)의 목록(t4). 참고사항·날씨해설은 보지 않는다 —
+ *   「26일부터 … 남서쪽·남동쪽바깥먼바다로 나뉩니다」 같은 **예고 문장**에 새 이름이 먼저 나올 수 있어서다(그걸로 넘어가면 기상청보다 먼저 바뀐다).
+ *   통보문 수집이 꺼져 있거나 못 읽으면 「못 봤다」(null) — 다른 조건이 따로 있다.
+ * 예: 제주청 특보 통보문 t2 가 「(1) 풍랑주의보 발표 : 제주도남서쪽바깥먼바다」 → '제주도남서쪽바깥먼바다'
+ * @returns {string|null} 본 새 구역 이름(없으면 null)
+ * [연계] ← _observeZoneSplitCode(이 파일) / → services/bulletin_watch.bulletins
+ */
+function _newNameInBulletins() {
+    try {
+        const squash = (v) => String(v == null ? '' : v).replace(/<br\s*\/?>/gi, ' ').replace(/\s+/g, '');
+        for (const b of require('./services/bulletin_watch').bulletins()) {
+            const r = b && b.result; if (!r) continue;
+            const text = String(b.rpt) === '7' ? squash(r.t4) : squash(r.t2) + '|' + squash(r.t6);
+            const hit = ZONE_SPLIT.NEW.find((n) => text.includes(n));
+            if (hit) return hit;
+        }
+    } catch (e) { console.warn('[구역 분할] 통보문에서 새 구역 이름을 못 찾아봄(다음에 다시):', e && e.message); }
+    return null;
+}
+
 /** [구역 분할] 전환했을 때 관리자 휴대폰에 한 통 — 전환은 조용히 일어난다(화면·푸시 이름이 바뀐다). 사람이 알게 한다. [연계] ← _observeZoneSplitCode·_observeZoneSplitQuiet */
 function _notifyZoneSplit(reason) {
     Promise.resolve().then(() => require('./services/admin_push').sendAdminPush('🗺️ 제주 바깥먼바다 특보구역 전환됨',
@@ -3341,7 +3364,7 @@ function _observeZoneSplitCode(fetched) {
     if (ZONE_SPLIT.isActive()) return false;
     const rows = [].concat(fetched.warnList || [], fetched.warnReady || []);
     const inRows = Object.keys(ZONE_SPLIT.NEW_CODES).find((c) => rows.some((r) => r && r.warn_zone_cd === c)) || null;
-    const r = ZONE_SPLIT.observe({ newCodeSeen: inRows || _newCodeInZoneList() });
+    const r = ZONE_SPLIT.observe({ newCodeSeen: inRows || _newCodeInZoneList(), bulletinNewName: (inRows ? null : _newNameInBulletins()) });
     if (r.activated) _notifyZoneSplit(r.reason);
     return r.activated;
 }
@@ -4823,6 +4846,7 @@ module.exports = {
     _buildZoneTreeFromSnapshot,
     _foldOldSplitZone,            // [구역 분할] 검사용
     _observeZoneSplitCode,
+    _newNameInBulletins,
     _observeZoneSplitQuiet,
     _migrateSplitMemories,
     _writeWeatherAlertsJson,
