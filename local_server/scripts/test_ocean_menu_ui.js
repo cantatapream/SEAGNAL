@@ -431,7 +431,11 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
       // 종전에는 지도가 만들어지기를 6초만 기다리고 포기해, 다른 탭에 오래 있다 오면 두 손가락 회전이 살아 있었다(사용자 「고정이 풀리는경우가 있네?」)
       await load();
       assert.equal(await page.evaluate(() => !!(window.getOceanMap && window.getOceanMap())), false, '이 탭을 열기 전에는 지도가 없다(그래야 이 시험이 뜻이 있다)');
+      // 지도가 없는 동안에는 숨은 진북 버튼을 누르지 않는다 — 그 가짜 누름이 문서까지 올라가 특보정보 탭의 하위탭 줄을 닫았다
+      //   (독립 검토 2026-11-24: 종전 3초에 18번. 해양종합정보를 열기 전에는 「해상일기도」 하위탭 줄이 계속 닫혔다)
+      await page.evaluate(() => { window.__northClicks = 0; document.getElementById('ocean-northup-btn').addEventListener('click', () => { window.__northClicks++; }); });
       await wait(7500);
+      assert.equal(await page.evaluate(() => window.__northClicks), 0, '지도가 생기기 전에는 진북 버튼을 한 번도 누르지 않는다');
       await tapOcean(1); await wait(2500);
       const r = await page.evaluate(() => { const m = window.getOceanMap(), b = document.getElementById('ocean-northup-btn'), v = m.getView();
         const rot = m.getInteractions().getArray().filter(i => i instanceof ol.interaction.PinchRotate || i instanceof ol.interaction.DragRotate).map(i => i.getActive());
@@ -439,9 +443,40 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
         return { locked: b.classList.contains('northup-locked'), rot, after, ls: localStorage.getItem('oceanMap.northUp.locked') }; });
       assert.equal(r.locked, true, JSON.stringify(r)); assert.ok(r.rot.length >= 1 && r.rot.every(x => x === false), '회전 손짓이 꺼져 있다 ' + JSON.stringify(r.rot));
       assert.equal(r.after, 0, '각도가 들어와도 곧바로 0'); assert.equal(r.ls, null, '고정은 저장하지 않는다');
-      // 다른 탭에 갔다 와도 그대로
+      // 다른 탭에 갔다 와도 그대로 — 진북 고정도, 켜 둔 기능도
+      //   (독립 검토에서 발견: 종전에는 특보정보 탭에 다녀오면 켜 둔 기상부이 등이 전부 꺼졌다 — life_safety.js 가 어느 탭에서 오든 「해양안전에서 켠 것 끄기」를 돌렸다)
+      await page.evaluate(() => { const b = document.getElementById('ocean-buoy-toggle-btn'); if (!b.classList.contains('active')) b.click(); }); await wait(700);
+      assert.equal(await page.evaluate(() => document.getElementById('ocean-buoy-toggle-btn').classList.contains('active')), true, '기상부이를 켰다');
       await page.evaluate(() => window.switchMainTab('weather-group')); await wait(500); await tapOcean(1); await wait(900);
       assert.equal(await page.evaluate(() => document.getElementById('ocean-northup-btn').classList.contains('northup-locked')), true);
+      assert.equal(await page.evaluate(() => document.getElementById('ocean-buoy-toggle-btn').classList.contains('active')), true, '특보정보 탭에 다녀와도 켜 둔 기상부이가 그대로다');
+      await page.evaluate(() => { const b = document.getElementById('ocean-buoy-toggle-btn'); if (b.classList.contains('active')) b.click(); }); await wait(300);
+    });
+    await check('[2026-11-24 다시 켬] 특보구역·현황을 켠 채 앱을 다시 켜면 선만이 아니라 현황 색칠도 함께 켜진다 · 배경은 해안도 · 끄면 원래 배경', async () => {
+      // 종전: 특보구역 버튼만 저장값으로 되살아나고 색칠 버튼은 꺼진 채였다(사용자 「그리기만 되어있고 특보 색칠이 안된채로」 — 새로고침으로 매번 재현)
+      await page.evaluate(() => localStorage.setItem('seagnal_warn_zone_visible', 'true'));
+      await load(); await tapOcean(1);
+      await page.waitForFunction(() => document.getElementById('ocean-warn-zone-toggle-btn').classList.contains('active'), null, { timeout: 15000 });
+      await wait(600);
+      // 이 시험 서버에는 특보 자료가 없어(/api 404) 색칠 버튼이 「특보 없음」으로 숨거나 잠겨 있다 — 자료가 막 도착한 것처럼 버튼을 보이게 하고 누름을 받게 한다
+      const r0 = await page.evaluate(() => { const a = document.getElementById('ocean-warn-active-toggle-btn'); return { on: a.classList.contains('active'), shown: a.style.display !== 'none' }; });
+      await page.evaluate(() => { const a = document.getElementById('ocean-warn-active-toggle-btn'); window.__healClicks = 0;
+        a.addEventListener('click', () => { window.__healClicks++; a.classList.add('active'); }, true); a.classList.remove('warn-active-disabled'); a.style.display = 'none'; });
+      await wait(200);
+      await page.evaluate(() => { document.getElementById('ocean-warn-active-toggle-btn').style.display = ''; });   // 버튼이 나타남 → 감시가 다시 불린다
+      await wait(900);
+      const r = await page.evaluate(() => ({ clicks: window.__healClicks, on: document.getElementById('ocean-warn-active-toggle-btn').classList.contains('active'), base: window.oceanGetBasemap() }));
+      assert.ok(r0.on || r.clicks === 1, '색칠 버튼을 한 번 대신 눌렀다 ' + JSON.stringify([r0, r])); assert.equal(r.on, true); assert.equal(r.base, 'coast', '배경은 해안도');
+      await wait(700); assert.ok((await page.evaluate(() => window.__healClicks)) <= 1, '되풀이해 누르지 않는다');
+      // 특보가 전부 해제돼 버튼이 사라졌다 다시 나타나면(다시 발효) 색칠도 다시 켠다 · 관리자 점검으로 막혀 있으면 켜지 않는다(독립 검토 2026-11-24)
+      await page.evaluate(() => { const a = document.getElementById('ocean-warn-active-toggle-btn'); a.classList.remove('active'); a.style.display = 'none'; }); await wait(250);
+      await page.evaluate(() => { document.getElementById('ocean-warn-active-toggle-btn').style.display = ''; }); await wait(900);
+      assert.equal(await page.evaluate(() => window.__healClicks), 2, '다시 나타나면 한 번 더 켠다');
+      await page.evaluate(() => { const a = document.getElementById('ocean-warn-active-toggle-btn'); a.classList.remove('active'); a.style.display = 'none'; localStorage.removeItem('seagnal_admin_mode'); window._blockedFeatures = ['ov-warn-zone', 'ov-warn-active']; }); await wait(250);
+      await page.evaluate(() => { document.getElementById('ocean-warn-active-toggle-btn').style.display = ''; }); await wait(900);
+      assert.equal(await page.evaluate(() => window.__healClicks), 2, '점검으로 막혀 있으면 색칠을 켜지 않는다');
+      await page.evaluate(() => { window._blockedFeatures = []; });
+      await page.evaluate(() => localStorage.removeItem('seagnal_warn_zone_visible'));
     });
     await check('화면 오류 없음', async () => { assert.deepEqual(errors, []); });
   } catch (e) { console.error('❌ 시험 준비 실패', e.message); fail++; }

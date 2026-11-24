@@ -144,6 +144,7 @@
     var _viewBasePrev = null;   // [보기] 화면 전용 배경(VIEWS[].base)으로 바꾸기 전의 배경 — 그 화면을 떠날 때 되돌린다
     var _accBusy = false;       // 사고 자료를 받는 동안의 로딩 표시가 떠 있는가
     var _loadSeq = 0;           // 천기 로딩 표시 — 연달아 눌렀을 때 앞선 표시가 끼어들지 않게 하는 번호
+    var _zoneHealed = false;    // 특보구역이 켜진 이번 한 번에 현황 색칠 맞추기를 이미 해 봤는가(_healZone)
     var _northTimer = null;     // 진북 고정을 다시 걸어 보는 타이머(지도가 만들어질 때까지)
     var _northPrev = null;      // 새 모드를 켜기 전 진북 상태('free'|'aligned'|'locked') — 끌 때 되돌린다
 
@@ -763,7 +764,7 @@
             var t = null;
             new MutationObserver(function () {
                 if (!_mode) return;
-                clearTimeout(t); t = setTimeout(function () { _renderRows(); _renderSubs(); _syncFilterHead(); }, 40);
+                clearTimeout(t); t = setTimeout(function () { _healZone(); _renderRows(); _renderSubs(); _syncFilterHead(); }, 40);
             }).observe(rail, { attributes: true, attributeFilter: ['class', 'style'], subtree: true });
         }
         var gubun = document.getElementById('ls-gubun-wrap');
@@ -771,6 +772,32 @@
             new MutationObserver(function () { if (_mode) _renderSubs(); })
                 .observe(gubun, { attributes: true, attributeFilter: ['class'], subtree: true });
         }
+    }
+
+    /**
+     * 「특보구역·현황」 한 줄의 뜻을 지킨다 — 특보구역이 켜져 있는데 현황 색칠이 꺼져 있으면 함께 켜고, 배경지도도 다시 정한다.
+     * 우리가 스위치를 눌러 켤 때는 _setLive 가 둘을 함께 켜지만, **앱을 다시 켰을 때**는 특보구역 버튼만 저장값으로 되살아난다
+     * (지도가 만들어진 뒤 ocean_warn_zone.js 가 되살림 — 색칠 버튼은 저장하지 않는다). 그래서 선만 그려지고 색이 없었다.
+     * 사용자 2026-11-24 「특보를 켜놓고 앱을 껐다켰는데 그리기만 되어있고 특보 색칠이 안된채로」 — 새로고침으로 매번 재현함.
+     * 색칠 버튼이 보인 뒤 한 번만 누른다(특보가 하나도 없어 버튼이 안 눌리는 날에 되풀이하지 않게). 버튼이 아직 안 보이면 나타날 때까지 기다린다.
+     * [연계] ← 원래 버튼 감시(_build 의 MutationObserver) / → _setWarnActive(특보가 생겨 버튼이 나타날 때까지 잠깐 기다린다) · _arbitrateSoon
+     */
+    function _healZone() {
+        var on = _liveOn('zone');
+        if (!on) { _zoneHealed = false; return; }
+        var ab = document.getElementById('ocean-warn-active-toggle-btn');
+        // 색칠 버튼은 특보가 있을 때만 보인다. 안 보이면 「해 봤다」를 지운다 — 특보가 전부 해제됐다 다시 발효되면(버튼이 다시 나타나면)
+        //   색칠도 다시 켜야 한다(독립 검토 2026-11-24: 종전에는 한 번 맞춘 것으로 쳐서 안 켰다). 숨은 버튼에 남은 켜짐 표시는 믿지 않는다.
+        if (!ab || ab.style.display === 'none') { _zoneHealed = false; return; }
+        if (_zoneHealed || _pending || _view || _tab() !== 'ocean-map-section') return;
+        if (_blocked('zone')) return;                                             // 관리자 점검으로 막혀 있으면 켜지 않는다(독립 검토 — 재현함)
+        if (_isActive(ab)) { _zoneHealed = true; return; }                      // 이미 색칠 중(우리가 켠 경우)
+        _zoneHealed = true;
+        // 지금 배경(저장돼 있던 사용자의 배경)을 「원래 배경」으로 적어 둔다 — 특보구역을 끄면 이 배경으로 돌아간다.
+        //   (_noteFreeBase 는 「이미 바꿔야 할 기능이 켜져 있으면 안 적는다」라 여기서는 직접 적는다)
+        if (_freeBase === null && !_forcedBase && typeof window.oceanGetBasemap === 'function') _freeBase = window.oceanGetBasemap();
+        _setWarnActive(true);
+        _arbitrateSoon();
     }
 
     /** 사고이력의 「필터」 머리 버튼을 필터 줄(#accident-filter-bar) 맨 위에 끼운다 — 누르면 아래로 펼쳐진다(새 모드에서만 보인다). */
@@ -914,7 +941,14 @@
         var btn = document.getElementById('ocean-northup-btn');
         if (!btn) return;
         var stateOf = function () { return btn.classList.contains('northup-locked') ? 'locked' : (btn.classList.contains('northup-aligned') ? 'aligned' : 'free'); };
+        if (on && !_mode) return;                                    // 새 메뉴 화면이 꺼졌으면(시험) 걸지 않는다 — 남은 타이머가 뒤늦게 걸지 않게
         var want = on ? 'locked' : _northPrev;
+        var mapReady = !!(typeof window.getOceanMap === 'function' && window.getOceanMap());
+        // ★지도가 아직 없으면 버튼을 누르지 않고 기다리기만 한다(독립 검토 2026-11-24 — 재현함).
+        //   지도가 없을 때 이 버튼은 눌러도 아무 일도 안 하는데, 그 「누름」은 문서까지 올라가 다른 곳의 「바깥을 눌렀다」 처리를 깨운다
+        //   (core/index2_patch.js — 특보정보 탭의 하위탭 줄이 닫힌다). 종전에는 지도가 생길 때까지 0.5초마다 3번씩 계속 눌러
+        //   (3초에 18번 — 재어 봄) 해양종합정보를 열기 전에는 「해상일기도」 하위탭 줄이 계속 닫혔다.
+        if (on && !mapReady) { clearTimeout(_northTimer); _northTimer = setTimeout(function () { _lockNorth(true); }, 500); return; }
         if (on && _northPrev === null) _northPrev = stateOf();
         if (!want) return;
         _quiet(function () { for (var k = 0; k < 3 && stateOf() !== want; k++) btn.click(); });

@@ -5701,7 +5701,7 @@
     <!-- 해구도 정보 모달은 app.js에서 동적으로 생성됨 -->
 
     <!-- 조석 데이터 및 로직 -->
-    <script src="tide.js?v=DiurnalGaugeRemainingTime_20260209"></script>
+    <script src="tide.js?v=LunarMul_20261124b"></script>
     <script src="tide_calendar.js"></script>
     <script src="seaZonesData.js"></script>
     <!-- [구역 분할 2026-11-26] 제주도남쪽바깥먼바다 → 남서쪽·남동쪽바깥먼바다. 구역 표를 싣는 파일들보다 먼저(저장값 이어받기·전환 판정) -->
@@ -5774,18 +5774,18 @@
     <!-- 해양종합정보 (히든 탭) -->
     <script src="js/ocean-map/map/ocean_map.js?v=OmMode_20261122"></script>
     <script src="js/ocean-map/map/ocean_markers.js"></script>
-    <script src="js/ocean-map/bottom-sheet/ocean_bottom_sheet1.js"></script>
+    <script src="js/ocean-map/bottom-sheet/ocean_bottom_sheet1.js?v=Hold_20261124b"></script>
     <!-- 시트 슬라이더 모듈 — bottom_sheet2.js 가 STL.onRelease 를 wire 하므로 그 전에 로드되어
          OS.SheetTL 이 정의된 상태여야 함. (sheet1.js 가 OS 생성 → 여기서 OS.SheetTL 생성) -->
     <script src="js/ocean-map/bottom-sheet/ocean_sheet_timeline.js"></script>
     <script src="js/ocean-map/bottom-sheet/ocean_bottom_sheet2.js"></script>
-    <script src="js/ocean-map/bottom-sheet/ocean_bottom_sheet3.js?v=20261018sb"></script>
+    <script src="js/ocean-map/bottom-sheet/ocean_bottom_sheet3.js?v=Once_20261124b"></script>
     <script src="js/ocean-map/bottom-sheet/ocean_bottom_sheet4.js"></script>
-    <script src="js/ocean-map/bottom-sheet/ocean_bottom_sheet5.js"></script>
+    <script src="js/ocean-map/bottom-sheet/ocean_bottom_sheet5.js?v=Hold_20261124b"></script>
     <!-- 천기 카드 (해점 클릭 시 KMA 단기예보 6 카테고리 종합 표시) — sheet1~5 의존 -->
-    <script src="js/ocean-map/bottom-sheet/ocean_bottom_sheet_weather.js"></script>
+    <script src="js/ocean-map/bottom-sheet/ocean_bottom_sheet_weather.js?v=Hold_20261124b"></script>
     <!-- 시정 카드 (수심 오른쪽) — vsby_forecast_layer 의 점 샘플러 재사용 -->
-    <script src="js/ocean-map/bottom-sheet/ocean_bottom_sheet_vsby.js"></script>
+    <script src="js/ocean-map/bottom-sheet/ocean_bottom_sheet_vsby.js?v=Hold_20261124b"></script>
     <!-- 해양종합정보 색칠 지도 위 수치 라벨(등치선·유향유속 화살표) 그리기 — ocean_overlay.js 가 씀 -->
     <script src="js/ocean-map/map/ocean_overlay_labels.js"></script>
     <script src="js/ocean-map/map/ocean_overlay.js"></script>
@@ -5946,9 +5946,9 @@
     <script src="js/marine-life/risk-forecast/risk_basis_content.js?v=20261018basis"></script>
     <script src="js/marine-life/risk-forecast/risk_basis.js?v=20261018basis"></script>
     <script src="js/marine-life/risk-forecast/risk_forecast.js?v=20261019all"></script>
-    <script src="js/marine-life/safety/life_safety.js?v=OmPair_20261122"></script>
+    <script src="js/marine-life/safety/life_safety.js?v=KeepOn_20261124"></script>
     <!-- 해양종합정보 「새 모드」 통합 메뉴 — life_safety.js 가 감싼 탭 전환 위에 한 겹 더 얹으므로 반드시 그 뒤 -->
-    <script src="js/ocean-map/menu/ocean_menu.js?v=20261124a"></script>
+    <script src="js/ocean-map/menu/ocean_menu.js?v=20261124c"></script>
     <!-- 활동지점 안전 브리핑(해양예보 탭 아코디언, 설계서 §11) — 바로가기가 위험예측(risk_forecast.js)·탭 전환(life_safety.js)을,
          [기준 상세] 문안이 risk_basis_content.js 의 RiskBasisContent 를 쓰므로 그 뒤. 렌더 → 기준 문안 → 관할 고르기 탭(picker) → 본체 순서. -->
     <!-- 위험예측 배경 지도·바텀시트 부품(설계서 §11.10.24) — risk_*.js(RiskMapLayer·RiskSheet·RiskMarine) 뒤, 렌더 앞 -->

@@ -201,6 +201,9 @@
 
         var fctTm = window._shrtForecastNearestFctTm(date || new Date());
         var token = ++_fetchToken;
+        // 받는 중 표시 — 시트 높이를 붙잡는 쪽(5.js holdSheetHeight)이 「천기가 아직 안 왔다」를 알 수 있게 한다(2026-11-24).
+        //   이 칸은 받는 동안 숨었다가 3초쯤 뒤 다시 나타나, 그 사이에 높이를 맞추면 한 번 더 튀었다(화면에서 기록).
+        if (OS.state) OS.state._wxPending = Date.now();   // 시작 시각(0 = 받는 중 아님) — 5.js 가 이 시각으로 「너무 오래된 것」은 안 기다린다
         _show(true);
         // 스켈레톤 초기화 — 5.js 의 loadAllForDate 가 4셀에 progress-bar 를 먼저 깔아주는
         //   단일 소유 패턴(경로 A: 해점 클릭/날짜 nav). 슬라이더 release(경로 B) 등 5.js 를
@@ -211,10 +214,12 @@
         window._shrtForecastSamplePointAt(lat, lon, fctTm)
             .then(function (data) {
                 if (token !== _fetchToken) return;     // 더 새 fetch 가 시작됨 → 무시
+                if (OS.state) OS.state._wxPending = 0;
                 _renderData(data);
             })
             .catch(function (e) {
                 if (token !== _fetchToken) return;
+                if (OS.state) OS.state._wxPending = 0;
                 console.warn('[weather-card] sample 실패:', e && e.message);
                 _show(false);    // 에러 시 카드 hide (다른 카드 영향 X)
             });
@@ -224,5 +229,6 @@
     OS.hideWeatherCard = function () {
         _show(false);
         _fetchToken++;   // 진행 중 fetch 결과 무시
+        if (OS.state) OS.state._wxPending = 0;
     };
 })();
