@@ -149,7 +149,7 @@
         if (_activeAtLoad || _reloading || typeof root.fetch !== 'function') return;
         root.fetch('/api/zone-split', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
             if (j && j.active === true) { remember(); reloadNow(); }   // 기억해 두므로 새로 고친 화면은 실어 준 값이 없어도 전환된 것으로 뜬다
-        }).catch(function () { /* 통신 실패 — 다음에 다시 */ });
+        }).catch(function (e) { console.warn('[구역 분할] 전환 여부를 못 물음(다음에 다시):', e && e.message); });
     }
     if (!_activeAtLoad && _forced === null) {
         if (typeof root.setInterval === 'function') root.setInterval(checkSwitched, 5 * 60 * 1000);

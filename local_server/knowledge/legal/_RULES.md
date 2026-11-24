@@ -283,7 +283,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_push_pagination` | 2026-07-13 실사고: 전국 구독자에게 여러 해역 동시 "발표"(publish) 푸시가 |
 | `test_bulletin_cancel_scanner` | bulletin_cancel_scanner 단위 테스트 |
 | `test_parent_release_debounce` | 부모 해제 디바운스 검증 |
-| `test_zone_split` | 구역 분할(2026-11-26 — 제주도남쪽바깥먼바다 → 남서쪽·남동쪽바깥먼바다) 검사. |
+| `test_zone_split` | 구역 분할(제주도남쪽바깥먼바다 → 남서쪽·남동쪽바깥먼바다) 검사. |
 | `test_zone_tree_wiring` | 해역·항해구역 트리(zone_tree.json) 실서빙 배선 회귀 테스트 |
 | `test_ask_context` | 이해확인 · 상황질문(범위좁히기) · 온디바이스 프로필 확인 회귀 테스트 |
 | `test_naver_term_step` | 모르는 구어 해소(네이버 뜻 확인) 회귀 테스트 |
