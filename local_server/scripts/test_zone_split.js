@@ -49,10 +49,9 @@ const info = (lv) => ({ wrnTp: 'V', wrnTpNm: '풍랑', wrnLvlNm: lv, tmFc: '2026
         reset();
         ok('준비 시각 = 2026-11-25 00:00 KST(「내일 특보가없는 순간」)', ZS.QUIET_FROM_MS === NOON, ZS.QUIET_FROM_MS);
         ok('처음에는 전환 전', ZS.isActive() === false);
-        ok('① 새 코드를 한 주기만 봄 → 아직', ZS.observe({ newCodeSeen: 'S1324220', oldZoneHasWarning: true, nowMs: NOON - 3600e3 }).activated === false && !ZS.isActive());
-        ok('① 새 코드가 사라지면 다시 센다', ZS.observe({ newCodeSeen: null, oldZoneHasWarning: true, nowMs: NOON - 3600e3 }).activated === false && ZS.observe({ newCodeSeen: 'S1324220', oldZoneHasWarning: true, nowMs: NOON - 3600e3 }).activated === false);
-        const r1 = ZS.observe({ newCodeSeen: 'S1324220', oldZoneHasWarning: true, nowMs: NOON - 3600e3 });
-        ok('① 새 코드 두 주기 연속 → 전환(준비 시각 전이어도, 옛 특보가 살아 있어도)', r1.activated === true && ZS.isActive() && /S1324220/.test(r1.reason), r1);
+        ok('새 코드도 없고 옛 특보가 살아 있으면 그대로', ZS.observe({ newCodeSeen: null, oldZoneHasWarning: true, nowMs: NOON - 3600e3 }).activated === false && !ZS.isActive());
+        const r1 = ZS.observe({ newCodeSeen: 'S1324220', nowMs: NOON - 3600e3 });
+        ok('① 새 코드를 보는 즉시 전환(준비 시각 전이어도, 옛 특보가 살아 있어도)', r1.activated === true && ZS.isActive() && /S1324220/.test(r1.reason), r1);
         ok('전환은 파일에 남는다(다시 켜도 이어진다)', JSON.parse(fs.readFileSync(process.env.ZONE_SPLIT_STATE_FILE, 'utf8')).active === true && (ZS._forceForTest(null), ZS.isActive()));
         ok('전환 뒤에는 다시 전환하지 않는다', ZS.observe({ newCodeSeen: 'S1324120', oldZoneHasWarning: false, nowMs: NOON + 1 }).activated === false);
         reset();
@@ -67,6 +66,7 @@ const info = (lv) => ({ wrnTp: 'V', wrnTpNm: '풍랑', wrnLvlNm: lv, tmFc: '2026
         reset();
         process.env.ZONE_SPLIT_FORCE = 'on'; ok('손으로 켜기(ZONE_SPLIT_FORCE=on)', ZS.isActive() === true && ZS.observe({ newCodeSeen: 'S1324220' }).activated === false);
         process.env.ZONE_SPLIT_FORCE = 'off'; ok('손으로 끄기(ZONE_SPLIT_FORCE=off)', ZS.isActive() === false);
+        process.env.ZONE_SPLIT_FORCE = 'true'; ok('on·off 가 아닌 값은 무시한다(감지는 그대로 돈다)', ZS.isActive() === false && ZS.observe({ newCodeSeen: 'S1324120', nowMs: NOON }).activated === true);
         delete process.env.ZONE_SPLIT_FORCE; reset();
         ok('MMIS 코드표에 새 코드 둘 + 옛 코드', C.MMIS_CODE_TO_NAME.S1324120 === E && C.MMIS_CODE_TO_NAME.S1324220 === W && C.MMIS_CODE_TO_NAME.S1324020 === OLD);
         ok('코드표와 전환 감지의 코드가 같다', ZS.NEW_CODES.S1324120 === E && ZS.NEW_CODES.S1324220 === W && ZS.OLD_CODE === 'S1324020');
@@ -125,6 +125,10 @@ const info = (lv) => ({ wrnTp: 'V', wrnTpNm: '풍랑', wrnLvlNm: lv, tmFc: '2026
         const mix = new C.StateSnapshot({ parents: new Map([[OLD, info('주의보')], [W, info('경보')]]) });
         C._foldOldSplitZone(mix);
         ok('새 코드로 온 값이 있으면 덮지 않는다(남서쪽 경보 유지, 남동쪽만 옛 값)', mix.parents.get(W).wrnLvlNm === '경보' && mix.parents.get(E).wrnLvlNm === '주의보' && !mix.parents.has(OLD));
+        // 옛 코드로는 발효 중, 새 코드로는 예비만(코드가 섞여 오는 동안) → 발효를 지우지 않는다
+        const mix2 = new C.StateSnapshot({ parents: new Map([[OLD, info('주의보')], [W, info('예비')]]) });
+        C._foldOldSplitZone(mix2);
+        ok('옛 코드 발효 + 새 코드 예비 → 발효 유지, 예비는 다가오는 특보로', mix2.parents.get(W).wrnLvlNm === '주의보' && mix2.upcomings.get(W) && mix2.upcomings.get(W).wrnLvlNm === '예비' && mix2.parents.get(E).wrnLvlNm === '주의보');
         const up = new C.StateSnapshot({ upcomings: new Map([[OLD, info('예비')]]) });
         ok('다가오는 특보(예비)도 같이 옮긴다', C._foldOldSplitZone(up) === 2 && up.upcomings.has(W) && up.upcomings.has(E));
         ok('옛 구역이 없으면 아무 일도 안 한다', C._foldOldSplitZone(new C.StateSnapshot({ parents: new Map([['제주도남부앞바다', info('주의보')]]) })) === 0);
@@ -135,6 +139,27 @@ const info = (lv) => ({ wrnTp: 'V', wrnTpNm: '풍랑', wrnLvlNm: lv, tmFc: '2026
         C._foldOldSplitZone(curr); C._foldOldSplitZone(prev);
         const ch = C._buildUserPushChanges(prev, curr);
         ok('전환 주기: 옛 구역 「해제」·새 구역 「발효」 변화가 없다', ch.length === 0, ch.map((c) => c.type + ':' + c.zone));
+        // 통보문이 옛 이름으로 취소를 적어도 새 두 구역의 취소다(예비취소 푸시 확정)
+        const SC = require('../services/bulletin_cancel_scanner');
+        {
+            const rel = SC.parseCancelPhrases('참고사항 o 제주도남쪽바깥먼바다의 풍랑 예비특보는 발표 가능성이 낮아져 해제합니다')[0];
+            const got = rel ? [SC.matchesZone(rel, W), SC.matchesZone(rel, E), SC.matchesZone(rel, '제주도남서쪽안쪽먼바다')] : 'no release';
+            ok('취소 문구가 옛 이름이어도 새 두 구역에 맞고 안쪽먼바다에는 안 맞는다', Array.isArray(got) && got[0] === true && got[1] === true && got[2] === false, got);
+        }
+        // 이름 열쇠 기억 옮기기(전환 뒤) — 옛 이름으로 남으면 보류실이 옛 이름으로 푸시를 내고 「해제시각 확정」이 한 번 더 나간다
+        {
+            C._resetCancelVerdictsForTest();
+            ZS._forceForTest(false);
+            C._registerParentCancelVerdict(OLD, { wrnTp: '풍랑', wrnLvl: '예비', tmFc: '2026년 11월 24일 16시 00분', tmEf: '25일 오전(06시~12시)' });   // 전환 전에 옛 이름으로 보류실 등록
+            const keysBefore = Object.keys(C._loadCancelVerdicts().parents);
+            ZS._forceForTest(true);
+            const moved = C._migrateSplitMemories();
+            const v = C._loadCancelVerdicts().parents, keys = Object.keys(v);
+            ok('보류실: 옛 이름 항목 → 새 두 이름 항목(옛 항목 없음)', keysBefore.length === 1 && keysBefore[0].startsWith(OLD) && moved >= 2 && keys.length === 2 && keys.some((k) => k.startsWith(W + '|')) && keys.some((k) => k.startsWith(E + '|')) && !keys.some((k) => k.startsWith(OLD)), keys);
+            ok('보류실 항목 안의 구역 이름도 새 이름', keys.every((k) => !v[k].zone || v[k].zone === k.split('|')[0]), keys.map((k) => v[k].zone));
+            ok('다시 불러도 그대로(여러 번 안전)', C._migrateSplitMemories() === 0 && Object.keys(C._loadCancelVerdicts().parents).length === 2);
+            C._resetCancelVerdictsForTest();
+        }
         // 통보문 기준(관리자 [통보문] 비교)도 새 이름으로 계산된다
         const mk = (ho, tmFc, t1, t2, t3, t6) => ({ office: '184', rpt: '6', result: { tmFc, tmIn: tmFc, t1Title: ho, t1, t2, t3, t4: '', t6, t7: '' } });
         const b1 = mk('제11-90호', '2026-11-25 16:00:00.0', '풍랑주의보 발표', '(1) 풍랑주의보 발표 : ' + OLD, '(1) 풍랑주의보 발표 : 2026년 11월 25일 18시 00분', 'o 풍랑주의보 : ' + OLD);

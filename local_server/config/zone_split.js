@@ -21,10 +21,10 @@
  *   「전환시점을 mmis에서 새로운 구역 신호줄때와 내일 남쪽바깥먼바다에 특보가 없을때 1개로 나누어서 하는건 어때」
  *   기상청 회신(사용자 전달 2026-11-24): 옛 S1324020 폐지 · 남동쪽 S1324120 · 남서쪽 S1324220 · 예보코드 남서쪽 12B10421 · 남동쪽 12B10422.
  *   ※ 2026-11-22 의 「이 두 구역은 통보문 기준 표출·푸시 차단」은 위 지시로 대체됐다(코드에서 걷어냄).
- * [전환 조건 — 둘 중 먼저 오는 쪽, 각각 2주기(약 2분) 연속일 때]
- *   ① MMIS 가 새 구역코드(S1324120·S1324220)를 쓰기 시작 — 특보 자료(발효·예비)에 보이거나, 포털 특보구역 지도 목록에 보일 때.
+ * [전환 조건 — 둘 중 먼저 오는 쪽]
+ *   ① MMIS 가 새 구역코드(S1324120·S1324220)를 쓰기 시작 — 특보 자료(발효·예비)에 보이거나, 포털 특보구역 지도 목록에 보일 때. 보는 즉시.
  *      (특보 자료에는 특보가 걸린 구역만 온다 — 실측 2026-11-24. 지도 목록은 44개 구역이 늘 온다.)
- *   ② QUIET_FROM(2026-11-25 00:00 KST — 「내일 특보가없는 순간」) 뒤, 옛 구역에 특보(예비 포함)가 하나도 없을 때 — 기상청은 특보가 없을 때만 구역을 바꿀 수 있다.
+ *   ② QUIET_FROM(2026-11-25 00:00 KST — 「내일 특보가없는 순간」) 뒤, 옛 구역에 특보(예비 포함)가 하나도 없을 때 — 2주기(약 2분) 연속, 해제 디바운스까지 끝난 뒤. 기상청은 특보가 없을 때만 구역을 바꿀 수 있다.
  *   전환 뒤에도 MMIS 가 옛 코드로 특보를 주면(기상청 작업 전) 그 특보 = 새 두 구역 모두의 특보로 읽는다(marine_warning_crawler._foldOldSplitZone).
  * ----------------------------------------------------------------------------
  * [연계]
@@ -62,7 +62,7 @@ const QUIET_FROM_MS = (() => {
 const CONFIRM_CYCLES = 2;   // 같은 신호가 이만큼 연속으로 보여야 전환 — 없으면: MMIS 가 한 주기 빈 응답을 주는 순간(실제로 있다 — 의심 가드가 그것 때문에 있다)에 「특보 없음」으로 읽고 넘어간다
 let _forced = null;         // 검사용 — true/false 로 고정
 let _state = null;          // 파일에서 읽은 상태(처음 물을 때 한 번 읽는다)
-const _streak = { code: 0, quiet: 0 };
+const _streak = { quiet: 0 };
 
 const norm = (s) => String(s == null ? '' : s).replace(/\s+/g, '');
 
@@ -73,6 +73,16 @@ function _load() {
     return _state;
 }
 
+let _envWarned = false;
+/** ZONE_SPLIT_FORCE 를 읽는다 — 'on' → true, 'off' → false, 없거나 다른 값 → null(다른 값이면 한 번 경고하고 무시한다). [연계] ← isActive·observe */
+function _envForce() {
+    const f = String(process.env.ZONE_SPLIT_FORCE || '').trim().toLowerCase();
+    if (f === 'on') return true;
+    if (f === 'off') return false;
+    if (f && !_envWarned) { _envWarned = true; console.warn('[구역 분할] ZONE_SPLIT_FORCE 는 on 또는 off 만 받는다 — 무시한다:', f); }
+    return null;
+}
+
 /**
  * 지금 새 구역 기준인가 — 전환이 한 번 일어났으면 계속 true.
  * 예: (전환 전) isActive() → false · (activate() 뒤) isActive() → true
@@ -81,9 +91,8 @@ function _load() {
  */
 function isActive() {
     if (_forced !== null) return _forced;
-    const f = String(process.env.ZONE_SPLIT_FORCE || '').toLowerCase();
-    if (f === 'on') return true;
-    if (f === 'off') return false;
+    const f = _envForce();
+    if (f !== null) return f;
     return !!_load().active;
 }
 
@@ -117,13 +126,16 @@ function activate(reason, nowMs) {
  */
 function observe(o) {
     o = o || {};
-    if (_forced !== null || String(process.env.ZONE_SPLIT_FORCE || '') || _load().active) return { activated: false };
+    if (_forced !== null || _envForce() !== null || _load().active) return { activated: false };
     const nowMs = o.nowMs == null ? Date.now() : o.nowMs;
-    _streak.code = o.newCodeSeen ? _streak.code + 1 : 0;
-    _streak.quiet = (o.mmisOk !== false && nowMs >= QUIET_FROM_MS && o.oldZoneHasWarning === false) ? _streak.quiet + 1 : 0;
     let reason = null;
-    if (_streak.code >= CONFIRM_CYCLES) reason = `MMIS 가 새 구역코드(${o.newCodeSeen})를 쓰기 시작했다`;
-    else if (_streak.quiet >= CONFIRM_CYCLES) reason = '전환 준비 시각이 지났고 제주도남쪽바깥먼바다에 특보가 없다';
+    // ① 새 구역코드 — 보는 즉시(기다리면 그 주기에 전환 전 규칙으로 새 이름 푸시가 나간다 — marine_warning_crawler._observeZoneSplitCode 주석)
+    if (o.newCodeSeen) reason = `MMIS 가 새 구역코드(${o.newCodeSeen})를 쓰기 시작했다`;
+    // ② 특보 없음 — 2주기 연속(oldZoneHasWarning 을 준 호출만 센다)
+    else if (typeof o.oldZoneHasWarning === 'boolean') {
+        _streak.quiet = (o.mmisOk !== false && nowMs >= QUIET_FROM_MS && o.oldZoneHasWarning === false) ? _streak.quiet + 1 : 0;
+        if (_streak.quiet >= CONFIRM_CYCLES) reason = '전환 준비 시각이 지났고 제주도남쪽바깥먼바다에 특보가 없다';
+    }
     if (!reason) return { activated: false };
     return { activated: activate(reason, nowMs), reason };
 }
@@ -147,6 +159,6 @@ function splitNames(names) {
 function status() { const s = _load(); return { active: isActive(), at: s.at || null, reason: s.reason || null }; }
 
 /** 검사용: 전환 여부를 고정한다(true/false), null 이면 저장된 상태를 본다. 기억해 둔 상태·연속 횟수도 비운다. [연계] ← test_zone_split 등 */
-function _forceForTest(v) { _forced = (v === true || v === false) ? v : null; _state = null; _streak.code = 0; _streak.quiet = 0; }
+function _forceForTest(v) { _forced = (v === true || v === false) ? v : null; _state = null; _streak.quiet = 0; }
 
 module.exports = { OLD, NEW, NEW_WEST, NEW_EAST, OLD_CODE, NEW_CODES, QUIET_FROM_MS, STATE_FILE, isActive, activate, observe, splitNames, status, _forceForTest };
