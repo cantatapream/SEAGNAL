@@ -476,19 +476,22 @@
      *   호출하고 API 호출은 skip. neighbors (어제/내일 데이터) 도 캐시에서 조합.
      * ------------------------------------------------------------ */
     /**
-     * 이 조석 요청이 낡았는가 — 요청한 뒤 사용자가 다른 날짜나 다른 지점으로 옮겼으면 true.
-     * 예: 11월 25일 자료를 받는 중에 [다음 날]을 눌러 26일을 보고 있다 → 25일 요청은 true(그리지 않는다)
-     * @param {number} lat @param {number} lon @param {Date} dateObj 요청할 때의 지점·날짜 @returns {boolean}
-     * [연계] ← fetchTideForSheet 의 폴링·동해 보간 응답
+     * 이 조석 요청이 낡았는가 — 그 뒤에 새 조석 요청이 시작됐거나(다른 날짜·지점으로 옮김, 다시 받기) 시트를 닫았으면 true.
+     * 요청마다 번호를 받고(_tideReq), 번호가 바뀌었으면 낡은 것이다.
+     * 예: 11월 25일 자료를 받는 중에 [다음 날]을 눌렀다 → 25일 요청은 true(그리지 않는다)
+     * ⚠시트의 'open' 표시나 OS.state.date 로 판정하지 않는다(독립 검토 2026-11-24):
+     *   · 시트는 열린 지 10ms 뒤에야 'open' 을 받는데, 동해 북부 보간은 자료가 메모리에 있으면 그 전에 답해 멀쩡한 응답이 버려졌다(로딩에서 멈춤).
+     *   · 지도 쪽 시간 막대가 OS.state.date 의 날짜를 넘기면(조석은 다시 받지 않는다) 받는 중이던 요청이 죽어 로딩에서 멈췄다.
+     * @param {number} myReq - 요청을 시작할 때 받은 번호 @returns {boolean}
+     * [연계] ← fetchTideForSheet 의 폴링·동해 보간 응답 / 번호를 올리는 곳: fetchTideForSheet · OS.cancelTideRequests(시트 닫기)
      */
-    function isStaleTideRequest(lat, lon, dateObj) {
-        var st = OS.state || {};
-        var sheet = document.getElementById('ocean-bottom-sheet');
-        if (!st.date || !sheet || !sheet.classList.contains('open')) return true;   // 시트가 닫혔다
-        return st.lat !== lat || st.lon !== lon || dayKeyOf(st.date) !== dayKeyOf(dateObj);
-    }
+    var _tideReq = 0;
+    function isStaleTideRequest(myReq) { return myReq !== _tideReq; }
+    /** 받는 중인 조석 요청을 모두 버린다 — 시트를 닫을 때. [연계] ← ocean_bottom_sheet1.js OS.closeSheet */
+    OS.cancelTideRequests = function () { _tideReq++; };
 
     OS.fetchTideForSheet = function (lat, lon, dateObj) {
+        var myReq = ++_tideReq;      // 이 요청의 번호 — 더 새 요청이 시작되면 이 요청의 응답은 버린다
         // 캐시 hit — API 호출 없이 즉시 렌더
         var key = dayKeyOf(dateObj);
         var cached = getCachedDay(lat, lon, key);
@@ -514,7 +517,7 @@
         // 동해북부 우회 (4.js)
         if (lat >= 36 && lon >= 128 && typeof OS.tryEastSeaIdw === 'function') {
             OS.tryEastSeaIdw(lat, lon, dateObj, function (result, errMsg) {
-                if (isStaleTideRequest(lat, lon, dateObj)) return;   // 그 사이 다른 날짜·지점으로 옮겼다
+                if (isStaleTideRequest(myReq)) return;   // 그 사이 다른 날짜·지점으로 옮겼거나 시트를 닫았다
                 if (result && result.today) {
                     OS.renderTideData(result.today, /*isIdw=*/true, dateObj, {
                         yesterday: result.yesterday,
@@ -630,6 +633,9 @@
                     .then(function (r) { return r.json(); })
                     .then(function (d) {
                         if (!d) return;
+                        // 이미 받은 자료(임시 포함)를 뒤늦은 'error' 로 덮지 않는다 — 아직 화면에 안 그렸어도 그 자료로 그릴 수 있다
+                        //   (종전에는 임시 결과를 곧바로 그려 두었기에 문제가 안 됐다 — 독립 검토 2026-11-24)
+                        if (d.tideBedStatus === 'error' && collected[key]) return;
                         if (d.tideBedStatus === 'complete'
                             || d.tideBedStatus === 'complete (IDW)'
                             || d.tideBedStatus === 'complete-quick'
@@ -644,10 +650,10 @@
                 // 그 사이 사용자가 다른 날짜·다른 지점으로 옮겼으면 이 요청은 버린다(2026-11-24).
                 //   종전에는 이전 날짜의 폴링이 계속 돌다가 늦게 도착한 자료로 **지금 보고 있는 날짜의 칸을 덮어썼다** —
                 //   날짜를 안 바꿨는데 물때·시각이 이전 날 것으로 돌아갔다 다시 바뀌는 「왔다 갔다」의 한 원인(화면에서 재현: 음력 18일에 9물).
-                if (isStaleTideRequest(lat, lon, dateObj)) return;
+                if (isStaleTideRequest(myReq)) return;
                 Promise.all([fetchOne('yesterday'), fetchOne('today'), fetchOne('tomorrow')])
                     .then(function () {
-                        if (isStaleTideRequest(lat, lon, dateObj)) return;
+                        if (isStaleTideRequest(myReq)) return;
                         // ❷ today 가 'error' 라도 이미 첫 렌더 성공했으면 무시
                         // (폴링 재 fetch 중 server padded 빈 결과로 'error' 덮어쓰기 보호).
                         if (collected.today && collected.today.tideBedStatus === 'error') {
@@ -1019,7 +1025,11 @@
         // 저장 (게이지 부분 갱신용; 매 렌더 시 갱신).
         var cacheLat = OS.state.lat;
         var cacheLon = OS.state.lon;
-        putCachedDay(cacheLat, cacheLon, dayKeyOf(dateObj), {
+        // 임시 결과('complete-quick' — 이웃 날 없이 먼저 분석한 것)는 캐시에 넣지 않는다(독립 검토 2026-11-24).
+        //   「먼저 한 번」 그린 뒤 최종이 오기 전에 시트를 닫거나 날짜를 넘기면 그 요청이 버려져, 임시 결과가 캐시(즐겨찾기는 휴대폰 저장)에
+        //   굳어 다시 열어도 임시 결과만 보였다. 넣지 않으면 다음에 열 때 다시 받아 최종 결과로 채운다.
+        var isQuickTide = !!(data && data.tideBedStatus === 'complete-quick');
+        if (!isQuickTide) putCachedDay(cacheLat, cacheLon, dayKeyOf(dateObj), {
             data: data,
             isIdw: !!isIdw,
             neighbors: neighbors || null

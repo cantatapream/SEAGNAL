@@ -2215,31 +2215,32 @@ function addTideMapControls() {
 // ===== 유틸리티: 음력 및 천문 =====
 
 function getLunarDate(year, month, date) {
+    // [2026-11-24 표를 통째로 다시 만듦] 우리나라 음력의 초하루 = 삭(달이 안 보이는 순간)이 든 **한국 날짜**다.
+    //   아래 값은 서울 시각 삭 날짜(timeanddate.com 서울 달 위상표, 2024~2030년 — 2026-11-24 조회)에서 달 길이를 계산해 넣었다.
+    //   종전 표는 여러 달이 하루씩 어긋났다(예: 2026-11-27 을 음력 10월 18일로 — 삭이 11월 9일 16:02 이므로 19일이 맞다.
+    //   2024·2025년 추석도 14일로 나왔다). 설날 2027(2/7)·2028(1/27)은 삭이 자정 직후(00:56·00:12)라 중국 날짜보다 하루 늦다.
+    //   검산: 추석(8월 15일)이 2024-09-17 · 2025-10-06 · 2026-09-25 · 2027-09-15 · 2028-10-03 으로 나온다(test_mulddae_lunar.js).
+    //   ⚠2030년은 설날만 넣었다(달 길이는 2031년 자료가 있어야 한다) — 2030-02-03 이후는 어림 길이라 하루 어긋날 수 있다.
     const lunarNewYears = {
         2024: { solar: new Date(2024, 1, 10), lunarYear: 2024 },
         2025: { solar: new Date(2025, 0, 29), lunarYear: 2025 },
         2026: { solar: new Date(2026, 1, 17), lunarYear: 2026 },
-        // [2026-11-24 바로잡음] 우리나라 음력의 초하루 = 삭(달이 안 보이는 순간)이 든 **한국 날짜**다.
-        //   2027년 삭 2월 7일 00:56 · 2028년 삭 1월 27일 00:12(서울 시각 — timeanddate.com 서울 달 위상표로 대조).
-        //   종전 값(2월 6일·1월 26일)은 자정을 한 시간 앞선 중국 시각 기준 날짜였다.
         2027: { solar: new Date(2027, 1, 7), lunarYear: 2027 },
         2028: { solar: new Date(2028, 0, 27), lunarYear: 2028 },
+        2029: { solar: new Date(2029, 1, 13), lunarYear: 2029 },
+        2030: { solar: new Date(2030, 1, 3), lunarYear: 2030 },
     };
 
     const lunarMonthDays = {
-        2024: [30, 29, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29],
-        2025: [30, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29],
-        // [2026-11-24 바로잡음] 서울 시각 삭 날짜로 다시 셌다(timeanddate.com 서울 달 위상표):
-        //   2026: 2/17 · 3/19 · 4/17 · 5/17 · 6/15 · 7/14 · 8/13 · 9/11 · 10/11 · 11/9 · 12/9 · (2027)1/8 · 2/7
-        //   2027: 2/7 · 3/8 · 4/7 · 5/6 · 6/5 · 7/4 · 8/2 · 9/1 · 9/30 · 10/29 · 11/28 · 12/28 · (2028)1/27
-        //   종전 2026 값 [30,29,30,30,29,30,29,29,30,29,30,29] 은 5~8월·10월 초하루가 하루 늦어, 예를 들어
-        //   2026-11-27 이 음력 10월 18일로 나왔다(삭이 11월 9일 16:02 이므로 10월 19일이 맞다).
-        //   ⚠2025 이전·2028 이후 줄은 이번에 대조하지 않았다(2028 은 달 길이 표가 없어 어림 길이를 쓴다).
+        2024: [29, 30, 29, 29, 30, 29, 30, 30, 29, 30, 30, 29],
+        2025: [30, 29, 30, 29, 29, 30, 29, 30, 29, 30, 30, 30, 29],       // 윤6월 포함 13달
         2026: [30, 29, 30, 29, 29, 30, 29, 30, 29, 30, 30, 30],
         2027: [29, 30, 29, 30, 29, 29, 30, 29, 29, 30, 30, 30],
+        2028: [29, 30, 30, 29, 30, 29, 29, 30, 29, 29, 30, 30, 29],       // 윤5월 포함 13달
+        2029: [30, 30, 29, 30, 30, 29, 29, 30, 29, 29, 30, 30],
     };
 
-    const leapMonths = { 2025: 6 };
+    const leapMonths = { 2025: 6, 2028: 5 };
 
     const targetDate = new Date(year, month - 1, date);
     targetDate.setHours(0, 0, 0, 0);
@@ -2254,7 +2255,8 @@ function getLunarDate(year, month, date) {
 
     if (!baseInfo) return getLunarDateApprox(year, month, date);
 
-    const diffDays = Math.floor((targetDate - baseInfo.solar) / (1000 * 60 * 60 * 24));
+    // 반올림 — 서머타임이 있는 시간대의 기기에서는 두 자정 사이가 23·25시간인 날이 있어, 내림하면 하루가 모자란다(2026-11-24)
+    const diffDays = Math.round((targetDate - baseInfo.solar) / (1000 * 60 * 60 * 24));
 
     let lunarYear = baseInfo.lunarYear;
     let lunarMonth = 1;
@@ -2432,9 +2434,9 @@ function isWestSea(lat, lon) {
 
 /**
  * 음력 날짜 기준 물때 — 물때표와 같은 방식(2026-11-24 월령·반올림 방식에서 바꿈. 까닭은 함수 안 첫 주석).
- * 같은 날짜면 시각과 무관하게 같은 값이다. 예: computeMulddae(null,null,null,null,new Date(2026,10,30),35,129.3) → { label:'13물' }
+ * 같은 날짜면 시각과 무관하게 같은 값이다. 예: computeMulddae(null,null,null,null,new Date(2026,10,30),35,129.3) → { label:'14물' }
  *
- * [반환] { mul, name, descr } — 1~15 사이 정수 + "조금"/"한사리" 등 명칭.
+ * [반환] { number, label, direction, westSea, lunarDay, lunarAge } 또는 null(음력 날짜를 못 구함) — 화면은 label 만 쓴다.
  * [연계] 조석 팝업 카드 + 어업 정보 표출.
  */
 function computeMulddae(todayPeaks, yesterdayPeaks, tomorrowPeaks, tideBedDataRow, dateObj, lat, lon) {
@@ -2453,7 +2455,10 @@ function computeMulddae(todayPeaks, yesterdayPeaks, tomorrowPeaks, tideBedDataRo
 
     try {
         // 1. 그 날짜의 음력 일(1~30) — 시각은 쓰지 않는다
-        var lm = /(\d+)월\s+(\d+)일$/.exec(getLunarDate(dateObj.getFullYear(), dateObj.getMonth() + 1, dateObj.getDate()) || '');
+        //    날짜는 **한국 날짜**로 읽는다(그 순간 + 9시간의 UTC 달력) — 조석·물때는 한국 바다의 것이라, 기기 시간대가 달라도 같아야 한다.
+        //    (간출암 화면은 「한국 정오」를 UTC 시각으로 만들어 넘긴다 — 기기 날짜로 읽으면 미주 시간대에서 하루 전이 된다)
+        var kd = new Date(dateObj.getTime() + 9 * 3600000);
+        var lm = /(\d+)월\s+(\d+)일$/.exec(getLunarDate(kd.getUTCFullYear(), kd.getUTCMonth() + 1, kd.getUTCDate()) || '');
         var lunarDay = lm ? parseInt(lm[2], 10) : NaN;
         if (!(lunarDay >= 1 && lunarDay <= 30)) return null;
 
