@@ -266,10 +266,11 @@ router.get('/api/weather-alerts', (req, res) => {
 });
 
 // 1-0. [구역 분할] 화면이 「지금 새 구역 기준인가」를 묻는다 — 켜 둔 화면이 전환을 알아채 한 번 새로 고치려고(client/js/core/zone_split.js).
-//      예: GET /api/zone-split → {"active":false}
+//      예: GET /api/zone-split → {"active":false,"at":null,"reason":null,"notified":false}
 router.get('/api/zone-split', (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
-    res.json({ active: require('../config/zone_split').isActive() });
+    // at·reason = 언제·무엇을 보고 전환했나, notified = 관리자 알림이 전달됐나 — 푸시가 안 와도 여기서 전환을 확인할 수 있다(독립 검토 2026-11-24)
+    res.json(require('../config/zone_split').status());
 });
 
 // 1-1. 해상 예특보구역 폴리곤 (정적 GeoJSON)

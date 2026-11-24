@@ -73,6 +73,9 @@ const info = (lv) => ({ wrnTp: 'V', wrnTpNm: '풍랑', wrnLvlNm: lv, tmFc: '2026
         }
         reset(); ZS.observe({ newCodeSeen: 'S1324220', nowMs: NOON - 3600e3 });
         ok('전환은 파일에 남는다(다시 켜도 이어진다)', JSON.parse(fs.readFileSync(process.env.ZONE_SPLIT_STATE_FILE, 'utf8')).active === true && (ZS._forceForTest(null), ZS.isActive()));
+        ok('전환 상태에 시각·사유가 있고 알림은 아직 「전달 안 됨」', ZS.status().active && !!ZS.status().at && /S1324220/.test(ZS.status().reason) && ZS.status().notified === false, ZS.status());
+        ZS.markNotified();
+        ok('알림 전달 표시는 파일에 남는다', ZS.status().notified === true && JSON.parse(fs.readFileSync(process.env.ZONE_SPLIT_STATE_FILE, 'utf8')).notified === true && (ZS._forceForTest(null), ZS.status().notified === true));
         ok('전환 뒤에는 다시 전환하지 않는다', ZS.observe({ newCodeSeen: 'S1324120', oldZoneHasWarning: false, nowMs: NOON + 1 }).activated === false);
         reset();
         const quiet = (n, from, has, ok2) => { let r = null; for (let k = 0; k < n; k++) r = ZS.observe({ oldZoneHasWarning: !!has, mmisOk: ok2 !== false, nowMs: from + k * 60e3 }); return r; };

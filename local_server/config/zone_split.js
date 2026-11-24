@@ -134,7 +134,7 @@ function observe(o) {
     if (o.newCodeSeen) reason = `MMIS 가 새 구역코드(${o.newCodeSeen})를 쓰기 시작했다`;
     // ①-2 통보문이 새 구역 이름으로 특보·예비특보를 내기 시작 — 보는 즉시(사용자 2026-11-24 「통보문에서 그렇게 나누어서 발표하는 시점도 포함」)
     else if (o.bulletinNewName) reason = `통보문이 새 구역 이름(${o.bulletinNewName})으로 특보를 내기 시작했다`;
-    // ② 특보 없음 — 2주기 연속(oldZoneHasWarning 을 준 호출만 센다)
+    // ② 특보 없음 — CONFIRM_CYCLES(10)주기 연속(oldZoneHasWarning 을 준 호출만 센다)
     else if (typeof o.oldZoneHasWarning === 'boolean') {
         _streak.quiet = (o.mmisOk !== false && nowMs >= QUIET_FROM_MS && o.oldZoneHasWarning === false) ? _streak.quiet + 1 : 0;
         if (_streak.quiet >= CONFIRM_CYCLES) reason = '전환 준비 시각이 지났고 제주도남쪽바깥먼바다에 특보가 없다';
@@ -158,10 +158,22 @@ function splitNames(names) {
     return out;
 }
 
-/** 전환 상태(관리자 화면·화면 쪽 짝이 읽는다). 예: status() → { active: true, at: '2026-11-25T04:13:00.000Z', reason: '…' } */
-function status() { const s = _load(); return { active: isActive(), at: s.at || null, reason: s.reason || null }; }
+/** 전환 상태(화면 쪽 짝·GET /api/zone-split 이 읽는다). 예: status() → { active: true, at: '2026-11-25T04:13:00.000Z', reason: '…', notified: true } */
+function status() { const s = _load(); return { active: isActive(), at: s.at || null, reason: s.reason || null, notified: !!s.notified }; }
+
+/**
+ * 전환 알림(관리자 푸시)이 실제로 전달됐다고 적어 둔다 — 전달될 때까지 매 주기 다시 보내려고(marine_warning_crawler._notifyZoneSplit).
+ * 예: markNotified() → 상태 파일에 notified:true
+ * [연계] ← marine_warning_crawler._notifyZoneSplit
+ */
+function markNotified() {
+    const s = _load(); if (!s.active || s.notified) return;
+    s.notified = true;
+    try { fs.writeFileSync(STATE_FILE + '.tmp', JSON.stringify(s)); fs.renameSync(STATE_FILE + '.tmp', STATE_FILE); }
+    catch (e) { console.warn('[구역 분할] 알림 전달 표시를 파일에 못 남김(다음 주기에 한 번 더 갈 수 있다):', e && e.message); }
+}
 
 /** 검사용: 전환 여부를 고정한다(true/false), null 이면 저장된 상태를 본다. 기억해 둔 상태·연속 횟수도 비운다. [연계] ← test_zone_split 등 */
 function _forceForTest(v) { _forced = (v === true || v === false) ? v : null; _state = null; _streak.quiet = 0; }
 
-module.exports = { OLD, NEW, NEW_WEST, NEW_EAST, OLD_CODE, NEW_CODES, QUIET_FROM_MS, STATE_FILE, isActive, activate, observe, splitNames, status, _forceForTest };
+module.exports = { OLD, NEW, NEW_WEST, NEW_EAST, OLD_CODE, NEW_CODES, QUIET_FROM_MS, STATE_FILE, isActive, activate, observe, splitNames, status, markNotified, _forceForTest };
