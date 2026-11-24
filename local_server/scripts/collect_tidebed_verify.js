@@ -134,7 +134,7 @@ function summarize(items, ymd) {
 }
 
 /**
- * 격자 밖 지점을 둘레(약 1·2·4km, 여덟 방향)로 옮겨 가며 격자가 있는 가장 가까운 자리를 찾는다.
+ * 격자 밖 지점을 둘레(0.5·1·1.5·2km, 16방향 — **2km 를 넘겨 옮기지 않는다**)로 옮겨 가며 격자가 있는 가장 가까운 자리를 찾는다.
  * 예) 영도(35.0803,129.0393) → 격자 없음 → 남쪽 0.01° 가 답하면 {lat:35.0703, lon:129.0393, km:1.1}
  * @returns {{lat:string, lon:string, km:number}|null}
  * [연계] 운영 수집기(services/tide_field_collector.js)의 「앵커 격자 보정」과 같은 뜻 — 거기는 수심 격자에서 고르고
@@ -142,9 +142,10 @@ function summarize(items, ymd) {
  */
 async function nudge(pt, ymd) {
     const lat0 = parseFloat(pt.lat), lon0 = parseFloat(pt.lon);
-    for (const r of [0.01, 0.02, 0.04]) {
-        for (let k = 0; k < 8; k++) {
-            const ang = k * Math.PI / 4;
+    // 최대 2km 까지만 옮긴다(사용자 확정 2026-11-24: 「최대 2km까지만 옮겨서 타이드베드 호출을 해봤으면」) — 0.5·1·1.5·2km, 16방향
+    for (const r of [0.0045, 0.009, 0.0135, 0.018]) {
+        for (let k = 0; k < 16; k++) {
+            const ang = k * Math.PI / 8;
             const lat = (lat0 + r * Math.cos(ang)).toFixed(5), lon = (lon0 + r * Math.sin(ang) / Math.cos(lat0 * Math.PI / 180)).toFixed(5);
             const res = await page(lat, lon, ymd, 1);
             if (!res) return null;
