@@ -90,9 +90,9 @@ def fetch_day(keys, code, ymd):
                 keys.kill(k)
                 continue
             net_fail += 1
-            if net_fail > 6:
+            if net_fail > 25:   # 포털이 한동안 「서비스 연결실패」만 주는 때가 있다(2026-11-25 새벽 — 7번으로는 26곳이 중간에 포기했다)
                 raise RuntimeError(f'{code} {ymd}: 접속 오류 7번 — {e} {text[:120]!r}')
-            time.sleep(2 * net_fail)   # 중계 서버가 연결을 끊는 일이 있다 — 잠깐 쉬고 다시
+            time.sleep(min(2 * net_fail, 30))   # 중계 서버가 연결을 끊는 일이 있다 — 잠깐 쉬고 다시
             continue
         head = j.get('header') or (j.get('response') or {}).get('header') or {}
         body = j.get('body') or (j.get('response') or {}).get('body') or {}
@@ -113,9 +113,9 @@ def fetch_day(keys, code, ymd):
         # 머리말이 없거나 모르는 코드 — 포털이 가끔 엉뚱한 답을 준다. 원문을 찍고 다시 부른다.
         net_fail += 1
         print(f'  ? {code} {ymd}: 모르는 응답({rc}) {r.text[:160]!r} — 다시 부름 {net_fail}', flush=True)
-        if net_fail > 6:
+        if net_fail > 25:   # 포털이 한동안 「서비스 연결실패」만 주는 때가 있다(2026-11-25 새벽 — 7번으로는 26곳이 중간에 포기했다)
             raise RuntimeError(f'{code} {ymd}: 응답 {rc} {head.get("resultMsg")}')
-        time.sleep(2 * net_fail)
+        time.sleep(min(2 * net_fail, 30))
 
 
 def collect_station(keys, code, days, out_dir):
