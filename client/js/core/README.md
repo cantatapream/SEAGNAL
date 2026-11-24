@@ -10,6 +10,7 @@
 | `app_init.js` | 앱 초기화, 시간 표시, 폰트 크기, 헤더 새로고침, 방문자 카운터 | `updateTimeDisplay`, `handleHeaderRefresh`, `openSettingsModal`, `updateVisitorStats`, `markVisitorCounterError`, `checkCollectFailures` |
 | `backbutton.js` | 하드웨어 뒤로가기 버튼 처리 + 팝업 스택 관리 | `wrapSettingsModal`, `wrapKmaIframeModal`, `wrapSeagnalModal`, `wrapAlertHistoryPopup`, `wrapWindyPopup`, `wrapSeaZoneInfoPopup` |
 | `config.js` | 전역 설정(CONFIG), 해역 상수, 윈디 매핑, 해역 분류 체계 | `slideDown`, `slideUp`, `showBuoyLocationOnMap`, `showBlinkingMarker`, `getWindyEmbedUrl`, `getSubRegion` |
+| `zone_split.js` | 기상청 특보구역 개편(제주도남쪽바깥먼바다 → 남서쪽·남동쪽바깥먼바다)을 서버가 전환한 순간부터 화면이 스스로 따르게 한다 — 전환 여부 받기·저장값 이어받기·켜 둔 화면 새로고침·「수정 진행 중」 버튼. 상세 `zone_split.design.md` | `isActive`, `isPending`, `splitNames`, `migrateSettings`, `makeDisabledButton` |
 | `index2_patch.js` | (역할 헤더 없음 — STEP 6 에서 작성 필요) | `updateSubTabsBottomPosition`, `_closeAllBottomSubTabs`, `_openSubTabsFor`, `_syncSubTabHeightVar`, `_applyScrollHeight`, `_applyOffsetHeight` |
 
 ## 로드 순서

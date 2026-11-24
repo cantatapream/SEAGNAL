@@ -13,12 +13,15 @@
 const fs = require('fs'), path = require('path');
 const { ZONE_GROUP_MAP } = require('../../config/zone_group_map');
 const { PARENT_TO_CHILDREN, MMIS_CODE_TO_NAME } = require('../../marine_warning_crawler');
+const ZONE_SPLIT = require('../../config/zone_split');
 const args = process.argv.slice(2);
 const months = args.filter((a) => /^\d{4}-\d{2}$/.test(a));
 const SHOW = +((args.find((a) => a.startsWith('--show=')) || '--show=15').split('=')[1]);
 
 const norm = (s) => String(s || '').replace(/\s+/g, '').replace(/[.]/g, '·');
-const PARENTS = new Set(Object.values(MMIS_CODE_TO_NAME).filter((n) => !Object.values(PARENT_TO_CHILDREN).flat().includes(n)));
+// 구역 분할(config/zone_split.js): 통보문이 새 두 이름을 쓰면 읽을 수 있게 한다(코드표에도 새 코드가 있지만 여기서도 분명히 더해 둔다).
+//   없으면: 「제주도남서쪽바깥먼바다」를 「바다가 아님」으로 버리고, 「제주도먼바다(제주도남서쪽바깥먼바다)」는 괄호 안을 몰라 묶음 전체(안쪽먼바다까지)에 특보를 붙인다.
+const PARENTS = new Set([...Object.values(MMIS_CODE_TO_NAME).filter((n) => !Object.values(PARENT_TO_CHILDREN).flat().includes(n)), ...ZONE_SPLIT.NEW]);
 const childrenOf = (p) => PARENT_TO_CHILDREN[p] || [];
 const lines = (s) => String(s || '').replace(/<br\s*\/?>/gi, '\n').replace(/\r/g, '').split('\n').map((x) => x.trim()).filter(Boolean);
 /** 괄호 짝을 지켜 쉼표로 나눈다. */
@@ -38,6 +41,25 @@ function matchChildren(parent, tok) {
  *     '제주도남부앞바다(연안바다 제외)' → 부모만 / '경북북부앞바다(연안바다)' → 그 자식만
  */
 function expand(token, unknown) {
+    // 전환 뒤 「제주도남쪽바깥먼바다(제주도남서쪽바깥먼바다)」「…(남동쪽 제외)」처럼 옛 이름에 괄호로 한쪽만 적은 꼴 — 괄호 안이 가리키는 쪽만.
+    //   없으면: 옛 이름은 자식이 없어 괄호를 못 읽고 두 구역 모두로 읽는다(특보 없는 쪽 카드·지도에 특보가 뜬다 — 독립 검토 2026-11-23).
+    //   괄호 안을 못 읽으면 아래 본체로 내려가 두 구역 모두(넓은 쪽)로 둔다.
+    if (ZONE_SPLIT.isActive()) {
+        const m = token.match(/^([^(]+)\((.*)\)$/);
+        if (m && norm(m[1]) === ZONE_SPLIT.OLD) {
+            const excl = /제외\s*$/.test(m[2]);
+            const toks = splitTop(m[2].replace(/제외\s*$/, '')).map(norm).filter(Boolean);
+            const hit = ZONE_SPLIT.NEW.filter((n) => toks.some((t) => n === t || n.endsWith(t) || n.replace(/바깥먼바다$/, '').endsWith(t)));
+            if (hit.length) return new Set(excl ? ZONE_SPLIT.NEW.filter((n) => !hit.includes(n)) : hit);
+        }
+    }
+    const set = expandRaw(token, unknown);
+    // 2026-11-26 부터 「제주도남쪽바깥먼바다」 = 새 두 구역 모두(사용자 확정 — config/zone_split.js). 묶음(제주도먼바다·제주도전해상)·괄호 안·단독 어느 꼴로 와도
+    //   여기 한 곳에서 바꾼다 → 제주도먼바다 = 4구역, 제주도전해상 = 8구역. 25일 이전 통보문(옛 이름)으로 발효 중인 특보도 26일에 끊기지 않고 두 구역으로 이어진다.
+    return set && set.has(ZONE_SPLIT.OLD) && ZONE_SPLIT.isActive() ? new Set(ZONE_SPLIT.splitNames(set)) : set;
+}
+/** expand 의 본체(구역 분할 전 이름 그대로). [연계] ← expand(이 파일) */
+function expandRaw(token, unknown) {
     const m = token.match(/^([^(]+)(?:\((.*)\))?$/);
     if (!m) { unknown.push(token); return null; }
     const name = norm(m[1]), inner = (m[2] || '').trim();
@@ -81,7 +103,7 @@ function parseItems(t2, unknown) {
             for (const tok of splitTop(sm[1])) {
                 const pm = tok.match(/^([^(]+)/); const p = pm ? norm(pm[1]) : '';
                 if (!PARENTS.has(p)) continue;
-                for (const x of [p, ...childrenOf(p)]) cur.units.delete(x);
+                for (const x of [p, ...childrenOf(p), ...ZONE_SPLIT.splitNames([p])]) cur.units.delete(x);   // 전환 뒤 옛 이름 세부 줄 = 새 두 구역 칸을 바꿔 끼운다
                 const u = expand(tok, unknown); if (u) for (const x of u) cur.units.add(x);
             }
         }

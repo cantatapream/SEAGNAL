@@ -2705,7 +2705,8 @@ async function init() {
             // log('🔎 기상특보 크롤러 실행...');
             // weatherAlertsCrawler.run().catch(err => log(`⚠️ 크롤러 오류: ${err.message}`));
             log('🌊 marine.kma 통합 크롤러 실행...');
-            marineWarningCrawler.run().catch(err => log(`⚠️ [marine] 크롤러 오류: ${err.message}`));
+            // zoneSplitDetect: 제주 바깥먼바다 구역 분할의 전환 감지는 이 정기 주기에서만 한다(config/zone_split.js)
+            marineWarningCrawler.run({ zoneSplitDetect: true }).catch(err => log(`⚠️ [marine] 크롤러 오류: ${err.message}`));
         } else {
             log('⏸️ 기상특보 크롤링 일시정지 상태');
         }

@@ -107,7 +107,7 @@
         "text": "1분마다",
         "everyMinutes": 1,
         "evidence": [
-          { "file": "local_server/scheduler.js", "quote": "marineWarningCrawler.run().catch(err => log(`⚠️ [marine] 크롤러 오류: ${err.message}`));" }
+          { "file": "local_server/scheduler.js", "quote": "marineWarningCrawler.run({ zoneSplitDetect: true }).catch(err => log(`⚠️ [marine] 크롤러 오류: ${err.message}`));" }
         ]
       },
       "state": { "risk": "warnings", "file": "weather_alerts.json", "collectedField": "updatedAt", "collectedFormat": "koLocale" },
@@ -125,7 +125,7 @@
         "everyMinutes": 1,
         "nextFrom": "checked",
         "evidence": [
-          { "file": "local_server/scheduler.js", "quote": "marineWarningCrawler.run().catch(err => log(`⚠️ [marine] 크롤러 오류: ${err.message}`));" },
+          { "file": "local_server/scheduler.js", "quote": "marineWarningCrawler.run({ zoneSplitDetect: true }).catch(err => log(`⚠️ [marine] 크롤러 오류: ${err.message}`));" },
           { "file": "local_server/services/gale_warning_store.js", "quote": "본문 savedAt은 변경 시각, risk_forecast/gale_status.json checkedAt은 성공 확인 시각" }
         ]
       },

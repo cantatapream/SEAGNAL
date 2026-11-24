@@ -847,6 +847,19 @@ function createStatusCard(zoneName) {
         btnContainer.appendChild(allBtn);
     }
 
+    // [구역 분할 2026-11-26] 새 두 구역 카드는 버튼 4개를 회색으로 두고, 누르면 안내만 띄운다(alerts/render.js 와 같은 규칙 — core/zone_split.js)
+    if (window.ZoneSplit && window.ZoneSplit.isPending(zoneName)) {
+        const made = [...btnContainer.querySelectorAll('button')];
+        const cssOf = (label) => { const b = made.find((x) => x.textContent.trim() === label) || made[0]; return b ? b.style.cssText + ';' : ''; };
+        const off = ['기상예보', '해구기상', '윈디', '종합정보'].map((label) => {
+            const b = window.ZoneSplit.makeDisabledButton(label, '', cssOf(label));
+            _applyFlex(b);
+            return b;
+        });
+        btnContainer.innerHTML = '';
+        off.forEach((b) => btnContainer.appendChild(b));
+    }
+
     header.appendChild(btnContainer);
     card.appendChild(header);
 
