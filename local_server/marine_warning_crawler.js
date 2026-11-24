@@ -3321,11 +3321,47 @@ function _newCodeInZoneList() {
     return _splitZoneList.code;
 }
 
-/** [구역 분할] 전환했을 때 관리자 휴대폰에 한 통 — 전환은 조용히 일어난다(화면·푸시 이름이 바뀐다). 사람이 알게 한다. [연계] ← _observeZoneSplitCode·_observeZoneSplitQuiet */
-function _notifyZoneSplit(reason) {
+/**
+ * [구역 분할] 통보문이 새 두 구역 이름으로 특보·예비특보를 내기 시작했나 — 방재기상플랫폼 통보문(services/bulletin_watch)의 **구역 칸**만 본다.
+ *   사용자 2026-11-24 「변경시점에 추가로 통보문에서 그렇게 나누어서 발표하는 시점도 포함하면 될것같은데」.
+ *   보는 칸: 특보 통보문(rpt 6)의 해당 구역(t2)·발효 현황(t6), 예비특보 통보문(rpt 7)의 목록(t4). 참고사항·날씨해설은 보지 않는다 —
+ *   「26일부터 … 남서쪽·남동쪽바깥먼바다로 나뉩니다」 같은 **예고 문장**에 새 이름이 먼저 나올 수 있어서다(그걸로 넘어가면 기상청보다 먼저 바뀐다).
+ *   통보문 수집이 꺼져 있거나 못 읽으면 「못 봤다」(null) — 다른 조건이 따로 있다.
+ * 예: 제주청 특보 통보문 t2 가 「(1) 풍랑주의보 발표 : 제주도남서쪽바깥먼바다」 → '제주도남서쪽바깥먼바다'
+ * @returns {string|null} 본 새 구역 이름(없으면 null)
+ * [연계] ← _observeZoneSplitCode(이 파일) / → services/bulletin_watch.bulletins
+ */
+function _newNameInBulletins() {
+    try {
+        const squash = (v) => String(v == null ? '' : v).replace(/<br\s*\/?>/gi, ' ').replace(/\s+/g, '');
+        for (const b of require('./services/bulletin_watch').bulletins()) {
+            const r = b && b.result; if (!r) continue;
+            const text = String(b.rpt) === '7' ? squash(r.t4) : squash(r.t2) + '|' + squash(r.t6);
+            const hit = ZONE_SPLIT.NEW.find((n) => text.includes(n));
+            if (hit) return hit;
+        }
+    } catch (e) { console.warn('[구역 분할] 통보문에서 새 구역 이름을 못 찾아봄(다음에 다시):', e && e.message); }
+    return null;
+}
+
+let _splitNotifyBusy = false;
+/**
+ * [구역 분할] 전환을 관리자 휴대폰에 알린다 — **전달될 때까지** 매 주기 다시 보낸다(전달되면 상태 파일에 적고 그친다).
+ *   전환은 조용히 일어난다(화면·푸시 이름이 바뀐다). 한 번만 보내면 — 관리자 기기 미등록·발송 실패·그 순간 재시작 때 아무도 모른 채 넘어간다
+ *   (독립 검토 2026-11-24: sendAdminPush 는 실패해도 던지지 않고 {sent:0} 을 돌려준다). 상태(전환됨)이지 사건이 아니다 — 알았다는 표시가 있을 때만 그친다.
+ *   푸시 말고도 GET /api/zone-split 이 전환 시각·사유를 보여 준다.
+ * 예: 전환 뒤 첫 주기 — 관리자 기기 1대에 전달 → notified 표시 → 다음 주기부터 안 보낸다
+ * [연계] ← run(이 파일) — 전환 뒤 매 주기 / → services/admin_push.sendAdminPush · config/zone_split.markNotified
+ */
+function _notifyZoneSplit() {
+    const st = ZONE_SPLIT.status();
+    if (!st.active || st.notified || !st.at || _splitNotifyBusy) return;   // at 없음 = 손으로 켠 것(ZONE_SPLIT_FORCE) — 알릴 전환이 아니다
+    _splitNotifyBusy = true;
     Promise.resolve().then(() => require('./services/admin_push').sendAdminPush('🗺️ 제주 바깥먼바다 특보구역 전환됨',
-        `${reason}. 지금부터 제주도남서쪽·남동쪽바깥먼바다 2구역으로 표출·푸시합니다. 운영 화면을 한 번 확인해 주세요.`))
-        .catch((e) => console.warn('[구역 분할] 전환 알림(관리자 푸시) 실패:', e && e.message));
+        `${st.reason}. 지금부터 제주도남서쪽·남동쪽바깥먼바다 2구역으로 표출·푸시합니다. 운영 화면을 한 번 확인해 주세요.`))
+        .then((r) => { if (r && r.sent > 0) ZONE_SPLIT.markNotified(); else console.warn('[구역 분할] ⚠ 전환 알림이 전달되지 않았다(관리자 기기 미등록·발송 실패) — 다음 주기에 다시 보낸다'); })
+        .catch((e) => console.warn('[구역 분할] 전환 알림(관리자 푸시) 실패 — 다음 주기에 다시:', e && e.message))
+        .finally(() => { _splitNotifyBusy = false; });
 }
 
 /**
@@ -3341,8 +3377,7 @@ function _observeZoneSplitCode(fetched) {
     if (ZONE_SPLIT.isActive()) return false;
     const rows = [].concat(fetched.warnList || [], fetched.warnReady || []);
     const inRows = Object.keys(ZONE_SPLIT.NEW_CODES).find((c) => rows.some((r) => r && r.warn_zone_cd === c)) || null;
-    const r = ZONE_SPLIT.observe({ newCodeSeen: inRows || _newCodeInZoneList() });
-    if (r.activated) _notifyZoneSplit(r.reason);
+    const r = ZONE_SPLIT.observe({ newCodeSeen: inRows || _newCodeInZoneList(), bulletinNewName: (inRows ? null : _newNameInBulletins()) });
     return r.activated;
 }
 
@@ -3351,7 +3386,7 @@ function _observeZoneSplitCode(fetched) {
  *   디바운스는 MMIS 가 잠깐 그 줄을 빼고 줘도 3분 동안 특보를 붙들어 둔다 — 그 전 스냅샷으로 보면 특보가 살아 있는데 「없음」으로 읽고 넘어간다
  *   (독립 검토 2026-11-24 재현: 2주기 빈 응답에 전환). 그래서 붙들린 특보가 남아 있는 동안은 「있음」이다.
  *   여기서 전환하면 다음 주기부터 새 기준이다(이번 주기의 비교·푸시는 이미 옛 이름으로 일관되게 끝났다).
- * 예: 준비 시각 뒤, 디바운스까지 끝난 스냅샷에 옛 구역이 없는 주기가 두 번 이어짐 → 전환
+ * 예: 준비 시각 뒤, 디바운스까지 끝난 스냅샷에 옛 구역이 없는 주기가 10번(약 10분) 이어짐 → 전환
  * @param {StateSnapshot} curr 디바운스·가드가 끝난 이번 스냅샷
  * @returns {boolean}
  * [연계] ← run(이 파일) — 디바운스·가드 뒤 / → config/zone_split.observe
@@ -3361,7 +3396,6 @@ function _observeZoneSplitQuiet(curr) {
     const has = curr.parents.has(ZONE_SPLIT.OLD) || curr.upcomings.has(ZONE_SPLIT.OLD)
         || !!_parentReleasePending[ZONE_SPLIT.OLD] || !!_upcomingCancelPending[ZONE_SPLIT.OLD];
     const r = ZONE_SPLIT.observe({ oldZoneHasWarning: has, mmisOk: true });
-    if (r.activated) _notifyZoneSplit(r.reason);
     return r.activated;
 }
 
@@ -4601,7 +4635,7 @@ async function run(opts = {}) {
             try { _observeZoneSplitCode(fetched); }
             catch (e) { console.warn('[구역 분할] 전환 감지 실패(이번 주기 건너뜀):', e && e.message); }
         }
-        if (ZONE_SPLIT.isActive()) { _foldOldSplitZone(curr); _foldOldSplitZone(_prevSnapshot); _migrateSplitMemories(); }
+        if (ZONE_SPLIT.isActive()) { _foldOldSplitZone(curr); _foldOldSplitZone(_prevSnapshot); _migrateSplitMemories(); if (detectSplit) _notifyZoneSplit(); }
 
         const forceBaseline = !!opts.forceBaselinePush || _forceBaselinePending;
         if (_isSnapshotEmpty(_prevSnapshot) && !forceBaseline && isFirstLoad) {
@@ -4676,7 +4710,7 @@ async function run(opts = {}) {
         //   진동(값 왔다갔다) 시 확정 안 되어 푸시 억제. _buildUserPushChanges 전 적용.
         _debounceTimeValues(curr);
 
-        // [구역 분할] 조건 ② — 디바운스·가드가 끝난 스냅샷에 옛 구역 특보가 없으면(2주기 연속) 전환. 다음 주기부터 새 기준이다.
+        // [구역 분할] 조건 ② — 디바운스·가드가 끝난 스냅샷에 옛 구역 특보가 없으면(10주기 연속) 전환. 다음 주기부터 새 기준이다.
         if (detectSplit) {
             try { _observeZoneSplitQuiet(curr); }
             catch (e) { console.warn('[구역 분할] 전환 감지(특보 없음) 실패:', e && e.message); }
@@ -4823,6 +4857,7 @@ module.exports = {
     _buildZoneTreeFromSnapshot,
     _foldOldSplitZone,            // [구역 분할] 검사용
     _observeZoneSplitCode,
+    _newNameInBulletins,
     _observeZoneSplitQuiet,
     _migrateSplitMemories,
     _writeWeatherAlertsJson,

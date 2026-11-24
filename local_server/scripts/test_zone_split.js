@@ -52,7 +52,30 @@ const info = (lv) => ({ wrnTp: 'V', wrnTpNm: '풍랑', wrnLvlNm: lv, tmFc: '2026
         ok('새 코드도 없고 옛 특보가 살아 있으면 그대로', ZS.observe({ newCodeSeen: null, oldZoneHasWarning: true, nowMs: NOON - 3600e3 }).activated === false && !ZS.isActive());
         const r1 = ZS.observe({ newCodeSeen: 'S1324220', nowMs: NOON - 3600e3 });
         ok('① 새 코드를 보는 즉시 전환(준비 시각 전이어도, 옛 특보가 살아 있어도)', r1.activated === true && ZS.isActive() && /S1324220/.test(r1.reason), r1);
+        reset();
+        const rb = ZS.observe({ bulletinNewName: W, nowMs: NOON - 3600e3 });
+        ok('①-2 통보문이 새 구역 이름으로 특보를 내면 즉시 전환', rb.activated === true && ZS.isActive() && /통보문/.test(rb.reason), rb);
+        {
+            // 통보문의 어느 칸을 보나 — 구역 칸만(참고사항의 예고 문장으로는 안 넘어간다)
+            const BW = require('../services/bulletin_watch'), orig = BW.bulletins;
+            const mkB = (rpt, r) => ({ office: '제주청', rpt, result: Object.assign({ t1: '', t2: '', t4: '', t6: '', other: '' }, r) });
+            BW.bulletins = () => [mkB('6', { t2: '(1) 풍랑주의보 발표 : 제주도남쪽바깥먼바다', t6: 'o 풍랑주의보 : 제주도남쪽바깥먼바다', other: '26일부터 제주도남쪽바깥먼바다는 제주도남서쪽바깥먼바다와 제주도남동쪽바깥먼바다로 나뉩니다.' })];
+            ok('참고사항의 예고 문장(새 이름)으로는 안 본 것', C._newNameInBulletins() === null, C._newNameInBulletins());
+            BW.bulletins = () => [mkB('6', { t2: '(1) 풍랑주의보 발표 : 제주도 남서쪽 바깥먼바다' })];
+            ok('특보 통보문 해당 구역 칸의 새 이름(띄어 써도) → 봄', C._newNameInBulletins() === W, C._newNameInBulletins());
+            BW.bulletins = () => [mkB('6', { t2: '(1) 풍랑주의보 해제 : 제주도남쪽바깥먼바다', t6: 'o 풍랑주의보 : 제주도남동쪽바깥먼바다' })];
+            ok('발효 현황 칸의 새 이름 → 봄', C._newNameInBulletins() === E);
+            BW.bulletins = () => [mkB('7', { t4: '(1) 풍랑 예비특보<br>o 11월 26일 오후(12시~18시) : 제주도남서쪽바깥먼바다, 제주도남동쪽바깥먼바다' })];
+            ok('예비특보 통보문 목록의 새 이름 → 봄', C._newNameInBulletins() === W);
+            BW.bulletins = () => { throw new Error('수집 꺼짐'); };
+            ok('통보문을 못 읽으면 「못 봤다」(예외 없음)', C._newNameInBulletins() === null);
+            BW.bulletins = orig;
+        }
+        reset(); ZS.observe({ newCodeSeen: 'S1324220', nowMs: NOON - 3600e3 });
         ok('전환은 파일에 남는다(다시 켜도 이어진다)', JSON.parse(fs.readFileSync(process.env.ZONE_SPLIT_STATE_FILE, 'utf8')).active === true && (ZS._forceForTest(null), ZS.isActive()));
+        ok('전환 상태에 시각·사유가 있고 알림은 아직 「전달 안 됨」', ZS.status().active && !!ZS.status().at && /S1324220/.test(ZS.status().reason) && ZS.status().notified === false, ZS.status());
+        ZS.markNotified();
+        ok('알림 전달 표시는 파일에 남는다', ZS.status().notified === true && JSON.parse(fs.readFileSync(process.env.ZONE_SPLIT_STATE_FILE, 'utf8')).notified === true && (ZS._forceForTest(null), ZS.status().notified === true));
         ok('전환 뒤에는 다시 전환하지 않는다', ZS.observe({ newCodeSeen: 'S1324120', oldZoneHasWarning: false, nowMs: NOON + 1 }).activated === false);
         reset();
         const quiet = (n, from, has, ok2) => { let r = null; for (let k = 0; k < n; k++) r = ZS.observe({ oldZoneHasWarning: !!has, mmisOk: ok2 !== false, nowMs: from + k * 60e3 }); return r; };

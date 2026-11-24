@@ -24,6 +24,7 @@
  * [전환 조건 — 둘 중 먼저 오는 쪽]
  *   ① MMIS 가 새 구역코드(S1324120·S1324220)를 쓰기 시작 — 특보 자료(발효·예비)에 보이거나, 포털 특보구역 지도 목록에 보일 때. 보는 즉시.
  *      (특보 자료에는 특보가 걸린 구역만 온다 — 실측 2026-11-24. 지도 목록은 44개 구역이 늘 온다.)
+ *   ①-2 통보문(방재기상플랫폼)의 구역 칸에 새 두 구역 이름이 나올 때. 보는 즉시(예고 문장이 실릴 수 있는 참고사항은 보지 않는다).
  *   ② QUIET_FROM(2026-11-25 00:00 KST — 「내일 특보가없는 순간」) 뒤, 옛 구역에 특보(예비 포함)가 하나도 없을 때 — 10주기(약 10분) 연속, 해제 디바운스까지 끝난 뒤. 기상청은 특보가 없을 때만 구역을 바꿀 수 있다.
  *   전환 뒤에도 MMIS 가 옛 코드로 특보를 주면(기상청 작업 전) 그 특보 = 새 두 구역 모두의 특보로 읽는다(marine_warning_crawler._foldOldSplitZone).
  * ----------------------------------------------------------------------------
@@ -118,7 +119,7 @@ function activate(reason, nowMs) {
 /**
  * 한 주기의 관찰을 받아 전환할지 정한다(전환 조건 ①·② — 파일 머리). 이미 전환됐으면 아무 일도 안 한다.
  * 예: observe({ newCodeSeen: 'S1324220', oldZoneHasWarning: false }) 를 두 주기 연속 → { activated: true, reason: 'MMIS 가 새 구역코드 S1324220 …' }
- * @param {{newCodeSeen?: string|null, oldZoneHasWarning?: boolean, mmisOk?: boolean, nowMs?: number}} o
+ * @param {{newCodeSeen?: string|null, bulletinNewName?: string|null, oldZoneHasWarning?: boolean, mmisOk?: boolean, nowMs?: number}} o
  *   newCodeSeen = 이번 주기에 MMIS(특보 자료·구역 지도 목록)에서 본 새 구역코드(없으면 null) · oldZoneHasWarning = 옛 구역에 특보·예비가 있나 ·
  *   mmisOk = 이번 주기 MMIS 특보 자료를 제대로 받았나(못 받았으면 「특보 없음」으로 세지 않는다)
  * @returns {{activated: boolean, reason?: string}}
@@ -131,7 +132,9 @@ function observe(o) {
     let reason = null;
     // ① 새 구역코드 — 보는 즉시(기다리면 그 주기에 전환 전 규칙으로 새 이름 푸시가 나간다 — marine_warning_crawler._observeZoneSplitCode 주석)
     if (o.newCodeSeen) reason = `MMIS 가 새 구역코드(${o.newCodeSeen})를 쓰기 시작했다`;
-    // ② 특보 없음 — 2주기 연속(oldZoneHasWarning 을 준 호출만 센다)
+    // ①-2 통보문이 새 구역 이름으로 특보·예비특보를 내기 시작 — 보는 즉시(사용자 2026-11-24 「통보문에서 그렇게 나누어서 발표하는 시점도 포함」)
+    else if (o.bulletinNewName) reason = `통보문이 새 구역 이름(${o.bulletinNewName})으로 특보를 내기 시작했다`;
+    // ② 특보 없음 — CONFIRM_CYCLES(10)주기 연속(oldZoneHasWarning 을 준 호출만 센다)
     else if (typeof o.oldZoneHasWarning === 'boolean') {
         _streak.quiet = (o.mmisOk !== false && nowMs >= QUIET_FROM_MS && o.oldZoneHasWarning === false) ? _streak.quiet + 1 : 0;
         if (_streak.quiet >= CONFIRM_CYCLES) reason = '전환 준비 시각이 지났고 제주도남쪽바깥먼바다에 특보가 없다';
@@ -155,10 +158,22 @@ function splitNames(names) {
     return out;
 }
 
-/** 전환 상태(관리자 화면·화면 쪽 짝이 읽는다). 예: status() → { active: true, at: '2026-11-25T04:13:00.000Z', reason: '…' } */
-function status() { const s = _load(); return { active: isActive(), at: s.at || null, reason: s.reason || null }; }
+/** 전환 상태(화면 쪽 짝·GET /api/zone-split 이 읽는다). 예: status() → { active: true, at: '2026-11-25T04:13:00.000Z', reason: '…', notified: true } */
+function status() { const s = _load(); return { active: isActive(), at: s.at || null, reason: s.reason || null, notified: !!s.notified }; }
+
+/**
+ * 전환 알림(관리자 푸시)이 실제로 전달됐다고 적어 둔다 — 전달될 때까지 매 주기 다시 보내려고(marine_warning_crawler._notifyZoneSplit).
+ * 예: markNotified() → 상태 파일에 notified:true
+ * [연계] ← marine_warning_crawler._notifyZoneSplit
+ */
+function markNotified() {
+    const s = _load(); if (!s.active || s.notified) return;
+    s.notified = true;
+    try { fs.writeFileSync(STATE_FILE + '.tmp', JSON.stringify(s)); fs.renameSync(STATE_FILE + '.tmp', STATE_FILE); }
+    catch (e) { console.warn('[구역 분할] 알림 전달 표시를 파일에 못 남김(다음 주기에 한 번 더 갈 수 있다):', e && e.message); }
+}
 
 /** 검사용: 전환 여부를 고정한다(true/false), null 이면 저장된 상태를 본다. 기억해 둔 상태·연속 횟수도 비운다. [연계] ← test_zone_split 등 */
 function _forceForTest(v) { _forced = (v === true || v === false) ? v : null; _state = null; _streak.quiet = 0; }
 
-module.exports = { OLD, NEW, NEW_WEST, NEW_EAST, OLD_CODE, NEW_CODES, QUIET_FROM_MS, STATE_FILE, isActive, activate, observe, splitNames, status, _forceForTest };
+module.exports = { OLD, NEW, NEW_WEST, NEW_EAST, OLD_CODE, NEW_CODES, QUIET_FROM_MS, STATE_FILE, isActive, activate, observe, splitNames, status, markNotified, _forceForTest };
