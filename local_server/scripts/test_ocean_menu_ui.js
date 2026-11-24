@@ -443,6 +443,24 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
       await page.evaluate(() => window.switchMainTab('weather-group')); await wait(500); await tapOcean(1); await wait(900);
       assert.equal(await page.evaluate(() => document.getElementById('ocean-northup-btn').classList.contains('northup-locked')), true);
     });
+    await check('[2026-11-24 다시 켬] 특보구역·현황을 켠 채 앱을 다시 켜면 선만이 아니라 현황 색칠도 함께 켜진다 · 배경은 해안도 · 끄면 원래 배경', async () => {
+      // 종전: 특보구역 버튼만 저장값으로 되살아나고 색칠 버튼은 꺼진 채였다(사용자 「그리기만 되어있고 특보 색칠이 안된채로」 — 새로고침으로 매번 재현)
+      await page.evaluate(() => localStorage.setItem('seagnal_warn_zone_visible', 'true'));
+      await load(); await tapOcean(1);
+      await page.waitForFunction(() => document.getElementById('ocean-warn-zone-toggle-btn').classList.contains('active'), null, { timeout: 15000 });
+      await wait(600);
+      // 이 시험 서버에는 특보 자료가 없어(/api 404) 색칠 버튼이 「특보 없음」으로 숨거나 잠겨 있다 — 자료가 막 도착한 것처럼 버튼을 보이게 하고 누름을 받게 한다
+      const r0 = await page.evaluate(() => { const a = document.getElementById('ocean-warn-active-toggle-btn'); return { on: a.classList.contains('active'), shown: a.style.display !== 'none' }; });
+      await page.evaluate(() => { const a = document.getElementById('ocean-warn-active-toggle-btn'); window.__healClicks = 0;
+        a.addEventListener('click', () => { window.__healClicks++; a.classList.add('active'); }, true); a.classList.remove('warn-active-disabled'); a.style.display = 'none'; });
+      await wait(200);
+      await page.evaluate(() => { document.getElementById('ocean-warn-active-toggle-btn').style.display = ''; });   // 버튼이 나타남 → 감시가 다시 불린다
+      await wait(900);
+      const r = await page.evaluate(() => ({ clicks: window.__healClicks, on: document.getElementById('ocean-warn-active-toggle-btn').classList.contains('active'), base: window.oceanGetBasemap() }));
+      assert.ok(r0.on || r.clicks === 1, '색칠 버튼을 한 번 대신 눌렀다 ' + JSON.stringify([r0, r])); assert.equal(r.on, true); assert.equal(r.base, 'coast', '배경은 해안도');
+      await wait(700); assert.ok((await page.evaluate(() => window.__healClicks)) <= 1, '되풀이해 누르지 않는다');
+      await page.evaluate(() => localStorage.removeItem('seagnal_warn_zone_visible'));
+    });
     await check('화면 오류 없음', async () => { assert.deepEqual(errors, []); });
   } catch (e) { console.error('❌ 시험 준비 실패', e.message); fail++; }
   finally { if (browser) await browser.close(); if (server) server.close(); }
