@@ -203,7 +203,7 @@ function main() {
             if (ev) rows = toRows(ev); else note = '표준항 자료 대기';
         } else if (p.kind === '임의항' && !v) {
             method = 'tidebed계산'; note = 'TideBED 12일 대기';
-        } else if (p.kind === '임의항' && v.status === 'ok' && v.ref && Object.keys(v.days).length) {
+        } else if (p.kind === '임의항' && v.status === 'ok' && v.ref && (Object.keys(v.days).length || v.param)) {
             method = 'tidebed계산'; ref = v.ref; shiftMin = v.shiftMin;
             const code = nameToCode.get(norm(v.ref));
             const ev = code && loadStd(code);
@@ -211,12 +211,14 @@ function main() {
             else if (!ev) note = '기준 표준항 자료 대기';
             else if (v.refChanged) { method = '없음'; note = '날짜에 따라 기준항·조시차가 바뀜'; }
             else {
-                const fits = Object.values(v.days).map(d => d.fit);
+                // 보정식: 12일을 받았으면 그 중앙값, 아직이면 「재료만 받기」의 하루치(10분 간격) 식
+                const fits = Object.keys(v.days).length ? Object.values(v.days).map(d => d.fit) : [v.param.fit];
                 const a = median(fits.map(f => f.a)), b = median(fits.map(f => f.b));
                 const all = ev.concat(edge.get(code) || []);
                 rows = toRows(all.map(e => ({ t: e.t + v.shiftMin, lv: Math.round(a * e.lv + b), hl: e.hl })));
                 const byDate = new Map(rows.map(r => [r.date, r]));
-                cmp = { dMin: 0, dCm: 0, unmatched: 0, n: 0, days: Object.keys(v.days).length, a: +a.toFixed(4), b: +b.toFixed(2), worst: null };
+                if (Object.keys(v.days).length) cmp = { dMin: 0, dCm: 0, unmatched: 0, n: 0, days: Object.keys(v.days).length, a: +a.toFixed(4), b: +b.toFixed(2), worst: null };
+                else note = '1년치 계산됨 · 12일 대조 대기';
                 for (const [ymd, day] of Object.entries(v.days)) {
                     const c = compareDay(day, ymd, byDate.get(+ymd));
                     if (c.dMin > cmp.dMin || c.dCm > cmp.dCm) cmp.worst = ymd;

@@ -12,6 +12,7 @@
  *   --budget  키 하나가 이번 실행에서 부를 수 있는 횟수(기본 7000 — 운영 앱이 같은 키를 쓰므로 하루 10,000 을 다 쓰지 않는다)
  *   --until   이 시각(KST)이 되면 멈춘다(기본 06:50 — 사용자 지시: 새벽 앵커 수집 뒤 시작, 07:00 전 종료)
  *   --limit   지점 수 제한(시험용)
+ *   --params  재료만 받기 — 지점마다 한 번 불러 기준 표준항·조시차·조고비·보정식만(12일 곡선은 안 받는다)
  *   이미 12일을 다 받은 지점은 건너뛴다. 받는 도중 끊기면 받은 날까지 남아 다음 실행이 이어받는다.
  *
  * [연계]
@@ -73,12 +74,12 @@ function pickKey() {
  * @returns {{items:Array}|{nogrid:true}|null}  null = 실패(여러 번 다시 불러도 안 됨)
  * [연계] services/tide_collector.js fetchTideBedPage 와 같은 요청(min=1, 300줄).
  */
-async function page(lat, lon, ymd, pageNo) {
+async function page(lat, lon, ymd, pageNo, min = 1) {
     for (let t = 0; t < 5; t++) {
         const c = pickKey();
         if (!c) { stop = stop || '키 한도 소진'; return null; }
         calls++;
-        const u = `${URL_BASE}?serviceKey=${encodeURIComponent(c.k)}&lat=${lat}&lot=${lon}&reqDate=${ymd}&type=json&min=1&numOfRows=300&pageNo=${pageNo}`;
+        const u = `${URL_BASE}?serviceKey=${encodeURIComponent(c.k)}&lat=${lat}&lot=${lon}&reqDate=${ymd}&type=json&min=${min}&numOfRows=300&pageNo=${pageNo}`;
         let text = '';
         try {
             const r = await fetch(u, { signal: AbortSignal.timeout(40000) });
@@ -153,6 +154,39 @@ async function nudge(pt, ymd) {
     return null;
 }
 
+/**
+ * 재료만 받기(--params) — 지점마다 **한 번** 불러 기준 표준항·조시차·조고비·보정식만 얻는다(10분 간격 하루치 144줄이 한 번에 온다).
+ * [왜] 사용자 2026-11-24: 「재료부터 불러서 … 각 임의항별 1년치를 만들어놓으면 좋지 않겠니?」 — 12일 대조는 며칠 걸리지만
+ *      1년치 계산에 필요한 재료는 한 번 호출이면 된다. 12일 수집은 이 파일에 이어서 days 를 채운다.
+ * @returns 저장한 기록(rec). rec.param = {ymd, n, fit:{a,b,maxRes}}
+ */
+async function doParam(pt) {
+    const file = path.join(OUT, pt.id + '.json');
+    const rec = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8'))
+        : { id: pt.id, name: pt.name, lat: pt.lat, lon: pt.lon, status: 'ok', days: {} };
+    if (rec.ref || rec.status === 'no_grid') return rec;
+    const save = () => { fs.writeFileSync(file + '.tmp', JSON.stringify(rec)); fs.renameSync(file + '.tmp', file); };
+    const ymd = YEAR + DAYS[0];
+    let r = await page(pt.lat, pt.lon, ymd, 1, 10);
+    if (r && r.nogrid && !rec.nudgeTried) {
+        rec.nudgeTried = true;
+        const hit = await nudge(pt, ymd);
+        if (hit) { rec.qLat = hit.lat; rec.qLon = hit.lon; rec.nudgeKm = hit.km; r = await page(hit.lat, hit.lon, ymd, 1, 10); }
+    }
+    if (!r) { if (++failStreak >= BREAKER) stop = stop || `연속 ${BREAKER}회 실패(TideBED 장애 추정)`; return rec; }
+    failStreak = 0;
+    if (r.nogrid) { rec.status = 'no_grid'; rec.nogridCode = r.code; save(); return rec; }
+    if (r.items.length < 100) return rec;
+    const f = r.items[0];
+    Object.assign(rec, { ref: f.obsvtrNm, refLat: f.lat, refLon: f.lot, josi: f.josi, jogo: parseFloat(f.jogo), msl: f.msl });
+    const shift = mins(f.slctdDt) - mins(f.obsrvnDt);
+    rec.shiftMin = shift > 720 ? shift - 1440 : (shift < -720 ? shift + 1440 : shift);
+    const sum = summarize(r.items, ymd);
+    rec.param = { ymd, n: sum.n, fit: sum.fit };
+    save();
+    return rec;
+}
+
 async function doPoint(pt) {
     const file = path.join(OUT, pt.id + '.json');
     const rec = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8'))
@@ -203,6 +237,16 @@ async function main() {
         return r.status === 'no_grid' || DAYS.every(md => r.days[YEAR + md]);
     };
     const total = pts.length;
+    if (args.includes('--params')) {
+        const need = pts.filter(p => { const f = path.join(OUT, p.id + '.json'); if (!fs.existsSync(f)) return true; const r = JSON.parse(fs.readFileSync(f, 'utf8')); return !r.ref && r.status !== 'no_grid'; });
+        console.log(`재료만 받기: 임의항 ${total}곳 · 재료 있는 곳 ${total - need.length} · 받을 곳 ${need.length}`);
+        let i = 0, ok = 0, ng = 0;
+        await Promise.all(Array.from({ length: PARALLEL }, async () => {
+            while (!stop && i < need.length) { const r = await doParam(need[i++]); if (r.status === 'no_grid') { ng++; console.log(`  – ${r.id} ${r.name}: 격자 미제공`); } else if (r.ref) ok++; }
+        }));
+        console.log(`끝: 재료 받은 곳 ${ok} · 격자 미제공 ${ng} · 호출 ${calls}번 · 멈춘 까닭: ${stop || '남은 지점 없음'}`);
+        return;
+    }
     pts = pts.filter(p => !isDone(p));
     console.log(`임의항 ${total}곳 · 이미 끝남 ${total - pts.length}곳 · 남음 ${pts.length}곳 · 키 ${keys.length}개 × ${BUDGET}번 · ${UNTIL} KST 까지`);
     if (LIMIT) pts = pts.slice(0, LIMIT);
