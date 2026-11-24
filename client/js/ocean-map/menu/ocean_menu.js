@@ -144,6 +144,7 @@
     var _viewBasePrev = null;   // [보기] 화면 전용 배경(VIEWS[].base)으로 바꾸기 전의 배경 — 그 화면을 떠날 때 되돌린다
     var _accBusy = false;       // 사고 자료를 받는 동안의 로딩 표시가 떠 있는가
     var _loadSeq = 0;           // 천기 로딩 표시 — 연달아 눌렀을 때 앞선 표시가 끼어들지 않게 하는 번호
+    var _northTimer = null;     // 진북 고정을 다시 걸어 보는 타이머(지도가 만들어질 때까지)
     var _northPrev = null;      // 새 모드를 켜기 전 진북 상태('free'|'aligned'|'locked') — 끌 때 되돌린다
 
     // ========================================================================
@@ -662,6 +663,7 @@
      */
     function _afterNav(pre) {
         if (!_mode) return;
+        _lockNorth(true);          // 진북 고정을 탭이 바뀔 때마다 다시 확인한다(이미 걸려 있으면 아무 일도 안 한다)
         var tab = _tab();
         if (tab !== 'ocean-life-group' || !_safetyShown()) { _accLoading(false); _restoreViewBase(); }
         if (tab === 'ocean-life-group') {
@@ -917,14 +919,32 @@
         if (!want) return;
         _quiet(function () { for (var k = 0; k < 3 && stateOf() !== want; k++) btn.click(); });
         if (stateOf() !== want) {
-            // 지도가 아직 준비 전이라 버튼이 듣지 않는다 — 조금 뒤 다시
-            if ((tries || 0) < 12 && _mode === on) setTimeout(function () { _lockNorth(on, (tries || 0) + 1); }, 500);
+            // 지도가 아직 준비 전이라 버튼이 듣지 않는다 — 조금 뒤 다시.
+            //   ★켤 때는 횟수 제한 없이 지도가 만들어질 때까지 기다린다(2026-11-24). 지도는 「해양종합정보」 탭을 처음 열 때 만들어지는데,
+            //   종전에는 6초(500ms×12)만 해 보고 포기해서 앱을 켜고 6초 넘게 다른 탭에 있다 오면 고정이 안 걸렸다
+            //   (사용자 「고정이 풀리는경우가 있네?」 — 8초 뒤 탭을 열어 재현함). 끌 때는 종전대로 12번까지만.
+            if (_mode === on && (on || (tries || 0) < 12)) { clearTimeout(_northTimer); _northTimer = setTimeout(function () { _lockNorth(on, (tries || 0) + 1); }, 500); }
             else if (!on) _northPrev = null;
             return;
         }
+        if (on) _guardNorth();
         if (!on) _northPrev = null;
         // 「고정」은 원래 휴대폰에 저장돼 다음 실행에도 남는다 — 새 모드는 앱을 껐다 켜면 원래대로여야 하니, 우리가 건 고정은 저장에서 뺀다
         else if (_northPrev !== 'locked') { try { localStorage.removeItem('oceanMap.northUp.locked'); } catch (e) { /* 저장이 막혀 있어도 화면은 그대로 돈다 */ } }
+    }
+
+    /**
+     * 고정을 한 겹 더 지킨다 — 새 메뉴 화면인 동안 지도가 조금이라도 돌아가면 곧바로 북쪽이 위로 되돌린다.
+     * 두 손가락 회전을 꺼 두는 것(ocean_northup.js)이 첫 겹이고, 이것은 다른 길(화면 되살리기 등)로 각도가 들어오는 경우를 막는 둘째 겹이다.
+     * 지도 하나에 한 번만 건다. [연계] ← _lockNorth(고정이 걸린 직후) / → window.getOceanMap().getView() 'change:rotation'
+     */
+    function _guardNorth() {
+        var map = typeof window.getOceanMap === 'function' ? window.getOceanMap() : null;
+        var view = map && map.getView();
+        if (!view || view.__omNorthGuard) return;
+        view.__omNorthGuard = true;
+        view.on('change:rotation', function () { if (_mode && view.getRotation() !== 0) view.setRotation(0); });
+        if (view.getRotation() !== 0) view.setRotation(0);
     }
 
     /**

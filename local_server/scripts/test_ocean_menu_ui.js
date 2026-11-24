@@ -427,6 +427,22 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
       assert.ok(!/_debugKorea|tphn-dbg|해역표출 강제/.test(src) && !/tphn-dbg|해역표출 강제/.test(fs.readFileSync(path.join(root, 'client/index2.html'), 'utf8')));
       assert.ok(src.includes("var KEEP_NOTE = { ecmwf: true, jma: true };") && src.includes("if (!KEEP_NOTE[_src] && !extra) { el.textContent = ''; el.style.display = 'none'; return; }"), '유럽(ECMWF)·일본(JMA)만 출처 줄을 남긴다');
     });
+    await check('[2026-11-24 진북 고정] 앱을 켜고 한참(7.5초) 뒤에 해양종합정보를 처음 열어도 고정이 걸린다 · 지도가 돌아가도 곧바로 북쪽이 위로', async () => {
+      // 종전에는 지도가 만들어지기를 6초만 기다리고 포기해, 다른 탭에 오래 있다 오면 두 손가락 회전이 살아 있었다(사용자 「고정이 풀리는경우가 있네?」)
+      await load();
+      assert.equal(await page.evaluate(() => !!(window.getOceanMap && window.getOceanMap())), false, '이 탭을 열기 전에는 지도가 없다(그래야 이 시험이 뜻이 있다)');
+      await wait(7500);
+      await tapOcean(1); await wait(2500);
+      const r = await page.evaluate(() => { const m = window.getOceanMap(), b = document.getElementById('ocean-northup-btn'), v = m.getView();
+        const rot = m.getInteractions().getArray().filter(i => i instanceof ol.interaction.PinchRotate || i instanceof ol.interaction.DragRotate).map(i => i.getActive());
+        v.setRotation(0.6); const after = v.getRotation();
+        return { locked: b.classList.contains('northup-locked'), rot, after, ls: localStorage.getItem('oceanMap.northUp.locked') }; });
+      assert.equal(r.locked, true, JSON.stringify(r)); assert.ok(r.rot.length >= 1 && r.rot.every(x => x === false), '회전 손짓이 꺼져 있다 ' + JSON.stringify(r.rot));
+      assert.equal(r.after, 0, '각도가 들어와도 곧바로 0'); assert.equal(r.ls, null, '고정은 저장하지 않는다');
+      // 다른 탭에 갔다 와도 그대로
+      await page.evaluate(() => window.switchMainTab('weather-group')); await wait(500); await tapOcean(1); await wait(900);
+      assert.equal(await page.evaluate(() => document.getElementById('ocean-northup-btn').classList.contains('northup-locked')), true);
+    });
     await check('화면 오류 없음', async () => { assert.deepEqual(errors, []); });
   } catch (e) { console.error('❌ 시험 준비 실패', e.message); fail++; }
   finally { if (browser) await browser.close(); if (server) server.close(); }
