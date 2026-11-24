@@ -231,7 +231,9 @@
         var baseRgba = 'rgba(' + rgb + ',' + fillAlpha + ')';
         var stripeRgba = ns._const.STAGE_STRIPE_RGBA[info.stage];
         // 경보의 ✕ 격자는 새 모드(body.om-mode)에서만 — 평소 화면은 종전 한 방향 빗금 그대로
-        var crossHatch = info.stage === 'warn' && document.body.classList.contains('om-mode');
+        //   ★단계 값은 한글 '경보' 다(ocean_warn_active1.js STAGE_STRIPE_RGBA 의 열쇠 · _resolveStage). 2026-11-22 에 넣을 때 'warn' 으로 견줘
+        //     한 번도 참이 아니었다 — 범례(CSS)만 ✕ 로 보이고 지도는 한 방향 빗금이었다(사용자 2026-11-24 「경보는 빗금이 x자로 되어야하는데」).
+        var crossHatch = info.stage === '경보' && document.body.classList.contains('om-mode');
         var fillColorOrPattern = stripeRgba
             ? _stripeFillPattern(baseRgba, stripeRgba, crossHatch)
             : baseRgba;

@@ -478,6 +478,31 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
       await page.evaluate(() => { window._blockedFeatures = []; });
       await page.evaluate(() => localStorage.removeItem('seagnal_warn_zone_visible'));
     });
+    await check('[2026-11-24 경보 ✕] 지도의 경보 구역은 ✕ 격자(두 방향 빗금) · 주의보는 한 방향 — 범례만이 아니라 지도 그림으로 본다', async () => {
+      // 종전 시험은 범례(CSS)만 봤고, 지도 쪽은 단계 값을 'warn' 으로 견줘('경보' 가 맞다) 한 번도 ✕ 가 그려지지 않았다(사용자 화면으로 드러남)
+      const r = await page.evaluate(() => {
+        // 이 시험 서버는 구역 자료(/api/warn-zones)가 없어, 구역 그림 하나를 직접 만들어 그리는 함수(_styler)에 넣는다
+        const ns = window.OceanWarnActive; if (!ns || !ns._styler || typeof ol === 'undefined') return 'no-feature';
+        const f = new ol.Feature({ geometry: new ol.geom.Polygon([[[0, 0], [0, 1000], [1000, 1000], [1000, 0], [0, 0]]]), name: '시험구역' });
+        const name = (window.OceanWarnZone && window.OceanWarnZone.getMainZoneName(f)) || '시험구역', st = ns._state, keep = st.activeMap[name], wasActive = st.active;
+        const sample = (stage, alpha) => {
+          st.active = true; st.activeMap[name] = { paletteKey: 'wave', stage, fillAlpha: alpha, allCurrents: [], allUpcomings: [] };
+          const sty = ns._styler(f, 'main'), arr = Array.isArray(sty) ? sty : [sty];
+          const fill = arr.map(s => s.getFill && s.getFill()).filter(Boolean)[0]; const pat = fill && fill.getColor();
+          if (!pat || typeof pat === 'string') return null;
+          const c = document.createElement('canvas'); c.width = c.height = 14; const x = c.getContext('2d'); x.fillStyle = pat; x.fillRect(0, 0, 14, 14);
+          const px = (a, b) => Array.from(x.getImageData(a, b, 1, 1).data);
+          return { back: px(3, 3), plain: px(7, 2) };    // (3,3) = ↘ 방향 빗금(✕ 의 둘째 줄)이 지나는 자리 · (7,2) = 어느 빗금도 안 지나는 자리
+        };
+        const warn = sample('경보', 0.55), adv = sample('주의보', 0.40);
+        if (keep) st.activeMap[name] = keep; else delete st.activeMap[name]; st.active = wasActive;
+        return { warn, adv, dpr: window.devicePixelRatio };
+      });
+      if (r === 'no-feature') throw new Error('특보 현황 모듈이 없다');
+      assert.ok(r.warn && r.adv, JSON.stringify(r));
+      assert.ok(r.warn.back[0] - r.warn.plain[0] > 30, '경보: ↘ 방향 빗금 자리가 바탕보다 붉다(✕ 의 둘째 줄이 있다) ' + JSON.stringify(r.warn));
+      assert.ok(Math.abs(r.adv.back[0] - r.adv.plain[0]) < 12, '주의보: 그 자리에 빗금이 없다(한 방향만) ' + JSON.stringify(r.adv));
+    });
     await check('화면 오류 없음', async () => { assert.deepEqual(errors, []); });
   } catch (e) { console.error('❌ 시험 준비 실패', e.message); fail++; }
   finally { if (browser) await browser.close(); if (server) server.close(); }
