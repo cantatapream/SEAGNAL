@@ -24,7 +24,7 @@
  * [연계]
  *   - 읽는 것: client/tide_data/points_<연도>/_points.csv · points_<연도>/tidebed_verify/<id>.json ·
  *             Raw_tide_data/<연도>_hghlw/<코드>.csv · _coords.csv · _edge.csv(있으면) · client/tide.js(표준항 목록 — 이름·코드·좌표)
- *   - 쓰는 것: points_<연도>/p/<id>.json  { id, name, year, method, ref?, rows:[{date, highTide1Time, highTide1Level, …}] }
+ *   - 쓰는 것: points_<연도>/p/<id>.json  { id, name, year, method, ref?, rows:[{date, highTide1Time, highTide1Level, …, range(조차 cm), flow(물흐름 %)}] }
  *             points_<연도>/index.json   [{ id, name, region, lat, lon, method, ref, shiftMin }]
  *             points_<연도>/VERIFY_REPORT.md · points_<연도>/verify_detail.json
  *   - 검증 기준: TIDE_YEAR_COLLECT_README.md 「정해 둔 기본값 3」 — ±10분·±10cm 안이면 합격.
@@ -81,6 +81,32 @@ function toRows(events) {
         }
         return row;
     });
+}
+
+/**
+ * 물흐름 — 날마다 조차(range, cm)와 물흐름(flow, %)을 줄에 더한다.
+ *   range = 그날 가장 높은 고조 − 가장 낮은 저조.
+ *   flow  = round( (range − 최소) ÷ (최대 − 최소) × 100 ),  최대·최소 = **그날 앞뒤 15일(모두 31일) 안의** 가장 큰·작은 조차.
+ * 예) 앞뒤 15일의 조차가 82~297cm 이고 그날이 183cm → (183−82)/(297−82) = 47%.
+ * [왜 이 식인가] 사용자 2026-11-24 「물 흐름도 함께 계산토록해줘」 — 바다타임 「물흐름」은 화면 숫자로 검산하니 조차를 0~100% 로 바꾼 값이다
+ *   (제주 2026-11-24~12-08 15일: 「최대」가 그 사리의 최대 조차 297cm 에 붙고, 연중 최대 309cm 가 아니다 → 기준은 1년이 아니라 가까운 기간).
+ *   ⚠바다타임의 0% 기준은 화면만으로 알아내지 못했다(거꾸로 맞추면 107cm 쯤인데 앞뒤 어느 조금의 최소값(94·110·82)과도 다르다).
+ *   그래서 이 식은 바다타임과 **같지 않다** — 같은 15일을 견주면 평균 4.9%p 차이. 기준을 알게 되면 여기만 고치면 된다(range 는 그대로 쓴다).
+ * @param {Array} rows 날짜순 줄(제자리에서 고친다). 고조나 저조가 없는 날은 range·flow 를 넣지 않는다.
+ */
+function addFlow(rows) {
+    const rng = rows.map(r => {
+        const h = [1, 2, 3, 4].map(i => r[`highTide${i}Level`]).filter(v => v != null), l = [1, 2, 3, 4].map(i => r[`lowTide${i}Level`]).filter(v => v != null);
+        return h.length && l.length ? Math.max(...h) - Math.min(...l) : null;
+    });
+    rows.forEach((r, i) => {
+        if (rng[i] == null) return;
+        const w = rng.slice(Math.max(0, i - 15), i + 16).filter(v => v != null);
+        const mn = Math.min(...w), mx = Math.max(...w);
+        r.range = rng[i];
+        r.flow = mx > mn ? Math.round((rng[i] - mn) / (mx - mn) * 100) : 0;
+    });
+    return rows;
 }
 
 // ── 앱 방식(표준항 3곳 섞기) — client/tide.js 에서 그대로 옮김 ─────────────
@@ -237,6 +263,7 @@ function main() {
         index.push({ id: +p.id, name: p.name, region: p.region, lat: p.lat, lon: p.lon, method, ref, shiftMin, ready: !!rows, note,
             ...(v && v.qLat ? { qLat: +v.qLat, qLon: +v.qLon, nudgeKm: v.nudgeKm } : {}) });
         if (cmp) detail.push({ id: +p.id, name: p.name, region: p.region, ref, shiftMin, ...cmp });
+        if (rows) addFlow(rows);
         if (WRITE && rows) fs.writeFileSync(path.join(PD, 'p', p.id + '.json'), JSON.stringify({ id: +p.id, name: p.name, year: +YEAR, method, ref, rows }));
     }
 

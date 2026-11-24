@@ -1,6 +1,6 @@
 # 임의항 1년치 계산 — 실제 TideBED 12일 대조 (2027년)
 
-> 만든 때: 2026. 11. 24. 오후 5:51:33 KST · 도구: local_server/scripts/build_tide_points_year.js
+> 만든 때: 2026. 11. 24. 오후 5:57:48 KST · 도구: local_server/scripts/build_tide_points_year.js
 > 대조 = 지점마다 한 달에 하루씩 받은 실제 TideBED 곡선의 고조·저조(바텀시트의 findTidePeaks) vs 표준항 표로 계산한 값.
 > 하루치 곡선의 가장자리 30분 안은 뺐다. 합격 기준 = 시각 ±10분 · 높이 ±10cm.
 
