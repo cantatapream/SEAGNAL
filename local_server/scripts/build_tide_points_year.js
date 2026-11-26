@@ -259,6 +259,26 @@ function main() {
             note = v && v.status === 'no_grid' ? 'TideBED 격자 없음(둘레에도 없음)' : 'TideBED 자료 불완전';
         }
         if (method === '표준항3곳') { const r = rowsByIDW(p.lat, p.lon); rows = r.rows; ref = r.used.join('·'); }
+        // 불합격이라 1년치를 실제 TideBED 로 통째로 받아 둔 지점(collect_tidebed_fullyear.js)은 그 값으로 바꾼다 — 대조 기록(cmp)은 계산값 그대로 남긴다
+        const ff = path.join(PD, 'tidebed_full', p.id + '.json');
+        if (p.kind === '임의항' && fs.existsSync(ff)) {
+            const full = JSON.parse(fs.readFileSync(ff, 'utf8'));
+            const ds = Object.keys(full.peaks).filter(k => k.slice(0, 4) === String(YEAR)).sort();
+            const daysInYear = (YEAR % 4 === 0 && (YEAR % 100 !== 0 || YEAR % 400 === 0)) ? 366 : 365;
+            if (ds.length === daysInYear) {
+                rows = ds.map(ymd => {
+                    const r = { date: +ymd }, pk = full.peaks[ymd];
+                    for (const kind of ['highTide', 'lowTide']) [1, 2, 3, 4].map(i => pk[kind + i]).filter(Boolean)
+                        .forEach((x, i) => {
+                            r[`${kind}${i + 1}Time`] = +x.time.replace(':', '');   // 'HH:mm' → HHMM 정수(04:53 → 453)
+                            r[`${kind}${i + 1}Level`] = Math.round(+x.height);
+                        });
+                    return r;
+                });
+                method = 'tidebed실측'; note = '12일 대조 불합격 → 1년치를 실제 TideBED 로 받음';
+                if (cmp) cmp.replaced = true;
+            } else if (cmp) cmp.fullDays = ds.length;
+        }
         bump(method === '없음' ? '자료 없음(만들지 않음)' : rows ? method : '대기');
         index.push({ id: +p.id, name: p.name, region: p.region, lat: p.lat, lon: p.lon, method, ref, shiftMin, ready: !!rows, note,
             ...(v && v.qLat ? { qLat: +v.qLat, qLon: +v.qLon, nudgeKm: v.nudgeKm } : {}) });
@@ -289,8 +309,8 @@ function main() {
     if (cntDiff.length) lines.push('## 고조·저조 개수가 다른 곳(위 40곳)', '', '| id | 지점 | 해역 | 기준항 | 안 맞은 건수 |', '|---:|---|---|---|---:|',
         ...cntDiff.sort((x, y) => y.unmatched - x.unmatched).slice(0, 40).map(d => `| ${d.id} | ${d.name} | ${d.region} | ${d.ref} | ${d.unmatched} |`), '');
     // ── 리스트업(사용자 2026-11-24: 「대조결과 차이 2분 이상 차이나는 개소 등 정리해서 리스트업」) ──
-    const row = d => `| ${d.id} | ${d.name} | ${d.region} | ${d.ref} | ${d.shiftMin} | ${d.dMin} | ${d.dCm} | ${d.unmatched} | ${d.worst || ''} |`;
-    const head = ['| id | 지점 | 해역 | 기준항 | 조시차(분) | 시각 최대 차(분) | 높이 최대 차(cm) | 개수 다른 건 | 가장 나쁜 날 |', '|---:|---|---|---|---:|---:|---:|---:|---|'];
+    const row = d => `| ${d.id} | ${d.name} | ${d.region} | ${d.ref} | ${d.shiftMin} | ${d.dMin} | ${d.dCm} | ${d.unmatched} | ${d.worst || ''} | ${d.replaced ? '실측으로 바꿈' : d.fullDays != null ? `실측 받는 중 ${d.fullDays}일` : ''} |`;
+    const head = ['| id | 지점 | 해역 | 기준항 | 조시차(분) | 시각 최대 차(분) | 높이 최대 차(cm) | 개수 다른 건 | 가장 나쁜 날 | 1년치 |', '|---:|---|---|---|---:|---:|---:|---:|---|---|'];
     const t2 = detail.filter(d => d.dMin >= 2).sort((x, y) => y.dMin - x.dMin || x.id - y.id);
     const c2 = detail.filter(d => d.dCm >= 2 && d.dMin < 2).sort((x, y) => y.dCm - x.dCm || x.id - y.id);
     lines.push(`## 리스트업 ① 시각이 2분 이상 차이 난 곳 — ${t2.length}곳`, '', ...(t2.length ? [...head, ...t2.map(row)] : ['없음']), '',
