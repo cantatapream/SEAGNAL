@@ -7,6 +7,7 @@
  * 실제 AI 는 부르지 않는다(가짜 call 을 끼운다). 시각 의존 없음.
  */
 'use strict';
+require('../config/zone_split')._forceForTest(false);   // 구역 분할 전 기준으로 고정 — 정답표가 옛 이름(제주도남쪽바깥먼바다) 통보문이다. 없으면: 서버가 전환된 뒤(data/zone_split_state.json) 제주청 11-43호가 새 두 이름으로 펼쳐져 실패한다(2026-11-27 verify_all 실측)
 const fs = require('fs'), os = require('os'), path = require('path');
 const C = require('../services/ai_compare_trial');
 const all = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'analysis', 'bulletin_survey', 'ai_compare_cases.json'), 'utf8'));
