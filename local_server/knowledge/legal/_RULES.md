@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 178 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 179 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -284,6 +284,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_bulletin_cancel_scanner` | bulletin_cancel_scanner 단위 테스트 |
 | `test_parent_release_debounce` | 부모 해제 디바운스 검증 |
 | `test_zone_split` | 구역 분할(제주도남쪽바깥먼바다 → 남서쪽·남동쪽바깥먼바다) 검사. |
+| `test_regional_marine_parse` | 지방기상청 단기예보 PDF 해상 표 읽기 — 칸 수를 표 머리에 맞추는지 검사. |
 | `test_zone_tree_wiring` | 해역·항해구역 트리(zone_tree.json) 실서빙 배선 회귀 테스트 |
 | `test_ask_context` | 이해확인 · 상황질문(범위좁히기) · 온디바이스 프로필 확인 회귀 테스트 |
 | `test_naver_term_step` | 모르는 구어 해소(네이버 뜻 확인) 회귀 테스트 |

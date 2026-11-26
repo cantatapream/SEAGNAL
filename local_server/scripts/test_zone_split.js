@@ -262,7 +262,14 @@ const info = (lv) => ({ wrnTp: 'V', wrnTpNm: '풍랑', wrnLvlNm: lv, tmFc: '2026
         ok('옛 키가 없으면(=켬) 저장값을 안 건드린다', s2.weatherAppSettings_v1 === JSON.stringify({ '울산앞바다': false }));
         // 부이 버튼은 살아 있다 — 회색으로 바꾸는 것은 버튼 4개뿐(사용자 「부이버튼은 활성화해줘」)
         const rj = fs.readFileSync(path.join(__dirname, '..', '..', 'client', 'js', 'forecast', 'alerts', 'render.js'), 'utf8');
-        ok('회색 버튼은 기상예보·해구기상·윈디·종합정보 4개뿐', /\['기상예보'[^\n]*\['해구기상'[^\n]*\n[^\n]*\['윈디'[^\n]*\['종합정보'/.test(rj) && !/makeDisabledButton\([^)]*buoy/i.test(rj));
+        // 회색은 해구기상·윈디·종합정보 3개 — 「기상예보」는 연다(사용자 2026-11-27), 부이도 연다(사용자 「부이버튼은 활성화해줘」)
+        const wj = fs.readFileSync(path.join(__dirname, '..', '..', 'client', 'js', 'forecast', 'outlook', 'windy.js'), 'utf8');
+        const pendingBlock = (src) => { const i = src.indexOf('ZoneSplit.isPending('); return i < 0 ? '' : src.slice(i, i + 1600); };
+        for (const [nm, src] of [['특보현황 카드(render.js)', rj], ['기상현황 카드(windy.js)', wj]]) {
+            const blk = pendingBlock(src);
+            ok(nm + ': 회색 버튼 = 해구기상·윈디·종합정보', /'해구기상'/.test(blk) && /'윈디'/.test(blk) && /'종합정보'/.test(blk) && !/makeDisabledButton\([^)]*buoy/i.test(blk));
+            ok(nm + ': 「기상예보」는 회색으로 만들지 않고 진짜 버튼을 다시 붙인다', !/\['기상예보'/.test(blk) && !/\['기상예보',/.test(blk) && /liveForecast/.test(blk) && !/makeDisabledButton\('기상예보'/.test(blk));
+        }
     }
 
     ZS._forceForTest(null);

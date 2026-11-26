@@ -649,6 +649,13 @@ function parseMarineForecast(text, publishTimestamp) {
         { dayOffset: 4, period: 'am' },   // 그글피 오전
         { dayOffset: 4, period: 'pm' },   // 그글피 오후
     ];
+    // 실제 칸 수는 PDF 해상 표 머리의 「오전(06~12시)」「오후(12~24시)」 개수로 맞춘다 — 05시 8칸 · 11시 7칸 · 17시 9칸(2026-11-26~27 일곱 지방청 PDF 21개 실측).
+    //   없으면: 위 목록(9칸)만큼 값을 찾느라 표의 마지막 구역이 다음 줄(「동중국해」 등 구역 아닌 줄)의 값을 끌어온다 —
+    //   제주청 05시 「제주도남동쪽바깥먼바다」에 동중국해 값이 「12월 1일 오전」으로, 11시엔 두 칸이 붙었다(강원청 동해남부북쪽바깥먼바다도 같다).
+    //   머리를 못 읽으면(0) 종전대로 둔다.
+    const headEnd = marineText.search(/먼바다|앞바다/);
+    const headSlots = (marineText.slice(0, headEnd > 0 ? headEnd : 1500).match(/오[전후]\s*\(\s*\d{1,2}\s*~\s*\d{1,2}\s*시\s*\)/g) || []).length;
+    if (headSlots > 0 && headSlots < timeSlots.length) timeSlots.length = headSlots;
 
     // 해상 구역명 패턴 (PDF에서 줄바꿈 포함)
     // 먼바다: "안쪽먼바다", "바깥먼바다", "서쪽\n먼바다", "동쪽\n먼바다"
@@ -1076,5 +1083,6 @@ module.exports = {
     loadMarineForecasts,
     loadCoastalForecasts,
     REGIONAL_OFFICES,
-    ZONE_TO_OFFICE_MAP
+    ZONE_TO_OFFICE_MAP,
+    _parseMarineForecast: parseMarineForecast   // 검사용(test_regional_marine_parse)
 };
