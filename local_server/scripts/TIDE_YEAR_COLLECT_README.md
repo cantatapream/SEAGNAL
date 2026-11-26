@@ -88,6 +88,7 @@ TIDEBED_KEYS="키1,키2,키3" NODE_USE_ENV_PROXY=1 node --no-warnings local_serv
   날마다 바텀시트와 같은 findTidePeaks(앞뒤 날 이어 붙임)로 고조·저조를 뽑아 `points_2027/tidebed_full/<id>.json` 에. 끊겨도 이어받는다.
 - 그 해 날짜를 다 덮은 지점은 ④ 도구가 `method:'tidebed실측'` 으로 바꿔 쓴다(보고서 리스트업 ① 끝 칸 「실측으로 바꿈」).
 - ⚠그 전에 먼저 ④ 를 `--write` 없이 한 번 돌려 `verify_detail.json` 을 최신으로 만든다(불합격 목록이 거기서 나온다).
+- ⚠②를 끝낸 **같은 새벽**에 이어서 돌릴 때는 하루 합 21,000번을 넘지 않게 `--budget` 을 `(21000 − 그날 ②가 쓴 호출 수) ÷ 3` 으로 준다(② 끝줄의 「호출 N번」).
 
 **③ 표준항 파일 만들기** (①이 끝난 뒤) — `node local_server/scripts/build_tide_year_file.js 2027 --write` (도구 있음 · 인자 없이 돌리면 검사만)
 - `client/tide_data/tide_data_2027.js` 를 기존 틀 그대로: 머리말 2줄(`// 조석 데이터 2027년 (자동 생성됨)` · `// 생성 일시: …`) +
