@@ -692,6 +692,21 @@ async function collectMidTermSeaForecasts() {
             log(`✅ 중기해상예보 수집 완료: ${Object.keys(results).length}개 구역`);
         } else {
             log('⚠️ 중기해상예보 데이터 없음');
+            // 그 발표분이 아직 없으면(2026-11-27 06시판은 API·주간예보 PDF 둘 다 없었다) 전 묶음이 그대로 남는다.
+            // 그 묶음에 제주도해상 줄이 없으면(제주 줄을 넣기 전 저장분) 그 묶음 tmFc 기준으로 제주 줄만 채운다.
+            try {
+                const file = path.join(CONFIG.DATA_DIR, 'mid_term_sea_forecasts.json');
+                const prev = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null;
+                if (prev && prev.data && prev.tmFc && !prev.data.JEJU) {
+                    const jeju = await regionalForecastCollector.fetchWeekSeaItem(prev.tmFc);
+                    if (jeju) {
+                        prev.data.JEJU = jeju.item;
+                        prev.count = Object.keys(prev.data).length;
+                        saveData('mid_term_sea_forecasts.json', prev);
+                        log(`✅ 중기해상예보 제주도해상만 채움 (기존 묶음 ${prev.tmFc})`);
+                    }
+                }
+            } catch (e) { log(`⚠️ 중기해상예보 제주도해상 실패: ${e.message}`); }
         }
     } catch (e) {
         log(`⚠️ 중기해상예보 수집 실패: ${e.message}`);
