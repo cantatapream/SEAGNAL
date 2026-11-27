@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-27 13:33 KST] ✅완료 — 중기예보 제주도해상 — 머지 후 빈 칸 보완 (2026-11-27 13:40 KST)
+PR #1592 머지·배포(13:30 재시작) 뒤 운영 data.JEJU 없음. 원인: 첫 구현이 API 결과 0건이면 제주 줄을 안 붙였고, 27일 06시판이 없음(운영 묶음 여전히 202611261800, 06시 주간예보 PDF 없음 — API 응답 자체는 키가 없어 직접 확인 못 함). scheduler.js collectMidTermSeaForecasts else 분기: 저장 묶음에 JEJU 없으면 그 tmFc 기준으로 제주 줄만 채워 재저장. 로컬에서 운영 묶음 넣고 서버 기동해 채워짐 확인. 머지는 사용자 기존 지시(메인 머지) 연장.
+
+
 ### [2026-11-27 12:46 KST] ✅완료 — 중기예보 제주도해상 — 제주청 주간예보 PDF 로 채움 (2026-11-27)
 사용자 「중기예보부분도 수정해줘. 제주도해상으로 나오도록」. 중기 해상예보 API 8권역에 제주가 없어 제주 해역 카드가 남해서부(12B10000) 값을 「제주도해상」 이름으로 보이던 것을 고침. 서버 regional_forecast_collector.js parseWeekSeaTable·fetchWeekSeaItem(제주청 rpt_wid_week_<tmFc>_184.pdf 「4.해상날씨」 제주도 해상 줄 → API 꼴 열쇠, 18시판 9칸·06시판 11칸 머리글로 판별, 없으면 앞 발표분 3회까지·날 수는 API tmFc 기준 재계산) → scheduler.js collectMidTermSeaForecasts 가 data.JEJU 저장(API 결과 있을 때만). 앱 forecast.js 제주 11개 이름(새 두 구역 포함) → JEJU, 없으면 중기 칸 비움. 확인: 같은 PDF 남해서부 줄 = 운영 API 12B10000 값 완전 일치 · 운영 화면에 고친 forecast.js 끼워 제주 세 구역 1~1.5…1~3m 확인. 검사 test_week_sea_parse 20건(verify_all 등록). 그대로 둔 것: 위치기반 알림·AI 비서는 제주=12B10000(범위 밖). 브랜치 미머지 — 사용자 머지 지시 대기.
 
