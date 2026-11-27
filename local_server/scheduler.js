@@ -676,6 +676,13 @@ async function collectMidTermSeaForecasts() {
         }
 
         if (Object.keys(results).length > 0) {
+            // 제주도해상 — API 권역에 없어 제주청 주간예보 PDF 「제주도 해상」 줄로 채운다(2026-11-27).
+            // API 결과가 하나도 없을 때는 붙이지 않는다(제주 한 줄로 다른 권역 기존 값을 덮지 않도록).
+            try {
+                const jeju = await regionalForecastCollector.fetchWeekSeaItem(tmFc);
+                if (jeju) results.JEJU = jeju.item;
+                else log('⚠️ 중기해상예보 제주도해상: 주간예보 PDF 를 읽지 못함');
+            } catch (e) { log(`⚠️ 중기해상예보 제주도해상 실패: ${e.message}`); }
             saveData('mid_term_sea_forecasts.json', {
                 updatedAt: getNowStr(),
                 tmFc: tmFc,

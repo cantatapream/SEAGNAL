@@ -995,6 +995,135 @@ function normalizeMarineZoneName(rawName) {
     return name; // 매칭 안 되더라도 원본 반환
 }
 
+// ============================================================================
+// 주간예보 PDF 「4.해상날씨」 → 중기 해상예보 꼴 (2026-11-27 · 제주도해상)
+// ============================================================================
+// [왜] 중기 해상예보 API(getMidSeaFcst)로 받는 8개 권역에 「제주도해상」이 없어,
+//      앱이 제주 해역 카드에 남해서부 값을 「제주도해상」이라는 이름으로 보여 주고 있었다.
+//      제주지방기상청 주간예보 PDF(rpt_wid_week_<발표시각>_184.pdf)의 해상날씨 표에는
+//      「제주도 해상」 줄이 따로 있다 → 그 줄을 읽어 API 와 같은 열쇠(wf5Am·wh5AAm …)로 만든다.
+// [표 꼴 — pdf-parse 출력, 칸 사이 구분자 없음]
+//   "구역\n01일(화)02일(수)03일(목)\n04일(금)05일(토)06일(일)\n오전오후오전오후오전오후\n
+//    제주도\n해상\n날씨맑음맑음…\n파고(m)1~1.50.5~10.5~1…"
+//   날짜 머리글 N개 중 앞쪽 (오전 개수)개는 오전·오후 두 칸, 나머지는 한 칸.
+//   18시 발표 = 5~7일 두 칸 + 8~10일 한 칸(9칸) · 06시 발표 = 4~7일 두 칸 + 8~10일(11칸).
+// [연계] scheduler.js collectMidTermSeaForecasts → data.JEJU 로 저장 →
+//        client forecast.js ZONE_NAME_TO_MID_TERM_REG_ID(제주 해역 → 'JEJU')
+// ============================================================================
+
+const WEEK_WEATHER_RE = /(구름많고\s*(?:비\/눈|비|눈|소나기)|흐리고\s*(?:비\/눈|비|눈|소나기)|구름많음|맑음|흐림)/g;
+// 파고 칸: 한 자리 정수(+소수 한 자리), 범위면 "~". 10m 이상은 중기 해상예보에 나오지 않는다고 보고
+// 한 자리로 끊는다 — 칸 수가 머리글과 안 맞으면 통째로 버린다(아래 검사).
+const WEEK_WAVE_RE = /\d(?:\.\d)?(?:~\d(?:\.\d)?)?/g;
+
+/** 'YYYYMMDDHHmm' → 그 날 0시(UTC 기준 날짜 계산용 Date). */
+function _tmFcDay(tmFc) {
+    const s = String(tmFc);
+    return new Date(Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8)));
+}
+
+/**
+ * 주간예보 PDF 텍스트의 해상날씨 표에서 한 줄(예: 「제주도 해상」)을 중기 해상예보 API 꼴로 바꾼다.
+ * 예: parseWeekSeaTable(text, '제주도', '202611261800')
+ *     → { regId:'JEJU', wf5Am:'맑음', wh5AAm:1, wh5BAm:1.5, …, wf10:'흐림', wh10A:1, wh10B:3 }
+ * @param {string} text - pdf-parse 로 뽑은 주간예보 PDF 글
+ * @param {string} rowName - 표 첫 칸 이름('제주도'·'남해서부' …)
+ * @param {string} baseTmFc - 열쇠의 날 수(5·6·…)를 셀 기준 발표시각 'YYYYMMDDHHmm'
+ * @returns {object|null} 칸 수가 머리글과 안 맞거나 줄이 없으면 null
+ * [연계] fetchWeekSeaItem 이 부른다. 검사: scripts/test_week_sea_parse.js
+ */
+function parseWeekSeaTable(text, rowName, baseTmFc) {
+    if (!text) return null;
+    const start = text.indexOf('해상날씨');
+    if (start < 0) return null;
+    const endMark = text.indexOf('※', start);
+    const sec = text.slice(start, endMark > 0 ? endMark : undefined);
+
+    const headEnd = sec.indexOf('오전');
+    if (headEnd < 0) return null;
+    const dayNums = (sec.slice(0, headEnd).match(/(\d{1,2})일\(/g) || []).map((d) => parseInt(d, 10));
+    const ampm = sec.slice(headEnd).match(/^(?:오전|오후|\s)+/);
+    const splitCount = ampm ? (ampm[0].match(/오전/g) || []).length : 0;
+    if (!dayNums.length || splitCount > dayNums.length) return null;
+    const cols = splitCount * 2 + (dayNums.length - splitCount);
+
+    const rowRe = new RegExp(rowName + '\\s*해상\\s*날씨([^\\n]*)\\n\\s*파고\\(m\\)([^\\n]*)');
+    const m = sec.match(rowRe);
+    if (!m) return null;
+    const waves = m[2].replace(/\s+/g, '').match(WEEK_WAVE_RE) || [];
+    if (waves.length !== cols) return null;
+    const wfRaw = m[1].replace(/\([^)]*\)/g, '').match(WEEK_WEATHER_RE) || [];
+    const wfs = wfRaw.length === cols ? wfRaw.map((w) => w.replace(/(구름많고|흐리고)\s*/, '$1 ')) : null;
+
+    // 날짜 머리글(일) → 기준 발표일부터 며칠 뒤인가
+    const base = _tmFcDay(baseTmFc);
+    const offsets = dayNums.map((dn) => {
+        for (let k = 1; k <= 15; k++) {
+            const d = new Date(base.getTime() + k * 86400000);
+            if (d.getUTCDate() === dn) return k;
+        }
+        return null;
+    });
+    if (offsets.some((o) => o == null)) return null;
+
+    const item = { regId: 'JEJU' };
+    let c = 0;
+    const put = (keys) => {
+        const [a, b] = waves[c].split('~').map(Number);
+        keys.forEach(([wfKey, aKey, bKey]) => {
+            item[wfKey] = wfs ? wfs[c] : '-';
+            item[aKey] = a;
+            item[bKey] = b === undefined ? a : b;
+        });
+        c++;
+    };
+    offsets.forEach((d, i) => {
+        if (i < splitCount) {
+            put([[`wf${d}Am`, `wh${d}AAm`, `wh${d}BAm`]]);
+            put([[`wf${d}Pm`, `wh${d}APm`, `wh${d}BPm`]]);
+        } else if (d <= 7) {
+            // 앞 발표분 PDF 로 대신할 때: 한 칸짜리 날이 7일 안쪽으로 당겨진다.
+            // 앱은 4~7일을 오전·오후 열쇠로만 읽으므로 같은 값을 둘 다에 넣는다.
+            put([[`wf${d}Am`, `wh${d}AAm`, `wh${d}BAm`], [`wf${d}Pm`, `wh${d}APm`, `wh${d}BPm`]]);
+        } else {
+            put([[`wf${d}`, `wh${d}A`, `wh${d}B`]]);
+        }
+    });
+    return item;
+}
+
+/** 'YYYYMMDDHHmm'(06·18시) → 한 발표 앞 시각. */
+function _prevWeekTmFc(tmFc) {
+    const s = String(tmFc);
+    if (s.slice(8, 10) === '18') return s.slice(0, 8) + '0600';
+    const d = new Date(_tmFcDay(s).getTime() - 86400000);
+    return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}1800`;
+}
+
+/**
+ * 제주청 주간예보 PDF 를 받아 「제주도 해상」 줄을 중기 해상예보 꼴로 돌려준다.
+ * 그 발표분 PDF 가 아직 없으면(없을 때 기상청은 HTML 안내 쪽을 200 으로 준다) 앞 발표분을 3번까지 거슬러 본다.
+ * 날 수(wf5Am 의 5)는 언제나 baseTmFc 기준으로 센다 — 앱이 같은 묶음의 tmFc 로 날짜를 계산하기 때문.
+ * 예: await fetchWeekSeaItem('202611261800') → { item:{regId:'JEJU', …}, srcTmFc:'202611261800' }
+ * @param {string} baseTmFc - 중기 해상예보 API 를 부른 발표시각
+ * @returns {Promise<{item:object, srcTmFc:string}|null>}
+ * [연계] scheduler.js collectMidTermSeaForecasts
+ */
+async function fetchWeekSeaItem(baseTmFc) {
+    if (!pdfParse) return null;
+    let ts = String(baseTmFc);
+    for (let i = 0; i < 4; i++, ts = _prevWeekTmFc(ts)) {
+        try {
+            const buf = await fetchPdf(`https://www.weather.go.kr/w/repositary/xml/fct/rpt_wid_week_${ts}_184.pdf`);
+            if (buf.slice(0, 4).toString() !== '%PDF') continue;
+            const { text } = await pdfParse(buf);
+            const item = parseWeekSeaTable(text, '제주도', baseTmFc);
+            if (item) return { item: Object.assign(item, { srcTmFc: ts }), srcTmFc: ts };
+        } catch (_) { /* 다음 후보 */ }
+    }
+    return null;
+}
+
 /**
  * 저장된 데이터 로드
  */
@@ -1084,5 +1213,7 @@ module.exports = {
     loadCoastalForecasts,
     REGIONAL_OFFICES,
     ZONE_TO_OFFICE_MAP,
-    _parseMarineForecast: parseMarineForecast   // 검사용(test_regional_marine_parse)
+    fetchWeekSeaItem,
+    _parseMarineForecast: parseMarineForecast,   // 검사용(test_regional_marine_parse)
+    _parseWeekSeaTable: parseWeekSeaTable        // 검사용(test_week_sea_parse)
 };
