@@ -159,14 +159,16 @@ function resolveZones(expr, ctx = {}) {
     if (ctx.office) {
         const own = officeZones()[ctx.office] || [];
         const mine = [...out].filter((z) => own.includes(z));
-        if (mine.length) return mine;
+        if (mine.length) return require('../config/zone_split').splitNames(mine);
     }
-    return out.size ? [...out] : null;
+    // [구역 분할 2026-11-26] 전환 뒤 옛 이름 「제주도남쪽바깥먼바다」 = 새 두 구역 모두(통보문 기준 특보현황의 해역 열쇠가 새 이름이다)
+    return out.size ? require('../config/zone_split').splitNames(out) : null;
 }
 // 공식 목록에 없는 예보관 표기 → 공식 이름(사용자 확정 2026-11-15, 해역표로 확인):
 //   「제주도바깥먼바다」 = 제주도남쪽바깥먼바다(제주 바깥먼바다는 하나) · 「제주도남쪽안쪽먼바다」 = 남서쪽안쪽+남동쪽안쪽(제주 안쪽먼바다는 이 둘)
 //   「서해남부중부앞바다」 = 전남중부서해앞바다(서해남부 쪽 부모 중 「중부」는 이것뿐 — 같은 문장 「중 앞평수구역」도 이 부모의 자식, 광주 2026 10-5호)
-const ALIAS = { '제주도바깥먼바다': ['제주도남쪽바깥먼바다'], '제주도남쪽안쪽먼바다': ['제주도남서쪽안쪽먼바다', '제주도남동쪽안쪽먼바다'], '서해남부중부앞바다': ['전남중부서해앞바다'] };
+const ALIAS = { get '제주도바깥먼바다'() { return require('../config/zone_split').splitNames(['제주도남쪽바깥먼바다']); },   // 2026-11-26 구역 분할 뒤에는 남서쪽·남동쪽바깥 둘
+     '제주도남쪽안쪽먼바다': ['제주도남서쪽안쪽먼바다', '제주도남동쪽안쪽먼바다'], '서해남부중부앞바다': ['전남중부서해앞바다'] };
 /**
  * 글 안에 이름이 나온 부모 해역(관할 안) — 「제주도동부앞바다 풍랑주의보는 … 남동연안바다는 …」의 제주도동부앞바다.
  * 예: namedParents('제주도동부앞바다( 남동연안바다 ), 제주도남부앞바다( 연안바다 )', '제주청') → ['제주도동부앞바다','제주도남부앞바다']

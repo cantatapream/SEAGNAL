@@ -179,6 +179,8 @@
         //    [중요] 타이머 핸들을 OS.state._closeHideTimer 에 저장해서 새 시트 오픈 시
         //    캔슬할 수 있게 함. 캔슬 안 하면 "close → 300ms 안에 재오픈" 시 이 setTimeout
         //    이 발화해서 새 시트도 hide 됨 (race).
+        if (typeof OS.cancelTideRequests === 'function') OS.cancelTideRequests();   // 받는 중인 조석 요청은 버린다(3.js — 닫힌 시트의 칸을 뒤늦게 그리지 않게)
+        if (typeof OS.dropSheetHeightHold === 'function') OS.dropSheetHeightHold();   // 붙잡아 둔 높이를 푼다(5.js — 닫히는 움직임과 겹치지 않게)
         sheet.classList.remove('open');
         if (OS.state._closeHideTimer) clearTimeout(OS.state._closeHideTimer);
         OS.state._closeHideTimer = setTimeout(function () {
@@ -435,7 +437,8 @@
         // 시트 표시 (살짝 지연 후 transition 클래스 부여)
         sheet.style.display = 'block';
         sheet.scrollTop = 0; // 새로 열 때 스크롤 최상단으로
-        setTimeout(function () { sheet.classList.add('open'); }, 10);
+        // 열자마자 지금 높이를 붙잡아, 칸들이 제각각 채워지고 빠지는 동안 시트가 출렁이지 않게 한다(5.js holdSheetHeight — 2026-11-24)
+        setTimeout(function () { sheet.classList.add('open'); if (typeof OS.holdSheetHeight === 'function') OS.holdSheetHeight(); }, 10);
 
         // 휴대폰 시스템 뒤로가기로 시트를 닫을 수 있도록
         // backbutton.js 의 PopupStack 에 등록 (LIFO).

@@ -11,6 +11,7 @@
  * [로드 순서] 독립 Node 실행 — 네트워크·실제 키 없음, 임시 폴더만 쓴다. 시계는 전부 주입(현재 시각에 기대지 않는다).
  */
 'use strict';
+require('../config/zone_split')._forceForTest(false);   // 2026-11-26 구역 분할 전 기준으로 고정 — 이 검사는 옛 이름(제주도남쪽바깥먼바다)을 쓴다. 전환 뒤 동작은 test_zone_split 이 본다(시각 의존 금지)
 const assert = require('assert'), fs = require('fs'), os = require('os'), path = require('path'), zlib = require('zlib');
 const io = require('../services/risk_collector_io'), H = require('../services/sea_traffic_history');
 const W = require('../services/sea_warning_history'), Z = require('../services/warn_zone_cells');

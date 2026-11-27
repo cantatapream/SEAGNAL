@@ -580,7 +580,7 @@
         var nextSorted = toSorted(nextDayPeaks).map(function (p) { return { type: p.type, m: p.m + 1440, cm: p.cm }; }); // 다음날 = 1440+ 분
         var chrono = prevSorted.concat(sorted, nextSorted); // 게이지·증감 계산용(오늘 밖 경계도 커버)
 
-        // 물때 배지 — computeMulddae 는 월령(달 위상)만으로 계산돼 피크·조화상수가 없어도 된다
+        // 물때 배지 — computeMulddae 는 (2026-11-24 부터) 음력 날짜만으로 — 그 전에는 월령(달 위상)만으로 계산돼 피크·조화상수가 없어도 된다
         // (§HAZARD_ROCKS_HANDOFF §6.11 에서 필요하다고 잘못 판단했던 것을 재확인 후 정정).
         var mulddaeBadge = '';
         if (typeof computeMulddae === 'function' && dateObj) {

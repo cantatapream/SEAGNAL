@@ -40,4 +40,14 @@ const ZONE_GROUP_MAP = {
     "제주도먼바다": ["제주도남쪽바깥먼바다", "제주도남동쪽안쪽먼바다", "제주도남서쪽안쪽먼바다"]
 };
 
+// [구역 분할 2026-11-26] 「제주도남쪽바깥먼바다」가 남서쪽·남동쪽바깥먼바다 2개로 나뉜다(config/zone_split.js — 사용자 확정).
+//   전환 뒤 「제주도먼바다」 = 4구역, 「제주도전해상」 = 8구역. 이 표를 쓰는 곳이 모두 같은 객체를 잡고 있고 서버를 다시 켜지 않아도
+//   전환되는 순간 바뀌어야 하므로, 두 칸을 「읽을 때마다 지금 기준으로 답하는 칸」(getter)으로 바꾼다. 키 개수(21)·순서는 그대로다.
+//   ⚠읽을 때마다 새 배열이다 — 이 칸의 배열을 로드 때 잡아 두면 옛 내용으로 굳는다(bulletin_escalation ALIAS 가 그래서 getter 다).
+const ZONE_SPLIT = require('./zone_split');
+for (const key of ['제주도전해상', '제주도먼바다']) {
+    const base = ZONE_GROUP_MAP[key];
+    Object.defineProperty(ZONE_GROUP_MAP, key, { enumerable: true, configurable: true, get: () => ZONE_SPLIT.splitNames(base) });
+}
+
 module.exports = { ZONE_GROUP_MAP };

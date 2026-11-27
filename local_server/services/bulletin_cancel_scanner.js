@@ -464,6 +464,13 @@ function _keepDeclared(release, zone) {
 
 function matchesZone(release, zone) {
     if (!release || !zone) return false;
+    // [구역 분할] 전환 뒤 새 두 구역은 통보문이 옛 이름(「제주도남쪽바깥먼바다의 풍랑 예비특보는 … 해제」)으로 적어도 그 구역을 가리킨 것이다 —
+    //   옛 이름 = 두 구역 모두(사용자 확정). 없으면: 우리가 먼저 전환하고 기상청이 아직 옛 이름을 쓰는 동안 예비취소 푸시가 영영 안 나간다(독립 검토 2026-11-24 재현).
+    { const ZS = require('../config/zone_split'); if (ZS.isActive() && ZS.NEW.indexOf(zone) !== -1 && _matchesZoneRaw(release, ZS.OLD)) return true; }
+    return _matchesZoneRaw(release, zone);
+}
+/** matchesZone 의 본체(구역 분할 전 이름 그대로). [연계] ← matchesZone(이 파일) */
+function _matchesZoneRaw(release, zone) {
     const hay = _hayOf(release);
     if (_keepDeclared(release, zone)) return false;     // [5차] 유지 선언 — 직접·묶음 모든 경로 차단
     if (_explicitlyExcluded(hay, zone)) return false;   // 명시 제외 — 묶음 확장보다 우선

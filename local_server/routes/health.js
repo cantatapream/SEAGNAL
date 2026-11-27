@@ -191,7 +191,10 @@ function buildResponseHtml() {
     if (!cachedHtml) return '';
     const json = JSON.stringify(cachedMaintenance);
     const safe = escapeForScriptTag(json);
-    const injection = `<script>window.__MAINTENANCE__ = ${safe};</script>`;
+    // [구역 분할] 화면(client/js/core/zone_split.js)이 「지금 새 구역 기준인가」를 서버에서 받는다 — 전환은 시각이 아니라 서버가 MMIS 를 보고 정한다
+    //   (config/zone_split.js). 화면이 혼자 정하면 서버와 어긋나 새 이름으로 구독해 옛 구역 푸시를 놓친다(독립 검토 2026-11-23). 참·거짓 한 글자뿐이다.
+    const zoneSplit = `window.__ZONE_SPLIT__ = {active:${require('../config/zone_split').isActive() ? 'true' : 'false'}};`;
+    const injection = `<script>window.__MAINTENANCE__ = ${safe};${zoneSplit}</script>`;
     return cachedHtml.replace(INJECT_MARKER, injection);
 }
 

@@ -3,6 +3,7 @@
 // [§7.7.23] bulletin_cancel_scanner 단위 테스트 — node scripts/test_bulletin_cancel_scanner.js
 //   네트워크 없이 파싱·매칭만 검증 (합성 KMA 문구 + 인라인 HTML).
 // ============================================================================
+require('../config/zone_split')._forceForTest(false);   // 2026-11-26 구역 분할 전 기준으로 고정 — 이 검사는 옛 이름(제주도남쪽바깥먼바다)을 쓴다. 전환 뒤 동작은 test_zone_split 이 본다(시각 의존 금지)
 const sc = require('../services/bulletin_cancel_scanner');
 
 let pass = 0, fail = 0;

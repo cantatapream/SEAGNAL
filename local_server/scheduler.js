@@ -676,6 +676,13 @@ async function collectMidTermSeaForecasts() {
         }
 
         if (Object.keys(results).length > 0) {
+            // 제주도해상 — API 권역에 없어 제주청 주간예보 PDF 「제주도 해상」 줄로 채운다(2026-11-27).
+            // API 결과가 하나도 없을 때는 붙이지 않는다(제주 한 줄로 다른 권역 기존 값을 덮지 않도록).
+            try {
+                const jeju = await regionalForecastCollector.fetchWeekSeaItem(tmFc);
+                if (jeju) results.JEJU = jeju.item;
+                else log('⚠️ 중기해상예보 제주도해상: 주간예보 PDF 를 읽지 못함');
+            } catch (e) { log(`⚠️ 중기해상예보 제주도해상 실패: ${e.message}`); }
             saveData('mid_term_sea_forecasts.json', {
                 updatedAt: getNowStr(),
                 tmFc: tmFc,
@@ -685,6 +692,21 @@ async function collectMidTermSeaForecasts() {
             log(`✅ 중기해상예보 수집 완료: ${Object.keys(results).length}개 구역`);
         } else {
             log('⚠️ 중기해상예보 데이터 없음');
+            // 그 발표분이 아직 없으면(2026-11-27 06시판은 API·주간예보 PDF 둘 다 없었다) 전 묶음이 그대로 남는다.
+            // 그 묶음에 제주도해상 줄이 없으면(제주 줄을 넣기 전 저장분) 그 묶음 tmFc 기준으로 제주 줄만 채운다.
+            try {
+                const file = path.join(CONFIG.DATA_DIR, 'mid_term_sea_forecasts.json');
+                const prev = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null;
+                if (prev && prev.data && prev.tmFc && !prev.data.JEJU) {
+                    const jeju = await regionalForecastCollector.fetchWeekSeaItem(prev.tmFc);
+                    if (jeju) {
+                        prev.data.JEJU = jeju.item;
+                        prev.count = Object.keys(prev.data).length;
+                        saveData('mid_term_sea_forecasts.json', prev);
+                        log(`✅ 중기해상예보 제주도해상만 채움 (기존 묶음 ${prev.tmFc})`);
+                    }
+                }
+            } catch (e) { log(`⚠️ 중기해상예보 제주도해상 실패: ${e.message}`); }
         }
     } catch (e) {
         log(`⚠️ 중기해상예보 수집 실패: ${e.message}`);
@@ -2705,7 +2727,8 @@ async function init() {
             // log('🔎 기상특보 크롤러 실행...');
             // weatherAlertsCrawler.run().catch(err => log(`⚠️ 크롤러 오류: ${err.message}`));
             log('🌊 marine.kma 통합 크롤러 실행...');
-            marineWarningCrawler.run().catch(err => log(`⚠️ [marine] 크롤러 오류: ${err.message}`));
+            // zoneSplitDetect: 제주 바깥먼바다 구역 분할의 전환 감지는 이 정기 주기에서만 한다(config/zone_split.js)
+            marineWarningCrawler.run({ zoneSplitDetect: true }).catch(err => log(`⚠️ [marine] 크롤러 오류: ${err.message}`));
         } else {
             log('⏸️ 기상특보 크롤링 일시정지 상태');
         }

@@ -143,6 +143,9 @@
      *   - level === "예비" → "주의보" (예비 = 풍랑주의보가 곧 발효 예정 상태)
      *   - 상태 접미사: isUpcoming(=isPreliminary)=true → " 발표", false → " 발효"
      */
+    /** 새 메뉴 화면인가(body.om-mode — 2026-11-23 부터 앱이 뜨면 늘 켜진다. 옛 화면은 시험에서만 뜬다). */
+    function _isOm() { return document.body.classList.contains('om-mode'); }
+
     function _buildTypeText(a, isUpcoming) {
         var type = (a.warnType || '').replace(/예비$/, '');     // "풍랑예비" → "풍랑"
         var lvl  = (a.level === '예비') ? '주의보' : (a.level || '');
@@ -165,18 +168,22 @@
      */
     function _renderAlertBlock(a, isUpcoming) {
         var lines = [];
+        // [새 메뉴 화면 — 2026-11-23 사용자 시안] 발효 중 = 「발표시각·발효시각·해제예정」, 다가오는 특보 = 「발표·발효·해제예정」
+        var om = _isOm();
+        var K = om ? (isUpcoming ? { fc: '발표', ef: '발효', cc: '해제예정' } : { fc: '발표시각', ef: '발효시각', cc: '해제예정' }) : null;
 
         // 종류·등급·상태 라벨 (예: "풍랑주의보 발표")
-        lines.push('<div class="warn-active-line warn-active-type">• '
+        // 새 메뉴 화면: 종류 글자색을 등급으로 — 경보 빨강 · 그 밖(주의보·예비) 노랑(시안 8차)
+        lines.push('<div class="warn-active-line warn-active-type' + (om ? (String(a.level || '').indexOf('경보') >= 0 ? ' lv-warn' : ' lv-adv') : '') + '">• '
             + _esc(_buildTypeText(a, isUpcoming)) + '</div>');
 
         if (a.tmFc) {
-            lines.push('<div class="warn-active-line"><span class="warn-active-key">발표</span>'
+            lines.push('<div class="warn-active-line"><span class="warn-active-key">' + (K ? K.fc : '발표') + '</span>'
                 + '<span class="warn-active-val">' + _esc(_fmtTime(a.tmFc)) + '</span></div>');
         }
         if (a.tmEf) {
             // isUpcoming=true 면 "발효 예정", false 면 "발효"
-            var efLabel = isUpcoming ? '발효 예정' : '발효';
+            var efLabel = K ? K.ef : (isUpcoming ? '발효 예정' : '발효');
             lines.push('<div class="warn-active-line"><span class="warn-active-key">' + efLabel + '</span>'
                 + '<span class="warn-active-val">' + _esc(_fmtTime(a.tmEf)) + '</span></div>');
         }
@@ -184,7 +191,7 @@
         // [근거] appState.alerts 에는 아직 활성 또는 다가오는 알림만 들어감
         //        (이미 해제된 알림은 제외) → tmCc 가 있다면 향후 해제 예정 시각.
         if (a.tmCc) {
-            lines.push('<div class="warn-active-line"><span class="warn-active-key">해제 예정</span>'
+            lines.push('<div class="warn-active-line"><span class="warn-active-key">' + (K ? K.cc : '해제 예정') + '</span>'
                 + '<span class="warn-active-val">' + _esc(_fmtTime(a.tmCc)) + '</span></div>');
         }
         // 격상/격하 — data.js 에서 command='변경' + prevLevel 채워줌
@@ -310,7 +317,75 @@
 
         state.box = box;
         _bindOutsideClose();
+        if (_isOm()) _omDecorate(box, parentZone, info);
     };
+
+    /**
+     * [새 메뉴 화면 — 2026-11-23 사용자 시안 8차 「이대로 좋아. 실제 앱에 반영해줘」] 특보 상자를 화면 가운데 팝업으로 바꾼다.
+     *   · 머리: 구역 이름 + 특보 뱃지(격상 ▲ 빨강 · 격하 ▼ 초록 — 지도 이름표·첫 화면 카드와 같은 규칙)
+     *   · 몸: 발효 중 → 다가오는 특보(그대로) → 「경보·태풍 변경 가능성」 상자(첫 화면 카드와 같은 것 — 경보가 이미 발표됐으면 없다)
+     *   · 맨 아래 [해당 해점 기상정보 보기] — 누르면 팝업이 닫히고 그 지점의 바텀시트가 올라온다
+     * 사용자: 「기존처럼 팝업이 동일하게 표출 … 해당 팝업 하단에 [해당 해점 기상정보 보기] 버튼을 두어서 그것을 누르면 바텀시트가 올라오도록」
+     *         「카드에 표시되는 격상 격하 가능성과 그 문구가 표출되도록」「경보 발표가나면 경보가능성은 빼야지?」(카드 규칙이 이미 그렇다)
+     * @param {HTMLElement} box 방금 만든 상자 @param {string} zoneName 구역 이름(부모 또는 자식 전체 이름)
+     * @param {object|null} info 부모 구역의 state.activeMap 항목(자식 상자면 null — 뱃지·가능성은 부모 단위 자료라 달지 않는다)
+     * [연계] ← _showBox·_showChildBox / → _zoneTrendOf·_zoneCardState(3.js) · window.zoneEscalations·renderZoneEscalation(escalation.js) ·
+     *        window.showOceanBottomSheet·hasOceanGridData(bottom-sheet) · PopupStack(뒤로가기로 닫힘) · 모양 index2.html .warn-om-pop
+     */
+    function _omDecorate(box, zoneName, info) {
+        box.classList.add('warn-om-pop');
+        box.style.left = ''; box.style.top = '';
+        var mapEl = document.getElementById('ocean-map');
+        var r = mapEl ? mapEl.getBoundingClientRect() : { top: 0, height: window.innerHeight };
+        box.style.top = Math.round(r.top + r.height / 2) + 'px';          // 지도 가운데(누른 지점이 와 있는 자리)
+        var body = box.querySelector('.warn-active-box-body');
+        if (info) {
+            var st = ns._zoneCardState(info), main = st.current || st.upcoming[0];
+            if (main) {
+                var trend = ns._zoneTrendOf(zoneName, info), warn = String(main.level || '').indexOf('경보') >= 0;
+                var badge = document.createElement('span');
+                badge.className = 'warn-om-badge' + (warn ? ' warn' : '');
+                badge.textContent = String(main.warnType || '').replace(/예비$/, '') + ' ' + (main.level === '예비' ? '주의보' : (main.level || ''));
+                if (trend) {
+                    var t = document.createElement('span');
+                    t.className = 'badge-trend ' + (trend === 'down' ? 'badge-trend-down' : 'badge-trend-up');
+                    t.textContent = trend === 'down' ? '▼' : '▲';
+                    t.setAttribute('aria-label', trend === 'down' ? '낮은 단계로 내려갈 예정' : '높은 단계로 올라갈 수 있음');
+                    badge.appendChild(document.createTextNode(' ')); badge.appendChild(t);
+                }
+                var title = box.querySelector('.warn-active-box-title');
+                if (title) title.parentNode.insertBefore(badge, title.nextSibling);
+            }
+            var escs = (typeof window.zoneEscalations === 'function' && typeof window.renderZoneEscalation === 'function') ? window.zoneEscalations(zoneName, st) : [];
+            if (body) escs.forEach(function (it) { body.appendChild(window.renderZoneEscalation(it)); });
+        }
+        var at = state.omClick;
+        var hasData = at && typeof window.showOceanBottomSheet === 'function' &&
+            (typeof window.hasOceanGridData !== 'function' || window.hasOceanGridData(at.lat, at.lon));
+        if (body && hasData) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'warn-om-sheet-btn';
+            btn.textContent = '해당 해점 기상정보 보기';
+            btn.addEventListener('click', function () {
+                ns._hideBox();
+                _omPanForSheet(at);
+                window.showOceanBottomSheet(at.lat, at.lon);
+            });
+            body.appendChild(btn);
+        }
+        if (window.PopupStack && typeof window.PopupStack.push === 'function') window.PopupStack.push('warn-om-pop', function () { ns._hideBox(); });
+    }
+
+    /** 바텀시트가 올라올 때 누른 지점이 시트에 가리지 않게, 그 지점을 지도 위쪽(위에서 약 1/6) 자리로 올린다 — 시트가 화면의 4/5 쯤을 덮는다(화면에서 잰 값). [연계] ← _omDecorate 버튼 · tryHandleClick(특보 없는 해역) */
+    function _omPanForSheet(at) {
+        try {
+            var map = typeof window.getOceanMap === 'function' ? window.getOceanMap() : null;
+            if (!map || !at || !at.coord) return;
+            var view = map.getView(), size = map.getSize() || [0, 0];
+            view.animate({ center: [at.coord[0], at.coord[1] - view.getResolution() * size[1] * 0.33], duration: 350 });
+        } catch (e) { console.warn('[특보 현황] 지도를 옮기지 못함 — 시트는 그대로 연다:', e && e.message); }
+    }
 
     /**
      * 박스 닫기 — DOM 제거 + outside listener 해제.
@@ -321,6 +396,7 @@
         }
         state.box = null;
         _unbindOutsideClose();
+        if (window.PopupStack && typeof window.PopupStack.remove === 'function') window.PopupStack.remove('warn-om-pop');
 
         // 선택 강조 해제 (부모 + 자식 둘 다) — _styler 가 다음 렌더부터 일반 색상으로 복귀.
         // active 모드일 때만 layer 재평가 (OFF 상태면 styler 가 이미 null).
@@ -404,7 +480,10 @@
         if (!evt || !evt.pixel) return false;
         // [새 모드(body.om-mode) — 2026-11-22 사용자 「폴리곤을 누르면 … 팝업이 있었는데 그것은 삭제하도록하고,
         //   폴리곤을 눌러도 해당 해점에 해당하는 바텀시트가 올라오도록」] 특보 박스를 띄우지 않고 바텀시트 흐름으로 넘긴다.
-        if (document.body.classList.contains('om-mode')) return false;
+        //   → [2026-11-23 다시 바꿈 — 사용자 「원래는 … 발표, 발효, 해제 예정 팝업이 나왔었잖아? 기존처럼 팝업이 동일하게 표출」]
+        //     특보가 있는 해역: 누른 지점이 화면 가운데로 움직인 뒤 팝업(맨 아래 [해당 해점 기상정보 보기] → 바텀시트).
+        //     특보가 없는 해역·빈 바다: 바로 바텀시트(「지금처럼 바로 바텀시트가 뜨게」 — 사용자 「위 모든게 맞음」).
+        if (_isOm()) return _omHandleClick(map, evt);
 
         // [닫기 의도 가드] 외부 클릭으로 박스가 막 닫힌 click 이면 후속 동작 차단
         // 윈도우 400ms — pointerdown → singleclick 통상 100ms 이내라 충분히 여유
@@ -444,6 +523,45 @@
         // 활성 모드에서는 비활성 zone 클릭/빈 해역 클릭도 바텀시트 표출 차단
         return true;
     };
+
+    /**
+     * 새 메뉴 화면의 지도 누름 — tryHandleClick 의 새 화면 갈래.
+     * 예: 풍랑주의보가 걸린 「남해동부안쪽먼바다」를 누름 → 그 지점이 화면 가운데로(0.5초) → 팝업 → true(바텀시트는 안 뜬다)
+     *     특보 없는 바다를 누름 → false(ocean_map.js 가 바텀시트를 연다. 그 지점은 시트에 가리지 않게 위로 올린다)
+     * @param {ol.Map} map @param {ol.MapBrowserEvent} evt @returns {boolean} true=여기서 처리함(바텀시트 건너뜀)
+     * [연계] ← tryHandleClick / → _showBox·_showChildBox(끝에서 _omDecorate 가 가운데 팝업으로 꾸민다)
+     */
+    function _omHandleClick(map, evt) {
+        // 팝업 바깥을 눌러 방금 닫은 누름이면 아무것도 열지 않는다(닫기만) — 옛 상자와 같은 규칙
+        if (state.boxJustClosedAt && (Date.now() - state.boxJustClosedAt) < 400) { state.boxJustClosedAt = 0; return true; }
+        if (!evt.coordinate) return false;                                 // 좌표 없는 누름(시험 등) — 바텀시트 흐름에 맡긴다
+        if (state.omMoving) return true;                                   // 가운데로 움직이는 중 — 겹쳐 누름은 무시
+        var sheet = document.getElementById('ocean-bottom-sheet');
+        if (sheet && sheet.style.display !== 'none' && sheet.classList.contains('open')) return false;   // 시트가 열려 있으면 종전 규칙(ocean_map.js 가 무시)
+
+        var hit = _findHit(map, evt.pixel), show = null;
+        if (hit && hit.kind === 'sub') {
+            var arr = ((window.appState && window.appState.coastalAlerts) || {})[hit.fullName] || [];
+            if (arr.some(function (a) { return a && ns._resolvePaletteKey(a.warnType); })) show = function () { ns._showChildBox(hit.fullName, hit.parent, evt.pixel); };
+            else if (hit.parent && state.activeMap[hit.parent]) show = function () { ns._showBox(hit.parent, evt.pixel); };
+        } else if (hit && hit.kind === 'main' && state.activeMap[hit.parent]) {
+            show = function () { ns._showBox(hit.parent, evt.pixel); };
+        }
+        var ll = (typeof ol !== 'undefined' && ol.proj) ? ol.proj.toLonLat(evt.coordinate) : [0, 0];
+        var at = { lon: ll[0], lat: ll[1], coord: evt.coordinate };
+        if (!show) {
+            // 특보 없는 해역 — 바텀시트로 넘긴다. 자료가 있는 바다일 때만 지점을 위로 올린다(육지를 눌렀을 때 지도만 움직이면 안 된다)
+            if (typeof window.hasOceanGridData !== 'function' || window.hasOceanGridData(at.lat, at.lon)) _omPanForSheet(at);
+            return false;
+        }
+        ns._hideBox();
+        state.omClick = at;
+        state.omMoving = true;
+        var done = false, open = function () { if (done) return; done = true; state.omMoving = false; if (state.active && _isOm()) show(); };
+        try { map.getView().animate({ center: evt.coordinate, duration: 500 }, open); } catch (e) { console.warn('[특보 현황] 지도를 옮기지 못함 — 팝업은 그대로 띄운다:', e && e.message); }
+        setTimeout(open, 700);                                             // 움직임 끝 알림이 안 오는 경우(지도가 다른 일로 멈춤)에도 팝업은 뜬다
+        return true;
+    }
 
     /**
      * [S9-E] 자식 해역(연안바다·평수구역) 전용 박스 표출.
@@ -563,6 +681,7 @@
 
         state.box = box;
         _bindOutsideClose();
+        if (_isOm()) _omDecorate(box, fullName, null);
     };
 
     /**

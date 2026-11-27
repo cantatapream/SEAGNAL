@@ -44,9 +44,99 @@
      *   ◀/▶ 빠른 연타 / closeSheet 직후 응답 도착 / 슬라이더 release 후 사용자 즉시 다른 동작
      *   같은 race 시나리오에서 카드 데이터 비대칭 (wind 만 보이는 등) 방지.
      * ------------------------------------------------------------ */
+    /**
+     * 시트 높이를 붙잡아 두었다가, 칸 구성이 정해지면 한 번만 부드럽게 맞춘다.
+     * 사용자 2026-11-24 「화면이 버벅이면서 깜빡이는 문제」 → 「자료없는 칸은 빠지되 부드럽게 한번만 바뀌도록」.
+     * 종전: 시트는 화면 아래에 붙어 있고 높이가 내용을 따라가는데, 칸(파고·풍향·천기·기압·조석…)이 자기 자료가 오는 대로
+     *       제각각 켜지고 꺼져 시트 윗변이 여러 번 출렁였다(재어 본 값: 날짜를 한 번 넘기면 0.1초 안에 324→254→324→254→324px).
+     * 지금: 자료를 받기 시작할 때 지금 높이로 고정 → 받는 중인 칸이 없고 0.5초 조용하면 → 새 높이로 0.28초에 부드럽게 움직임.
+     *       숨었던 칸이 그 뒤 늦게 다시 나타나면 그때도 같은 식으로(튀지 않고) 한 번 더 움직인다. 2.5초 더 조용하면 고정을 푼다.
+     *       아무리 오래 걸려도 HOLD_MAX_MS 뒤에는 푼다.
+     * 예: OS.holdSheetHeight() — 다음 날 버튼을 누른 직후
+     * @returns {void}
+     * [연계] ← OS.loadAllForDate(시트를 열거나 날짜·시각을 옮길 때) / 마크업 #ocean-bottom-sheet · 조석 로딩 표시 .ocean-tide-loading(3.js)
+     */
+    var HOLD_QUIET_MS = 500, HOLD_IDLE_MS = 2500, HOLD_MAX_MS = 12000, HOLD_ANIM_MS = 280, PEND_WAIT_MS = 4000;
+    var _hold = null;
+    OS.holdSheetHeight = function () {
+        var sheet = document.getElementById('ocean-bottom-sheet');
+        if (!sheet || !window.MutationObserver) return;
+        if (_hold) { _hold.touch(); return; }                        // 이미 붙잡는 중(연달아 넘김) — 기다림만 다시 시작
+        var h = sheet.getBoundingClientRect().height;
+        if (!h || sheet.style.display === 'none' || !sheet.classList.contains('open')) return;   // 아직 안 떠 있으면 그대로 둔다
+        var locked = Math.round(h);
+        var prevTr = sheet.style.transition;
+        sheet.style.height = locked + 'px';
+        var quietTimer = null, idleTimer = null, maxTimer = null, obs = null, done = false, selfTouch = false;
+        var finish = function () {                                   // 붙잡기를 끝낸다 — 이때 높이는 이미 내용과 같다
+            if (done) return; done = true;
+            clearTimeout(quietTimer); clearTimeout(idleTimer); clearTimeout(maxTimer); if (obs) obs.disconnect();
+            _hold = null;
+            sheet.style.height = ''; sheet.style.transition = prevTr;
+        };
+        var isBusy = function () {
+            // 아직 받는 중인 칸 — 조석(「불러오는 중」)과, 값 자리에 진행 막대가 도는 보이는 칸
+            if (sheet.querySelector('#ocean-card-tide .ocean-tide-loading')) return true;
+            // 받는 중인 요청(칸이 숨어 있어 진행 막대로는 알 수 없는 것 포함). 끝나지 않는 요청에 묶이지 않게 PEND_WAIT_MS 까지만 기다린다
+            //   (천기는 범위 밖 날짜에서 응답이 끝내 안 오는 경우가 있었다 — 화면 기록).
+            var st = OS.state || {}, now = Date.now();
+            if (st._pendN > 0 && now - (st._pendAt || 0) < PEND_WAIT_MS) return true;
+            if (st._wxPending && now - st._wxPending < PEND_WAIT_MS) return true;
+            if (st._vsbyPending && now - st._vsbyPending < PEND_WAIT_MS) return true;
+            var bars = sheet.querySelectorAll('.ocean-progress-bar');
+            for (var i = 0; i < bars.length; i++) if (bars[i].offsetParent !== null) return true;
+            return false;
+        };
+        var settle = function (force) {
+            if (done) return;
+            if (!force && isBusy()) { quietTimer = setTimeout(settle, HOLD_QUIET_MS); return; }
+            // 시트가 안 보이는 동안(다른 탭에 가 있음 — 시트는 탭을 바꿔도 안 닫히고 함께 숨는다)에는 재지 않는다.
+            //   숨은 채 재면 높이가 0 으로 나와 0px 로 굳고, 돌아와도 1~2.5초 안 보였다(독립 검토 2026-11-24 — 재현함). 보일 때 다시 잰다.
+            if (sheet.offsetParent === null && sheet.getBoundingClientRect().height === 0) {
+                if (force) { finish(); return; }
+                quietTimer = setTimeout(settle, HOLD_QUIET_MS); return;
+            }
+            // 내용대로 두었을 때의 높이를 잰다(잠깐 풀었다 바로 되돌리므로 화면에는 안 보인다)
+            selfTouch = true;
+            sheet.style.transition = 'none';
+            sheet.style.height = '';
+            var to = Math.round(sheet.getBoundingClientRect().height);
+            sheet.style.height = locked + 'px';
+            void sheet.offsetHeight;
+            if (Math.abs(to - locked) >= 2) {
+                // 한 번에 부드럽게 — 숨었던 칸이 늦게 다시 나타나는 등으로 뒤에 또 바뀌면, 그때도 튀지 않고 같은 식으로 움직인다
+                sheet.style.transition = 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), height ' + HOLD_ANIM_MS + 'ms ease';
+                sheet.style.height = to + 'px';
+                locked = to;
+            } else {
+                sheet.style.transition = prevTr;
+            }
+            setTimeout(function () { selfTouch = false; }, 0);
+            clearTimeout(idleTimer); idleTimer = setTimeout(finish, HOLD_IDLE_MS);   // 이만큼 더 조용하면 끝낸다
+        };
+        var touch = function () {
+            if (done || selfTouch) return;                           // 우리가 높이를 건드린 것은 변화로 치지 않는다
+            clearTimeout(idleTimer);
+            clearTimeout(quietTimer); quietTimer = setTimeout(settle, HOLD_QUIET_MS);
+        };
+        obs = new MutationObserver(touch);
+        obs.observe(sheet, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+        // 한도에 걸려 끝낼 때도 튀지 않게 — 받는 중이든 아니든 한 번 재서 부드럽게 맞춘 뒤 푼다(조석이 오래 「불러오는 중」인 날)
+        maxTimer = setTimeout(function () { settle(true); clearTimeout(idleTimer); idleTimer = setTimeout(finish, HOLD_ANIM_MS + 80); }, HOLD_MAX_MS);
+        _hold = { touch: touch, cancel: function () { if (done) return; done = true; clearTimeout(quietTimer); clearTimeout(idleTimer); clearTimeout(maxTimer); if (obs) obs.disconnect(); _hold = null; sheet.style.transition = prevTr; } };
+        touch();
+    };
+    /** 붙잡아 둔 높이를 바로 푼다(움직임 없이) — 시트를 닫을 때. [연계] ← ocean_bottom_sheet1.js OS.closeSheet */
+    OS.dropSheetHeightHold = function () {
+        var sheet = document.getElementById('ocean-bottom-sheet');
+        if (_hold) _hold.cancel();
+        if (sheet) { sheet.style.height = ''; }
+    };
+
     OS.loadAllForDate = function (opts) {
         opts = opts || {};
         var skipHeavy = !!opts.skipHeavy;
+        OS.holdSheetHeight();      // 같은 날 시간 막대를 놓을 때(skipHeavy)도 칸들이 다시 채워지므로 붙잡는다
         // [사용량] 바텀시트를 통해 데이터를 얻으면(열기/날짜 변경 = full load) '바텀시트' 1건으로 통합 집계.
         //   같은 날 게이지 갱신(skipHeavy)은 새 데이터를 받는 게 아니므로 카운트하지 않는다.
         //   개별 요소(조석/천문/월령/수심/수온/바람/조류/파고/천기)는 더 이상 따로 집계하지 않는다.
@@ -114,6 +204,22 @@
 
     };
 
+    /**
+     * 「받는 중인 요청」을 센다 — 시트 높이를 붙잡는 쪽(holdSheetHeight)이 「아직 올 것이 남았다」를 알 수 있게.
+     * 범위 밖 날짜에서는 칸이 먼저 숨었다가(_enforceForecastRangeVisibility) 자료가 오면 다시 나타나는데, 숨어 있는 동안은
+     * 진행 막대로 알 수 없다(화면 기록: 3.4초 뒤 수온·유속이 다시 나타나며 높이가 한 번 더 움직였다 — 파고·풍향도 같다).
+     * 예: var done = _pendBegin(myEpoch); fetch(...).then(function () { done(); ... })
+     * @param {number} myEpoch - 이번 loadAllForDate 의 번호 @returns {function} 요청이 끝났을 때 부를 함수(여러 번 불러도 한 번만 센다)
+     * [연계] ← fetchDepth·fetchRoms·fetchPressure·fetchWeather·fetchWave / → OS.state._pendEpoch·_pendN·_pendAt (isBusy 가 읽는다)
+     */
+    function _pendBegin(myEpoch) {
+        var st = OS.state;
+        if (st._pendEpoch !== myEpoch) { st._pendEpoch = myEpoch; st._pendN = 0; st._pendAt = Date.now(); }
+        st._pendN++;
+        var done = false;
+        return function () { if (done) return; done = true; if (st._pendEpoch === myEpoch && st._pendN > 0) st._pendN--; };
+    }
+
     /** epoch 검증 — fetch 응답 도착 시 myEpoch 가 현재 _loadEpoch 와 일치하지 않으면 stale. */
     function _isStaleEpoch(myEpoch) {
         return myEpoch !== (OS.state && OS.state._loadEpoch);
@@ -123,9 +229,11 @@
      * 6개 일반 카드 fetch — 응답이 없거나 실패하면 카드 숨김
      * ------------------------------------------------------------ */
     function fetchDepth(lat, lon, myEpoch) {
+        var pendDone = _pendBegin(myEpoch);       // 받는 중 표시(시트 높이 붙잡기 holdSheetHeight 가 본다)
         fetch('/api/ocean/depth?lat=' + lat + '&lon=' + lon)
             .then(function (r) { return r.json(); })
             .then(function (data) {
+                pendDone();
                 if (_isStaleEpoch(myEpoch)) return;  // stale 응답 무시
                 if (data && data.success && data.depth != null) {
                     OS.setCardValue('ocean-val-depth', data.depth.toFixed(1) + ' m');
@@ -135,6 +243,7 @@
                 }
             })
             .catch(function () {
+                pendDone();
                 if (_isStaleEpoch(myEpoch)) return;
                 OS.hideCard('ocean-card-depth');
             });
@@ -172,9 +281,11 @@
         var url = '/api/ocean/khoa-stream-nearest?lat=' + lat + '&lon=' + lon;
         if (dateStr) url += '&date=' + dateStr + '&hour=' + hourStr;
 
+        var pendDone = _pendBegin(myEpoch);       // 받는 중 표시(시트 높이 붙잡기 holdSheetHeight 가 본다)
         fetch(url)
             .then(function (r) { return r.json(); })
             .then(function (data) {
+                pendDone();
                 if (_isStaleEpoch(myEpoch)) return;
                 if (!data || !data.success) {
                     OS.setCardValue('ocean-val-temp', '데이터 없음');
@@ -197,6 +308,7 @@
                 }
             })
             .catch(function () {
+                pendDone();
                 if (_isStaleEpoch(myEpoch)) return;
                 OS.setCardValue('ocean-val-temp', '데이터 없음');
                 OS.setCardValue('ocean-val-current', '데이터 없음');
@@ -223,9 +335,11 @@
         // 틀어져 있어도 서버가 자기 시각(KST)에 오프셋을 더해 판단하므로 값이 흔들리지 않는다.
         var off = dateObj ? (dateObj.getTime() - Date.now()) : 0;
         var url = '/api/ocean/pressure?lat=' + lat + '&lon=' + lon + '&off=' + Math.round(off);
+        var pendDone = _pendBegin(myEpoch);       // 받는 중 표시(시트 높이 붙잡기 holdSheetHeight 가 본다)
         fetch(url)
             .then(function (r) { return r.json(); })
             .then(function (data) {
+                pendDone();
                 if (_isStaleEpoch(myEpoch)) return;
                 if (data && data.success && data.pressure != null) {
                     OS.setCardValue('ocean-val-pressure', data.pressure + ' hPa');
@@ -235,6 +349,7 @@
                 }
             })
             .catch(function () {
+                pendDone();
                 if (_isStaleEpoch(myEpoch)) return;
                 OS.hideCard('ocean-card-pressure');
             });
@@ -252,9 +367,11 @@
     function fetchWeather(lat, lon, dateObj, myEpoch) {
         var url = '/api/ocean/weather?lat=' + lat + '&lon=' + lon;
         if (dateObj) url += '&time=' + encodeURIComponent(dateObj.toISOString());
+        var pendDone = _pendBegin(myEpoch);       // 받는 중 표시(시트 높이 붙잡기 holdSheetHeight 가 본다)
         fetch(url)
             .then(function (r) { return r.json(); })
             .then(function (data) {
+                pendDone();
                 if (_isStaleEpoch(myEpoch)) return;
                 if (!data || !data.success) {
                     OS.hideCard('ocean-card-wind');
@@ -270,6 +387,7 @@
                 }
             })
             .catch(function () {
+                pendDone();
                 if (_isStaleEpoch(myEpoch)) return;
                 OS.hideCard('ocean-card-wind');
             });
@@ -286,9 +404,11 @@
     function fetchWave(lat, lon, dateObj, myEpoch) {
         var url = '/api/ocean/wave?lat=' + lat + '&lon=' + lon;
         if (dateObj) url += '&time=' + encodeURIComponent(dateObj.toISOString());
+        var pendDone = _pendBegin(myEpoch);       // 받는 중 표시(시트 높이 붙잡기 holdSheetHeight 가 본다)
         fetch(url)
             .then(function (r) { return r.json(); })
             .then(function (data) {
+                pendDone();
                 if (_isStaleEpoch(myEpoch)) return;
                 if (data && data.success && data.waveHeight != null) {
                     OS.setCardValue('ocean-val-wave', data.waveHeight.toFixed(1) + ' m');
@@ -298,6 +418,7 @@
                 }
             })
             .catch(function () {
+                pendDone();
                 if (_isStaleEpoch(myEpoch)) return;
                 OS.hideCard('ocean-card-wave');
             });

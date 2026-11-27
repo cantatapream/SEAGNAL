@@ -1,0 +1,22 @@
+{
+ "script": "collect_approved",
+ "stamp": "20261123-235752-274",
+ "files": [
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/행정규칙/환경유해인자시험·검사기관의지정등에관한규정.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/별표/환경유해인자시험·검사기관의지정등에관한규정_별표1.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/별표/환경유해인자시험·검사기관의지정등에관한규정_별표2.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/별표/환경유해인자시험·검사기관의지정등에관한규정_별표3.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/별표/환경유해인자시험·검사기관의지정등에관한규정_별표4.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/별표/환경유해인자시험·검사기관의지정등에관한규정_별표5.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/별표/환경유해인자시험·검사기관의지정등에관한규정_별표6.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/별표/환경유해인자시험·검사기관의지정등에관한규정_별지1.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/별표/환경유해인자시험·검사기관의지정등에관한규정_별지2.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/별표/환경유해인자시험·검사기관의지정등에관한규정_별지3.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/별표/환경유해인자시험·검사기관의지정등에관한규정_별지4.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/별표/환경유해인자시험·검사기관의지정등에관한규정_별지5.txt",
+  "local_server/knowledge/legal/raw/15_관련타부처/폐기물관리법/별표/환경유해인자시험·검사기관의지정등에관한규정_별지6.txt",
+  "local_server/knowledge/legal/raw/02_해양경비구조/해양경찰법/행정규칙/해양경찰청연구개발사업운영규칙.txt",
+  "local_server/knowledge/legal/raw/02_해양경비구조/해양경찰법/별표/해양경찰청연구개발사업운영규칙_별표1.txt",
+  "local_server/knowledge/legal/raw/02_해양경비구조/해양경찰법/별표/해양경찰청연구개발사업운영규칙_별지1.txt"
+ ]
+}

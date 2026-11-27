@@ -64,11 +64,11 @@ const keyOf = (text) => crypto.createHash('sha1').update(nz(text)).digest('hex')
 //   제주도남쪽먼바다 = 제주 먼바다 셋(날씨해설 「제주도남쪽먼바다 … 풍랑경보로」 뒤 세 곳이 차례로 경보 — 2026-10-24. 정황 근거이고 기상청 정의 문서는 못 찾았다).
 const ALIAS = {
     제주도남쪽안쪽먼바다: ['제주도남동쪽안쪽먼바다', '제주도남서쪽안쪽먼바다'],
-    제주도남쪽먼바다: ZONE_GROUP_MAP['제주도먼바다'],
+    get 제주도남쪽먼바다() { return ZONE_GROUP_MAP['제주도먼바다']; },   // 읽을 때마다 — 2026-11-26 구역 분할 뒤에는 4구역(config/zone_group_map.js)
 };
 /** 이름 하나(괄호 없이) → 부모 해역들 | null. 예: '동해남부북쪽먼바다' → [안쪽, 바깥] · '제주도해상' → null */
 function baseParents(name) {
-    if (PARENTS.has(name)) return [name];
+    if (PARENTS.has(name)) return require('../config/zone_split').splitNames([name]);   // 2026-11-26 구역 분할 뒤 옛 이름 = 새 두 구역(카드 열쇠가 새 이름이다)
     if (ZONE_GROUP_MAP[name]) return ZONE_GROUP_MAP[name].slice();
     if (ALIAS[name]) return ALIAS[name].slice();
     const m = name.match(/^(.+)먼바다$/);   // 「○○먼바다」 = ○○안쪽먼바다 + ○○바깥먼바다(둘 다 있을 때만)

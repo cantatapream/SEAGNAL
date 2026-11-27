@@ -53,9 +53,12 @@ window.subscribeUser = async (token = null) => {
 
     // 'all'이면 전체 소분류 목록 전송, 'interest'면 사용자가 끈 해역만 제외
     // (기본값 = true, 명시적으로 false 설정한 해역만 제외)
+    // [구역 분할] 전환(서버가 정한다) 뒤 「제주도남쪽바깥먼바다」 대신 남서쪽·남동쪽바깥먼바다 둘로 구독한다(js/core/zone_split.js).
+    //   저장값(옛 구역 켬/끔)은 zone_split.js 가 화면을 열 때 새 두 이름으로 이미 옮겨 두었다.
+    const ZONES_NOW = (window.ZoneSplit && window.ZoneSplit.splitNames) ? window.ZoneSplit.splitNames(ALL_ZONES) : ALL_ZONES;
     const selectedZones = (pushSettings.target === 'all')
-        ? ALL_ZONES
-        : ALL_ZONES.filter(zone => userSettings[zone] !== false);
+        ? ZONES_NOW
+        : ZONES_NOW.filter(zone => userSettings[zone] !== false);
 
     try {
         // deviceId: 제보 답변 푸시 등 기기 식별용

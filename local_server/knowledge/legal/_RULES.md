@@ -267,7 +267,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | — | 서버 스모크 (대표 엔드포인트) | (`verify_all.sh` 안에서 바로) |
 | `V6` | API 자식 오염 가드 | (`verify_all.sh` 안에서 바로) |
 
-### ⓑ 테스트 스위트 176 개 — 같은 게이트가 이어서 돈다
+### ⓑ 테스트 스위트 180 개 — 같은 게이트가 이어서 돈다
 
 | 검사 이름 | 무엇을 못박나 |
 |---|---|
@@ -283,6 +283,9 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_push_pagination` | 2026-07-13 실사고: 전국 구독자에게 여러 해역 동시 "발표"(publish) 푸시가 |
 | `test_bulletin_cancel_scanner` | bulletin_cancel_scanner 단위 테스트 |
 | `test_parent_release_debounce` | 부모 해제 디바운스 검증 |
+| `test_zone_split` | 구역 분할(제주도남쪽바깥먼바다 → 남서쪽·남동쪽바깥먼바다) 검사. |
+| `test_regional_marine_parse` | 지방기상청 단기예보 PDF 해상 표 읽기 — 칸 수를 표 머리에 맞추는지 검사. |
+| `test_week_sea_parse` | 주간예보 PDF 「4.해상날씨」 → 중기 해상예보 꼴 — 제주도해상 줄을 제 날짜 열쇠로 읽는지 검사. |
 | `test_zone_tree_wiring` | 해역·항해구역 트리(zone_tree.json) 실서빙 배선 회귀 테스트 |
 | `test_ask_context` | 이해확인 · 상황질문(범위좁히기) · 온디바이스 프로필 확인 회귀 테스트 |
 | `test_naver_term_step` | 모르는 구어 해소(네이버 뜻 확인) 회귀 테스트 |
@@ -339,6 +342,7 @@ bash scripts/refactor/verify_all.sh      # 게이트 + 스위트 전부
 | `test_review_sources` | ★⚠수치검증 카드의 「원문 보기」를 못박는다. (2026-11-02 사용자 요청) |
 | `test_review_replay` | 관리자 검토 센터에서 누른 「승인」이 **배포 뒤에도 남는지** 확인한다. |
 | `test_ocean_menu_ui` | 해양종합정보 새 메뉴 화면(통합 메뉴 — 2026-11-23 부터 앱이 뜨면 바로 이 화면)을 실제 브라우저로 눌러 본다. |
+| `test_mulddae_lunar` | 물때(1물~14물·조금·무시)와 음력 날짜 계산을 검사한다. |
 | `test_codex_bridge` | Codex 개발자 모드(services/codex_bridge.js)의 삼중 잠금·중계를 고정한다. |
 | `test_bulletin_ai` | 「AI 모델 설정」(종전 「AI 특보 분석」) 기능별 AI 순서(services/bulletin_ai.js — ① 특보 읽기·② 참고사항 해석·④ 연안 안전 브리핑)와 그 API·일감별 실행 위치를… |
 | `test_bulletin_ai_ui` | 관리자 「AI 모델 설정」 탭(client/js/admin/admin_bulletin_ai.js)의 기능별 AI 순서 목록을 실제 Chromium 으로 그려 본다 — |

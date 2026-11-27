@@ -155,3 +155,13 @@ index.html 의 script 태그 순서를 따름 — 변경 금지 (번들러 없�
 - AI 가 닫는 괄호를 띄어 쓴 꼴(「{{warn:물결이} }」)이 운영 `/api/regional-forecast` 에 3곳(제주 2·부산 1) 있었고 화면에 글자 그대로 보였다(사용자 「고쳐줘」).
 - 고친 곳 셋: ①`local_server/regional_bulletin_collector.js` `fixMarkup` — 저장 전 summary 를 바로잡음 ②`renderMarineMarkup` 이 「} }」도 읽음(이미 저장된 옛 자료용) ③`local_server/services/station_briefing_rules.js` `stripMarkup` 도 같은 꼴을 벗김(AI 연안 안전 브리핑 입력에 깨진 기호가 섞이던 것).
 - 시험: `test_text_fit` ⑨ · `test_station_briefing`(stripMarkup·fixMarkup).
+
+## 중기예보 「제주도해상」 — 제주청 주간예보 PDF (2026-11-27 사용자 확정)
+
+> 사용자 원문: *"중기예보부분도 수정해줘. 제주도해상으로 나오도록"*
+
+- `forecast.js` `ZONE_NAME_TO_MID_TERM_REG_ID` 에서 제주 이름 11개(새 두 구역 제주도남서쪽·남동쪽바깥먼바다 포함)는 `'JEJU'` 다.
+  중기 해상예보 API 권역에는 제주가 없어, 종전엔 남해서부(`12B10000`) 값을 「제주도해상」 이름으로 보여 주었다.
+- `'JEJU'` 는 서버가 제주청 주간예보 PDF 의 「제주도 해상」 줄로 채운다(`local_server/regional_forecast_collector.js` `parseWeekSeaTable`).
+  `/api/mid-term-sea-forecasts` 의 `data.JEJU` 가 없으면 중기 칸을 비운다(남해서부로 돌아가지 않는다).
+- 상세: `client/js/core/zone_split.design.md` 「2026-11-27 중기예보를 「제주도해상」 값으로」. 검사 `local_server/scripts/test_week_sea_parse.js`.

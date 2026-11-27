@@ -1236,7 +1236,11 @@
             }
             // 진짜 해양종합정보 탭으로 들어가는 길이면, 해양안전 때문에 꺼뒀던
             // 오버레이를 먼저 되살린다(그 화면의 원래 상태로 복귀)
-            if (_unlocked && targetId === 'ocean-map-section') _restoreOceanOverlays();
+            // [2026-11-24 고침] 되살리기는 「해양안전 때문에 꺼 둔 것이 있을 때」와 「해양안전생활 화면에서 넘어올 때」만 한다.
+            //   종전에는 어느 탭에서 오든 불러, 그 안의 「해양안전에서 켠 것 끄기」가 해양종합정보에서 켜 둔 것까지 전부 껐다 —
+            //   기상부이·특보구역을 켜고 특보정보 탭에 다녀오면 모두 꺼져 있었다(옛 화면·새 화면 모두 재현, 독립 검토에서 발견).
+            if (_unlocked && targetId === 'ocean-map-section' &&
+                (_suspended.length || document.body.getAttribute('data-active-tab') === 'ocean-life-group')) _restoreOceanOverlays();
             _keepOverlays = keep;
             try {
                 origMain.apply(window, arguments);
