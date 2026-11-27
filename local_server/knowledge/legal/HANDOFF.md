@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-27 12:46 KST] ✅완료 — 중기예보 제주도해상 — 제주청 주간예보 PDF 로 채움 (2026-11-27)
+사용자 「중기예보부분도 수정해줘. 제주도해상으로 나오도록」. 중기 해상예보 API 8권역에 제주가 없어 제주 해역 카드가 남해서부(12B10000) 값을 「제주도해상」 이름으로 보이던 것을 고침. 서버 regional_forecast_collector.js parseWeekSeaTable·fetchWeekSeaItem(제주청 rpt_wid_week_<tmFc>_184.pdf 「4.해상날씨」 제주도 해상 줄 → API 꼴 열쇠, 18시판 9칸·06시판 11칸 머리글로 판별, 없으면 앞 발표분 3회까지·날 수는 API tmFc 기준 재계산) → scheduler.js collectMidTermSeaForecasts 가 data.JEJU 저장(API 결과 있을 때만). 앱 forecast.js 제주 11개 이름(새 두 구역 포함) → JEJU, 없으면 중기 칸 비움. 확인: 같은 PDF 남해서부 줄 = 운영 API 12B10000 값 완전 일치 · 운영 화면에 고친 forecast.js 끼워 제주 세 구역 1~1.5…1~3m 확인. 검사 test_week_sea_parse 20건(verify_all 등록). 그대로 둔 것: 위치기반 알림·AI 비서는 제주=12B10000(범위 밖). 브랜치 미머지 — 사용자 머지 지시 대기.
+
+
 ### [2026-11-24 20:03 KST] ✅완료 — 경보 ✕ 빗금이 지도에 안 나오는 것 수정
 ocean_warn_active3.js _coloredStyle 의 단계 비교를 'warn' → '경보' 로(단계 값은 한글). 2026-11-22 에 넣을 때부터 틀려 지도에는 한 번도 ✕ 가 안 그려졌고 범례(CSS)만 ✕ 였다. 시험도 범례만 봐서 못 잡았다 → 지도 그림(빗금 무늬를 캔버스에 그려 ↘ 방향 줄 자리의 색)을 보는 단언 추가. 확인: test_ocean_menu_ui 29/0, 실제 자료 서버에서 한 구역을 경보로 바꿔 캡처 — ✕ 격자 확인(그때 자료: 주의보 23·예비 7·경보 2 구역). verify_all 전체는 돌리지 않았다.
 
