@@ -343,11 +343,12 @@ function collectSea(stations, { risk, marine, win, now, warnHistory = null, smal
                 slots[at] = { accident: g.accident ? accLevel(forecastKey(at), g.accident.i) : null, congestion: best ? { level: best.level, index: best.index, at: best.at } : null };
             }
             const geom = g.accident?.geometry || { type: 'Polygon', coordinates: [[[b.lon - .0125, b.lat - .0125], [b.lon - .0125, b.lat + .0125], [b.lon + .0125, b.lat + .0125], [b.lon + .0125, b.lat - .0125], [b.lon - .0125, b.lat - .0125]]] };
-            const zone = b.warnSubZone ? { name: b.warnSubZone, kind: 'sub' } : b.warnZone ? { name: b.warnZone, kind: 'main' } : null;
-            if (b.warnZone) zonesWanted.add(R.zoneKey(b.warnZone)); if (b.warnSubZone) zonesWanted.add(R.zoneKey(b.warnSubZone));
+            const wz = b.warnZone ? require('./warn_zone_cells').currentZoneName(b.warnZone, [b.lon, b.lat]) : b.warnZone;   // 칸 표(sea_cells.json)가 옛 구역 이름이면 지금 구역으로(2026-11-28 구역 개편)
+            const zone = b.warnSubZone ? { name: b.warnSubZone, kind: 'sub' } : wz ? { name: wz, kind: 'main' } : null;
+            if (wz) zonesWanted.add(R.zoneKey(wz)); if (b.warnSubZone) zonesWanted.add(R.zoneKey(b.warnSubZone));
             if (b.haegu?.major) majors.add(b.haegu.major);
             geomOf.set(gid, geom);
-            regions.push({ rid: gid, gridId: g.traffic[0] || null, accidentGridId: g.accident?.id || null, lat: b.lat, lon: b.lon, box: boxOf(geom), haegu: b.haegu || null, ref: b.ref || null, zone, zones: [b.warnZone, b.warnSubZone].filter(Boolean), cellCount: g.traffic.length + (g.accident ? 1 : 0), slots, history: marine.cellHistory(geom, 'grid:' + (g.accident?.id || b.id)) });
+            regions.push({ rid: gid, gridId: g.traffic[0] || null, accidentGridId: g.accident?.id || null, lat: b.lat, lon: b.lon, box: boxOf(geom), haegu: b.haegu || null, ref: b.ref || null, zone, zones: [wz, b.warnSubZone].filter(Boolean), cellCount: g.traffic.length + (g.accident ? 1 : 0), slots, history: marine.cellHistory(geom, 'grid:' + (g.accident?.id || b.id)) });
         }
         const weather = {};
         // 이름표 「232해구」(§11.10.22 A — 종전 「대해구 232」). [기상 예보] 꼬리 「(232해구 예보)」·해구 문장 「경북북부앞바다(75해구)」가 이 글을 쓴다.

@@ -23,7 +23,8 @@ function loadTables() {
     const tide = fs.readFileSync(path.join(CLIENT, 'tide.js'), 'utf8').match(/const TIDE_REFERENCE_STATIONS\s*=\s*(\[[\s\S]*?\n\]);/);
     if (!tide) throw new Error('reference table missing');
     const refs = vm.runInNewContext('(' + tide[1] + ')', {}, { timeout: 100 });
-    const zones = JSON.parse(fs.readFileSync(path.join(CLIENT, 'assets', 'warn_zones.geojson'))).features;
+    // 본구역은 앱이 받는 지금 그림(구역 개편 반영 — services/warn_zones_split.body(), warn_zone_cells 와 같은 원천). 원본 파일은 옛 이름이다(2026-11-28).
+    const zones = JSON.parse(require('./warn_zones_split').body()).features;
     const subZones = JSON.parse(fs.readFileSync(path.join(CLIENT, 'assets', 'warn_zones_sub.geojson'))).features;
     tables = { boxes, refs, zones, subZones };
     return tables;

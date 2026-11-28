@@ -7,6 +7,10 @@
  *        · sea_realtime_collector.cellBounds(칸 번호→경계) · risk_geo.pointInGeometry(안팎 판정)
  *        · 나를 쓰는 곳: sea_traffic_history.createApi(조회 API) · marine_fusion(해상 상세의 발효 중 특보 상자 — 2026-10-16)
  *        · 판정 규칙은 risk_sea_cells.describe(warnZone·warnSubZone)와 같다(중심점·원래 geometry·파일 순서 첫 일치).
+ * [구역 개편 2026-11-28] 본구역은 원본 파일이 아니라 앱이 받는 지금 그림(services/warn_zones_split.body() — /api/warn-zones 와 같은 것)에서 읽는다.
+ *        원본은 옛 이름(서해중부안쪽·바깥먼바다·제주도남쪽바깥먼바다)이라 특보 나무의 새 구역 이름과 안 맞아 특보가 안 붙었다
+ *        (사용자 2026-11-28 「고쳐」 — 위험예측·교통량·해상 날씨 상자·브리핑이 이 표를 쓴다). 제주 전환 여부가 바뀌면 다시 읽는다.
+ *        currentZoneName: 옛 이름으로 적힌 표(위험예측 관광지 표 등)를 위치로 새 구역에 맞춘다.
  * [로드 순서] 서버 require 부작용 없음. 첫 호출 때 두 파일을 한 번 읽어 이름·코드·경계 좌표만 남기고(나머지 속성·
  *        구멍 뚫린 표시용 도형은 버린다), 칸별 결과는 캐시한다.
  */
@@ -44,15 +48,40 @@ const cache = new Map();
  * [연계] ← zonesOfCell / 메모리: 원본 1.6MB 중 _holedGeometry(화면용 구멍 도형)·기타 속성은 버린다
  */
 function load() {
-    if (tables) return tables;
-    const read = (file, sub) => JSON.parse(fs.readFileSync(path.join(ASSETS, file), 'utf8')).features.map((f) => {
+    const jeju = require('../config/zone_split').isActive();
+    if (tables && tables.jeju === jeju) return tables;
+    cache.clear();   // 그림이 바뀌면 칸별 결과도 버린다
+    const fromFeatures = (features, sub) => features.map((f) => {
         const p = f.properties || {}, pts = f.geometry.coordinates.flat(Infinity);
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         for (let i = 0; i < pts.length; i += 2) { minX = Math.min(minX, pts[i]); maxX = Math.max(maxX, pts[i]); minY = Math.min(minY, pts[i + 1]); maxY = Math.max(maxY, pts[i + 1]); }
         return { name: String(p.name), code: p.WarnCode || null, kind: zoneKind(p.name, sub), key: zoneKey(p.name), box: [minX, minY, maxX, maxY], geometry: { type: f.geometry.type, coordinates: f.geometry.coordinates } };
     });
-    tables = { main: read('warn_zones.geojson', false), sub: read('warn_zones_sub.geojson', true) };
+    const read = (file, sub) => fromFeatures(JSON.parse(fs.readFileSync(path.join(ASSETS, file), 'utf8')).features, sub);
+    // 본구역 = 지금 그림(개편 반영 48개 — 제주 전환 전이면 47개). 세부구역(연안바다·평수구역 49개)은 바뀐 것이 없어 원본 그대로.
+    const main = fromFeatures(JSON.parse(require('./warn_zones_split').body()).features, false);
+    tables = { jeju, main, sub: read('warn_zones_sub.geojson', true) };
     return tables;
+}
+
+/**
+ * 옛 구역 이름으로 적힌 자료(위험예측 관광지 표 risk_spots.json·해상 칸 표 sea_cells.json 등)를 그 위치가 든 **지금 구역 이름**으로 바꾼다.
+ *   옛 이름이 아니면 그대로. 새 구역들 중 그 점을 품는 것 → 없으면(경계 위·소수 오차) 가장 가까운 것.
+ *   파일은 고치지 않는다 — risk_spots.json 은 사고 집계표가 해시로 묶여 있어 고치면 집계가 꺼진다.
+ * 예: currentZoneName('서해중부안쪽먼바다', [124.70, 37.84]) → '서해중부북쪽안쪽먼바다'(대청도) · currentZoneName('울산앞바다', p) → '울산앞바다'
+ * @param {string} name - 자료에 적힌 구역 이름 @param {number[]} p - [경도, 위도] @returns {string}
+ * [연계] ← risk_store(warningsFor 를 부르기 전) / → config/zone_split.isOldName·splitNames · load().main(지금 그림)
+ */
+function currentZoneName(name, p) {
+    const ZS = require('../config/zone_split');
+    if (!name || !ZS.isOldName(name) || !Array.isArray(p) || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) return name;
+    const want = new Set(ZS.splitNames([name]).map(zoneKey));
+    const cand = load().main.filter((z) => want.has(z.key));
+    const hit = cand.find((z) => G.pointInGeometry(p, z.geometry));
+    if (hit) return zoneKey(hit.name);
+    let best = null;
+    for (const z of cand) { const d = G.distanceToGeometry(p, z.geometry); if (!best || d < best.d) best = { d, z }; }
+    return best ? zoneKey(best.z.name) : name;
 }
 
 /**
@@ -99,4 +128,4 @@ function zonesAt(p) {
     return { center: p, main: pick(find(main, p)), sub: pick(find(sub, p)) };
 }
 
-module.exports = { zonesOfCell, zonesAt, zoneKey, zoneKind, _load: load };
+module.exports = { zonesOfCell, zonesAt, zoneKey, zoneKind, currentZoneName, _load: load };

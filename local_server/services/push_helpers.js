@@ -1108,7 +1108,7 @@ function buildSplitPushes(eventType, parentEntries, opts = {}) {
     // 1) PushBuilder 로 부모 줄 → 시간 그룹 본문 변환
     const builder = new PushBuilder(eventType);
     for (const ex of expandedEntries) {
-        builder.addParent({ name: ex.parent, qualifier: ex.qualifier, time: ex.time });
+        builder.addParent({ name: ZONE_SPLIT.displayName(ex.parent), qualifier: ex.qualifier, time: ex.time });   // 관리자 알림 글도 보이는 이름(「전남광주…」 — 2026-11-28)
     }
     const groupBodies = builder.renderTimeGroups(fmtTime);
 
