@@ -116,6 +116,7 @@ async function performBackup() {
         'notice.json',
         'notices.json',
         'promo.json',
+        'promo_views.json',       // [추가 2026-11-28] 공지 조회수 — promo.json 과 따로 둔다(routes/content.js)
         'surveys.json',
         'subscriptions.json',     // [추가] 푸시 구독자(토큰) — 핵심 자산. 기존 미백업이라 손상 시 복구불가였음.
         'subscriber_stats.json',  // [추가] 구독자 수 추이(일별 집계) — 통계 보존.

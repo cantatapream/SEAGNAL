@@ -7,11 +7,13 @@
  *         ① 서버 GET /api/promo?lite=1 — 제목·분류·날짜·고정·조회수만(본문·첨부 없음). lite 없이는 종전대로 본문째 · ?page= 도 종전대로
  *         ② 앱을 켜면 목록 1번(lite) · 공지 탭을 한 번 누르면 1번 더(lite) · 글을 열어도 목록을 다시 받지 않고 그 줄 조회수만 바뀐다
  *         ③ 검색은 제목만 — 본문에만 있는 낱말로는 안 찾힌다
+ *         ④ 글을 열면 조회수는 promo_views.json 에만 오르고 promo.json(본문째 큰 파일)은 다시 쓰지 않는다 · 목록도 그 값을 보인다 ·
+ *            관리자는 하루 한 번만 센다 (사용자 「조회수만 작은 파일에 따로 … 반영해줘」 2026-11-28)
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 시험 대상     : local_server/routes/content.js GET /api/promo · client/js/notice/board/promo.js(loadPromoPosts·renderPromoPosts·openPromoDetail) ·
  *                    client/js/notice/hub/notice_hub.js refreshBadges · client/js/admin/admin_collect.js initPromoBadges · forecast/alerts/marine.js switchMainTab
- *  - 서버          : ① 실제 routes/content.js 를 임의 포트에 띄우고 dataCache.promo 에 시험 글을 넣는다.
+ *  - 서버          : ①④ 실제 routes/content.js 를 임의 포트에 띄운다 — DATA_DIR 은 임시 폴더로 바꿔(server_config 를 require 캐시에서 바꿔 끼움) 저장소 data/ 를 건드리지 않는다.
  *                    ②③ 자체 express — /api/promo(/:id) 는 시험 자료·요청 기록, 그 밖의 /api 는 404, 127.0.0.1 밖 요청은 끊는다.
  *  - 나를 쓰는 곳  : scripts/refactor/verify_all.sh SUITES
  * [로드 순서] 독립 검사.
@@ -19,7 +21,7 @@
  * ============================================================================
  */
 'use strict';
-const path = require('path'), assert = require('assert'), express = require('express'), { chromium } = require('playwright-core');
+const fs = require('fs'), os = require('os'), path = require('path'), assert = require('assert'), express = require('express'), { chromium } = require('playwright-core');
 const root = path.join(__dirname, '../..');
 
 const POSTS = [
@@ -34,12 +36,35 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
 (async () => {
     let browser, s1, s2;
     try {
-        // ① 실제 서버 경로
+        // ① 실제 서버 경로 — 자료 폴더는 임시 폴더로
+        const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'promo-lite-'));
+        const cfgPath = require.resolve(path.join(root, 'local_server/config/server_config'));
+        const realCfg = require(cfgPath);
+        require.cache[cfgPath].exports = Object.assign({}, realCfg, { DATA_DIR: tmp });
+        fs.writeFileSync(path.join(tmp, 'promo.json'), JSON.stringify(POSTS, null, 2));
         const { dataCache } = require(path.join(root, 'local_server/services/cache_manager'));
         const contentRouter = require(path.join(root, 'local_server/routes/content'));
         const a1 = express(); a1.use(contentRouter);
         s1 = a1.listen(0, '127.0.0.1'); await new Promise((r) => s1.once('listening', r));
         const b1 = 'http://127.0.0.1:' + s1.address().port;
+        await check('④ 글을 열면 조회수는 promo_views.json 에만 오른다 · promo.json 은 그대로 · 목록도 그 값 · 관리자는 하루 한 번만', async () => {
+            dataCache.promo = JSON.parse(JSON.stringify(POSTS));
+            const big = path.join(tmp, 'promo.json'), before = fs.readFileSync(big, 'utf8'), mt = fs.statSync(big).mtimeMs;
+            const v1 = await (await fetch(b1 + '/api/promo/1')).json();
+            const v2 = await (await fetch(b1 + '/api/promo/1')).json();
+            assert.deepStrictEqual([v1.views, v2.views], [6, 7], '옛 값 5 를 이어받아 +1씩');
+            assert.ok(/본문에만 있는 낱말/.test(v2.content), '본문도 함께 온다');
+            const a1 = await (await fetch(b1 + '/api/promo/2?admin=true')).json();
+            const a2 = await (await fetch(b1 + '/api/promo/2?admin=true')).json();
+            assert.deepStrictEqual([a1.views, a2.views], [10, 10], '관리자는 같은 날 한 번만');
+            assert.equal(fs.readFileSync(big, 'utf8'), before, 'promo.json 내용 그대로'); assert.equal(fs.statSync(big).mtimeMs, mt, 'promo.json 을 다시 쓰지 않았다');
+            const vf = JSON.parse(fs.readFileSync(path.join(tmp, 'promo_views.json'), 'utf8'));
+            assert.deepStrictEqual(vf.count, { 1: 7, 2: 10 }); assert.equal(Object.keys(vf.adminDay).join(), '2');
+            const lite = await (await fetch(b1 + '/api/promo?lite=1')).json(), full = await (await fetch(b1 + '/api/promo')).json();
+            assert.deepStrictEqual(lite.map((p) => p.views), [7, 10]); assert.deepStrictEqual(full.map((p) => p.views), [7, 10]);
+            assert.equal(dataCache.promo[0].views, 5, '메모리의 원본 글은 건드리지 않는다');
+            assert.equal((await fetch(b1 + '/api/promo/999')).status, 404);
+        });
         await check('① 서버 ?lite=1 은 제목·분류·날짜·고정·조회수만 · lite 없이는 본문째 · ?page= 는 종전 꼴', async () => {
             dataCache.promo = JSON.parse(JSON.stringify(POSTS));
             const lite = await (await fetch(b1 + '/api/promo?lite=1')).json();

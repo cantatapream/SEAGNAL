@@ -25,7 +25,10 @@ index.html 의 script 태그 순서를 따름 — 변경 금지 (번들러 없�
   - 중복 정리: 공지 탭을 누를 때 받는 일은 `switchMainTab`(forecast/alerts/marine.js) 한 곳만 — 이 파일의 탭 버튼 리스너는 지웠다. 앱이 켜질 때 공지 새 글은 `initPromoBadges` 한 번만 — `refreshBadges` 는 첫 회에 공지를 건너뛰고 30분마다만 받는다. 글을 열 때는 목록을 다시 받지 않고 그 줄 조회수만 받은 값으로 고친다.
   - 검색은 **제목만**(목록에 본문이 없다).
 - 시험: `local_server/scripts/test_promo_lite.js`(verify_all 등록 — 옛 코드로 돌리면 3건 실패함을 확인).
-- 남은 것(손대지 않음): 글을 열 때마다 서버가 promo.json 전체(9.5MB)를 다시 쓴다(조회수 +1, `content.js` 상세 조회 — 지금 약 87ms). 사진을 base64 대신 파일로 올리는 안(목록 밖 본문 자체를 가볍게)은 별도 결정.
+- 조회수는 따로(2026-11-28 같은 날, 사용자 「조회수만 작은 파일에 따로 … 반영해줘」): 종전에는 글을 열 때마다 서버가 promo.json 전체(9.5MB)를 읽고 조회수 1 을 올려 전체를 다시 썼다(동기식 — 그동안 다른 요청을 못 받음, 약 87ms·조사 에이전트 측정).
+  이제 조회수는 `local_server/data/promo_views.json`(`{count:{id:n}, adminDay:{id:'YYYY-MM-DD'}}`, 수 KB)에만 쓰고, 글은 메모리 캐시에서 꺼낸다. 목록(`/api/promo`, lite·page 모두)은 이 파일의 값을 입혀 보낸다.
+  이 파일에 없는 글은 promo.json 의 옛 `views`·`adminViewDate` 를 이어받는다(따로 옮기는 작업 없음). 매일 클라우드 백업 목록(`cloud_backup.js`)에 넣었다. 시험 `test_promo_lite` ④.
+- 남은 것: 사진을 base64 대신 파일로 올리는 안(본문 자체를 가볍게)은 별도 결정.
 
 ## 게시글에 유튜브 넣기 (2026-11-19)
 
