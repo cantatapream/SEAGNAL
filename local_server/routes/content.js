@@ -351,6 +351,17 @@ router.get('/api/promo', (req, res) => {
         });
     }
 
+    // ?lite=1 (2026-11-28): 목록 화면·새 글 N 확인용 — 제목·분류·날짜·고정·조회수만 보낸다(본문·첨부 제외).
+    //   왜: 본문에 사진이 base64 로 들어 있어 목록 전체가 9.5MB(운영 60개, 98% 가 사진)였고, 공지가 쌓일수록 목록이 느려졌다.
+    //   본문은 글을 열 때 GET /api/promo/:id 로 받는다. 관리자 화면들은 본문이 필요해 종전대로 lite 없이 부른다.
+    //   [연계] ← client/js/notice/board/promo.js loadPromoPosts · notice/hub/notice_hub.js refreshBadges · admin/admin_collect.js initPromoBadges
+    if (req.query.lite != null) {
+        return res.json(all.map(p => ({
+            id: p.id, title: p.title, category: p.category, isPinned: p.isPinned,
+            createdAt: p.createdAt, views: p.views
+        })));
+    }
+
     // 기존 동작: raw array (일반 사용자 화면 호환)
     res.json(all);
 });

@@ -155,9 +155,12 @@
             });
         }
         // 앱이 켜지고 잠시 뒤 — 세 칸의 N 을 미리 알아 둔다(하단 탭 N). 첫 화면을 그리는 일을 막지 않게 늦춘다.
+        //   공지 새 글은 첫 회에는 건너뛴다 — 앱이 켜질 때 admin/admin_collect.js initPromoBadges 가 이미 받는다(종전에는 켤 때 두 번 받았다, 2026-11-28).
+        var promoFirst = true;
         var refreshBadges = function () {
             var base = (w.CONFIG && w.CONFIG.API_BASE) || '';
-            fetch(base + '/api/promo').then(function (r) { return r.ok ? r.json() : null; }).then(function (posts) {
+            if (promoFirst) promoFirst = false;
+            else fetch(base + '/api/promo?lite=1').then(function (r) { return r.ok ? r.json() : null; }).then(function (posts) {
                 if (Array.isArray(posts)) w.NoticeHub.setNoticeNew(hasRecent(posts, Date.now()));
             }).catch(function (e) { console.warn('[뉴스·공지·어황] 공지 새 글 확인 실패:', e && e.message); });
             if (w.NewsTab) w.NewsTab.prefetch().then(function (v) { if (cur !== 'news') { badge.news = !!v; refresh(); } });

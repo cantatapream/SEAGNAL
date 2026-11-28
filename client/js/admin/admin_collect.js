@@ -5231,7 +5231,7 @@ function hexToRgb(hex) {
 // ============================================================================
 (async function initPromoBadges() {
     try {
-        const res = await fetch(CONFIG.API_BASE + '/api/promo');
+        const res = await fetch(CONFIG.API_BASE + '/api/promo?lite=1');   // 새 글 N 만 본다 — 본문 없이(2026-11-28)
         if (res.ok) {
             const posts = await res.json();
             updateNewBadges(posts);
