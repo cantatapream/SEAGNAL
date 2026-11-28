@@ -331,6 +331,31 @@ async function check(name, fn) { try { await fn(); console.log('✅', name); pas
       assert.deepEqual(r.afterBtn, { box: false, calls: [[34.5, 128.2]], stack: false }, '버튼 → 팝업 닫힘 + 그 지점 바텀시트');
       assert.equal(r.afterBack, false, '뒤로가기로 닫힌다'); assert.equal(r.noDataBtn, false, '자료 없는 자리에는 버튼이 없다');
     });
+    await check('[2026-11-28 세모 자리] 이름표가 숨는 먼 축척에서는 세모가 구역 안(이름표 자리, 옆 밀기 0) · 이름표가 보이면 이름 바로 오른쪽', async () => {
+      // 사용자 「축적이 멀리서보면 명칭이 사라져서 … 해당해역 바깥으로 세모가 나오는데 해당해역 내측에 있다가 명칭이 나올 때 명칭에 붙도록」.
+      // 이 시험 서버에는 특보구역 자료가 없어(/api 404) 가로 100km 시험 구역 하나를 잠깐 넣고, 선·이름표 층의 스타일을 두 축척에서 직접 받아 본다.
+      await tapOcean(1); await wait(500);
+      const wasOn = await page.evaluate(() => { const b = document.getElementById('ocean-warn-zone-toggle-btn'); const on = b.classList.contains('active'); if (!on) b.click(); return on; });
+      await page.waitForFunction(() => { const L = window.OceanWarnZone && window.OceanWarnZone.getMainLayer(); return !!(L && L.getMapInternal && L.getMapInternal()); }, null, { timeout: 15000 });
+      const r = await page.evaluate(() => {
+        const Z = window.OceanWarnZone, ns = window.OceanWarnActive; if (!ns || !ns._styler) return 'no-module';
+        const L = Z.getMainLayer(), m = L.getMapInternal();
+        const SL = m.getLayers().getArray().find(l => l !== L && l.getSource && l.getSource() === L.getSource()); if (!SL) return 'no-stroke-layer';
+        const c = ol.proj.fromLonLat([131, 36.5]), h = 50000;
+        const f = new ol.Feature({ name: '시험해역', geometry: new ol.geom.Polygon([[[c[0] - h, c[1] - h], [c[0] + h, c[1] - h], [c[0] + h, c[1] + h], [c[0] - h, c[1] + h], [c[0] - h, c[1] - h]]]) });
+        const old = ns._zoneTrendOf, oldMap = ns._state.activeMap, oldAct = ns._state.active;
+        ns._zoneTrendOf = () => 'up'; ns._state.activeMap = Object.assign({}, oldMap, { '시험해역': { stage: '주의보', paletteKey: 'wave', fillAlpha: 0.5, currents: [], upcomings: [], allCurrents: [], allUpcomings: [] } }); ns._state.active = true;
+        Z.setActiveStyler(ns._styler);
+        try {
+          const off = (res) => { const st = SL.getStyleFunction()(f, res); const t = Array.isArray(st) && st.find(x => x && x.getText && x.getText() && x.getText().getText() === '▲'); return t ? t.getText().getOffsetX() : null; };
+          return { far: off(5000), near: off(100) };   // 5000m/px → 구역 폭 20px(이름표 숨음) · 100m/px → 1000px(이름표 보임)
+        } finally { ns._zoneTrendOf = old; ns._state.activeMap = oldMap; ns._state.active = oldAct; Z.setActiveStyler(oldAct ? ns._styler : null); }
+      });
+      if (!wasOn) { await page.evaluate(() => document.getElementById('ocean-warn-zone-toggle-btn').click()); await wait(500); }
+      if (typeof r === 'string') throw new Error(r);
+      assert.equal(r.far, 0, '먼 축척(이름표 숨음) — 세모는 구역 안 ' + JSON.stringify(r));
+      assert.ok(r.near > 20, '가까운 축척(이름표 보임) — 세모는 이름 오른쪽 ' + JSON.stringify(r));
+    });
     await check('⑩ 즐겨찾기·접은 폴더는 저장된다 — 앱을 다시 열어도 그대로', async () => {
       await click('#om-menu-btn'); await wait(300);
       await click('#om-sidebar [data-om="fav"][data-id="wav"]'); await click('#om-sidebar [data-om="fav"][data-id="surf"]');

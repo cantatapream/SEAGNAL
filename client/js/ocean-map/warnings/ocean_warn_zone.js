@@ -377,7 +377,39 @@
 
     // 두 layer 가 각각 호출할 style 함수 — 본 _zoneStyle 결과를 split.
     function _zoneFillOnlyStyle(feature)    { return _onlyFill(_zoneStyle(feature)); }
-    function _zoneStrokeOnlyStyle(feature)  { return _onlyStrokeAndText(_zoneStyle(feature)); }
+    function _zoneStrokeOnlyStyle(feature, resolution)  { return _placeTrend(_onlyStrokeAndText(_zoneStyle(feature)), feature, resolution); }
+
+    /**
+     * 격상·격하 세모 자리 고르기 — 이름표가 보이면 이름 바로 오른쪽, 이름표가 숨으면 구역 안(이름표가 놓일 자리)에 둔다.
+     * 사용자 2026-11-28 「축적이 멀리서보면 명칭이 사라져서 … 해당해역 바깥으로 세모가 나오는데 해당해역 내측에 있다가 명칭이 나올 때 명칭에 붙도록」.
+     * 이름표는 overflow:false 라, 지도 라이브러리가 「구역 안 가로 길이(interior point 의 폭 ÷ 해상도) < 이름표 그림 폭」이면 숨긴다(ol.js TextBuilder).
+     * 같은 셈을 여기서 해, 숨는 경우에만 세모의 옆 밀기(offsetX)를 0 으로 바꾼 사본을 돌려준다(원본 Style 은 건드리지 않는다).
+     * 이름표 그림 폭은 글자 폭 + 테두리 두께(3px)로 어림한다.
+     * @param {ol.style.Style|Array|null} styles _onlyStrokeAndText 결과 @param {ol.Feature} feature @param {number} resolution 지도 해상도(m/px)
+     * @returns 같은 꼴의 Style(들)  [연계] ← 메인구역 선·이름표 층(_layer) / 세모는 ocean_warn_active3.js _coloredStyle 이 _omTrend·_omLabelW 를 붙여 만든다
+     */
+    function _placeTrend(styles, feature, resolution) {
+        if (!Array.isArray(styles) || !resolution || !feature) return styles;
+        var hidden = null;
+        return styles.map(function (st) {
+            if (!st || !st._omTrend || !st._omLabelW) return st;
+            if (hidden === null) {
+                var g = feature.getGeometry(), w = 0;
+                try {
+                    if (g && g.getType() === 'Polygon') w = g.getFlatInteriorPoint()[2];
+                    else if (g && g.getType() === 'MultiPolygon') {
+                        var pts = g.getFlatInteriorPoints();
+                        for (var i = 2; i < pts.length; i += 3) w = Math.max(w, pts[i]);   // 여러 조각이면 가장 넓은 조각에 이름표가 뜬다
+                    }
+                } catch (e) { w = 0; }
+                hidden = !(w > 0) || (w / resolution) < (st._omLabelW + 3);
+            }
+            if (!hidden) return st;
+            var c = st.clone();
+            c.getText().setOffsetX(0);
+            return c;
+        });
+    }
     function _subZoneFillOnlyStyle(feature) { return _onlyFill(_subZoneStyle(feature)); }
     function _subZoneStrokeOnlyStyle(feature) { return _onlyStrokeAndText(_subZoneStyle(feature)); }
 

@@ -273,8 +273,9 @@
             var name = ((feature.get('name') || '') + '')
                 .replace(/\./g, '·')
                 .replace(/\s+/g, '');
+            var shown = ((window.ZoneSplit && window.ZoneSplit.displayName) ? window.ZoneSplit.displayName(name) : name);   // 이름표만 보이는 이름(2026-11-28)
             styles[styles.length - 1].setText(new ol.style.Text({
-                text: ((window.ZoneSplit && window.ZoneSplit.displayName) ? window.ZoneSplit.displayName(name) : name),   // 이름표만 보이는 이름(2026-11-28)
+                text: shown,
                 font: 'bold 11px "Pretendard", sans-serif',
                 fill: new ol.style.Fill({ color: '#ffffff' }),
                 stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.85)', width: 3 }),
@@ -293,11 +294,12 @@
                     font: 'bold 14px Arial, sans-serif',
                     fill: new ol.style.Fill({ color: trend === 'down' ? '#10b981' : '#ff3b3b' }),
                     stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,0.95)', width: 2.5 }),
-                    offsetX: Math.round(_labelWidth(name) / 2) + 10,
+                    offsetX: Math.round(_labelWidth(shown) / 2) + 10,
                     overflow: true,          // 세모는 작다 — 이름표가 보이는 한 같이 보이게(이름표가 가려질 만큼 좁은 구역에서는 세모만 남는다)
                     placement: 'point'
                 }) });
                 tri._omTrend = true;         // ocean_warn_zone.js _onlyStrokeAndText 가 이 표시를 보고 선·이름표 층에 함께 싣는다
+                tri._omLabelW = _labelWidth(shown);   // 이름표 폭 — 이름표가 숨는 축척에서는 세모를 구역 안(이름표 자리)으로 옮긴다(ocean_warn_zone.js _placeTrend, 2026-11-28)
                 if (isSelected) tri.setZIndex(1000);
                 styles.push(tri);
             }
