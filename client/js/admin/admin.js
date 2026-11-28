@@ -64,6 +64,15 @@ const ADMIN_TOKEN_KEY = 'seagnal_admin_token';
  * @param {string} reason - 'login'|'logout'|'mode'|'device' (사건 detail 에 실림) @returns {void}
  * [연계] → forecast/station-briefing/station_briefing.js init(사건을 듣는다)
  */
+
+/**
+ * 관리자 화면에 보일 구역 이름 — 기상청이 「전남…」 앞바다 5곳을 「전남광주…」로 이름만 바꿨다(2026-11-28, 코드·내부 이름 그대로).
+ *   글자로 보이는 곳에만 쓴다. onclick·서버로 보내는 값은 내부 이름 그대로 둔다(특보 나무·구독 열쇠가 내부 이름이다).
+ * 예: _zoneLabel('전남북부서해앞바다') → '전남광주북부서해앞바다' · _zoneLabel('부산앞바다') → '부산앞바다'
+ * @param {string} z @returns {string} [연계] → js/core/zone_split.js displayName (사용자 2026-11-28 「고쳐」)
+ */
+function _zoneLabel(z) { return (window.ZoneSplit && window.ZoneSplit.displayName) ? window.ZoneSplit.displayName(z) : z; }
+
 function _notifyAdminChange(reason) {
     try { document.dispatchEvent(new CustomEvent('seagnal-admin-change', { detail: { reason: reason } })); }
     catch (e) { console.warn('[admin] 관리자 상태 변경 알림 실패:', e && e.message); }
@@ -2151,7 +2160,7 @@ function buildZoneAccordion(zoneName, alerts) {
             <div onclick="toggleEfAccordion('${zoneId}')" style="padding:8px 10px;display:flex;align-items:center;cursor:pointer;user-select:none;background:rgba(255,255,255,0.02);">
                 <span style="width:6px;height:6px;border-radius:50%;background:${indicatorColor};margin-right:8px;flex-shrink:0;"></span>
                 <i class="fa-solid fa-chevron-right ef-arrow" id="arrow-${zoneId}" style="font-size:0.6rem;width:13px;transition:transform 0.2s;color:#64748b;"></i>
-                <span style="color:#ddd;font-size:0.85rem;">${zoneName}</span>
+                <span style="color:#ddd;font-size:0.85rem;">${_zoneLabel(zoneName)}</span>
                 ${countText}
             </div>
             <div id="${zoneId}" style="display:none;padding:8px;background:rgba(0,0,0,0.2);">
@@ -2403,7 +2412,7 @@ window.openAddAlertModal = function (zoneName) {
                 <button onclick="document.getElementById('manual-alert-modal').remove()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;">&times;</button>
             </div>
             <div style="padding:18px;">
-                <div style="color:#94a3b8;font-size:0.82rem;margin-bottom:12px;"><i class="fa-solid fa-location-dot"></i> ${zoneName}</div>
+                <div style="color:#94a3b8;font-size:0.82rem;margin-bottom:12px;"><i class="fa-solid fa-location-dot"></i> ${_zoneLabel(zoneName)}</div>
                 <div style="margin-bottom:12px;">
                     <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">특보 종류</label>
                     <select id="ma-warnType" style="width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;">
@@ -2471,7 +2480,7 @@ window.openEditAlertModal = function (zoneName, alertIdx) {
                 <button onclick="document.getElementById('manual-alert-modal').remove()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;">&times;</button>
             </div>
             <div style="padding:18px;">
-                <div style="color:#94a3b8;font-size:0.82rem;margin-bottom:12px;"><i class="fa-solid fa-location-dot"></i> ${zoneName}</div>
+                <div style="color:#94a3b8;font-size:0.82rem;margin-bottom:12px;"><i class="fa-solid fa-location-dot"></i> ${_zoneLabel(zoneName)}</div>
                 <div style="margin-bottom:12px;">
                     <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">특보 종류</label>
                     <select id="ma-warnType" style="width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;">
@@ -2712,7 +2721,7 @@ window.submitManualAlert = async function (zoneName, mode, alertIdx) {
         if (inner) renderManualInputTab(inner);
         if (typeof renderAlertSection === 'function') renderAlertSection();
 
-        alert(`${zoneName} ${warnType}${level} 등록 완료 (${result.applied ? '장부 반영됨' : '변경 없음'})`);
+        alert(`${_zoneLabel(zoneName)} ${warnType}${level} 등록 완료 (${result.applied ? '장부 반영됨' : '변경 없음'})`);
     } catch (e) {
         alert(`등록 실패: ${e.message}`);
     }
@@ -2720,7 +2729,7 @@ window.submitManualAlert = async function (zoneName, mode, alertIdx) {
 
 // --- 특보 삭제 (서버 zone tree에서 해제) ---
 window.deleteManualAlert = async function (zoneName) {
-    if (!confirm(`${zoneName}의 해당 특보를 해제(삭제)하시겠습니까?`)) return;
+    if (!confirm(`${_zoneLabel(zoneName)}의 해당 특보를 해제(삭제)하시겠습니까?`)) return;
 
     try {
         const resp = await fetch('/api/admin/manual-alert-release', {
@@ -2738,7 +2747,7 @@ window.deleteManualAlert = async function (zoneName) {
         if (inner) renderManualInputTab(inner);
         if (typeof renderAlertSection === 'function') renderAlertSection();
 
-        alert(`${zoneName} 특보 해제 완료`);
+        alert(`${_zoneLabel(zoneName)} 특보 해제 완료`);
     } catch (e) {
         alert(`해제 실패: ${e.message}`);
     }
@@ -2751,7 +2760,7 @@ window.openManualPushModal = function (zoneName) {
 
     // 해당 해역의 현재 특보 정보 수집
     const zoneAlerts = (appState.alerts || []).filter(a => a.zoneName === zoneName && !a.isCoastal);
-    let defaultTitle = `[${zoneName}] 해양특보 안내`;
+    let defaultTitle = `[${_zoneLabel(zoneName)}] 해양특보 안내`;   // 받는 사람에게 보이는 제목 — 보이는 이름(2026-11-28)
     let defaultContent = '';
     if (zoneAlerts.length > 0) {
         defaultContent = zoneAlerts.map(a => `${a.warnType} ${a.level} (${a.isPreliminary ? '발표예정' : '발효중'})`).join('\n');
@@ -2771,7 +2780,7 @@ window.openManualPushModal = function (zoneName) {
                 <button onclick="document.getElementById('manual-push-modal').remove()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;">&times;</button>
             </div>
             <div style="padding:18px;">
-                <div style="color:#a78bfa;font-size:0.82rem;margin-bottom:12px;"><i class="fa-solid fa-location-dot"></i> 대상 해역: <strong>${zoneName}</strong></div>
+                <div style="color:#a78bfa;font-size:0.82rem;margin-bottom:12px;"><i class="fa-solid fa-location-dot"></i> 대상 해역: <strong>${_zoneLabel(zoneName)}</strong></div>
                 <div style="margin-bottom:12px;">
                     <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">알림 제목</label>
                     <input type="text" id="mp-title" value="${defaultTitle}" style="width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;box-sizing:border-box;">
@@ -3489,7 +3498,7 @@ async function renderSubscriberTab(container) {
                     zones.forEach(function(z) {
                         var count = zc[z] || 0;
                         zoneHtml += '<div style="display:flex;justify-content:space-between;padding:3px 0 3px 16px;font-size:0.78rem;">'
-                            + '<span style="color:#94a3b8;">○' + z + '</span>'
+                            + '<span style="color:#94a3b8;">○' + _zoneLabel(z) + '</span>'
                             + '<span style="color:#818cf8;font-weight:600;">' + count + '명</span>'
                             + '</div>';
                     });
@@ -4020,7 +4029,7 @@ function _renderSuspiciousCaseCard(currentCase) {
     const zoneRows = (currentCase.zones || []).map(z => {
         return `
             <tr>
-                <td style="padding:8px 10px;color:#fcd34d;font-weight:600;">${_escapeHtml(z.name)}</td>
+                <td style="padding:8px 10px;color:#fcd34d;font-weight:600;">${_escapeHtml(_zoneLabel(z.name))}</td>
                 <td style="padding:8px 10px;color:#fef3c7;">${_escapeHtml(z.wrnTpNm || '-')}</td>
                 <td style="padding:8px 10px;color:#fef3c7;">${_escapeHtml(z.wrnLvlNm || '-')}</td>
                 <td style="padding:8px 10px;color:#d4a276;font-size:0.78rem;">${_escapeHtml(z.tmEf || '-')}</td>

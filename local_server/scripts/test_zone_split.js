@@ -403,6 +403,38 @@ const info = (lv) => ({ wrnTp: 'V', wrnTpNm: '풍랑', wrnLvlNm: lv, tmFc: '2026
         ZS._forceForTest(true);
     }
 
+    console.log('I. 남은 3건(2026-11-28 사용자 「고쳐」) — 위험예측 지점·칸 / 관리자 화면 이름 / AI 비서');
+    {
+        ZS._forceForTest(true);
+        const WZ = require('../services/warn_zone_cells');
+        ok('칸 판정 표(warn_zone_cells)의 본구역 = 지금 그림 48개(제주 전환 뒤)', WZ._load().main.length === 48 && !WZ._load().main.some((z) => ['서해중부안쪽먼바다', '서해중부바깥먼바다', '제주도남쪽바깥먼바다'].includes(z.key)));
+        ok('칸 판정: 서해중부 북쪽 점 → 북쪽안쪽 · 남쪽 점 → 남쪽안쪽(종전엔 둘 다 폐지된 「서해중부안쪽먼바다」)', WZ.zonesAt([125.3, 37.2]).main.key === '서해중부북쪽안쪽먼바다' && WZ.zonesAt([125.3, 36.2]).main.key === '서해중부남쪽안쪽먼바다');
+        const RS = require('../services/risk_sea_cells');
+        const d = RS.describe({ latitude: 36.2, longitude: 124.2 });
+        ok('위험예측 해상 칸 판정(risk_sea_cells.describe)도 새 이름(서해중부남쪽바깥먼바다)', String(d.warnZone).replace(/\s/g, '') === '서해중부남쪽바깥먼바다', d.warnZone);
+        // 위험예측 관광지 표(파일은 그대로 — 사고 집계표 해시) 의 옛 이름 9곳 → 위치로 지금 구역
+        const spots = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'config', 'coastal_safety', 'risk_spots.json'), 'utf8')).spots;
+        const olds = spots.filter((p) => ZS.isOldName(p.warnZone));
+        const mapped = olds.map((p) => WZ.currentZoneName(p.warnZone, [p.lon, p.lat]));
+        const tree = C._buildZoneTreeFromSnapshot(new C.StateSnapshot()), leaves = new Set(); (function w(n) { for (const [k, v] of Object.entries(n)) { if (v && 'children' in v) leaves.add(k); else if (v && typeof v === 'object') w(v); } })(tree);
+        const byName = Object.fromEntries(olds.map((p, i) => [p.name, mapped[i]]));
+        ok(`관광지 표 옛 이름 ${olds.length}곳 → 위치대로: 백령·대청·소청 7곳 북쪽안쪽 · 외연도·어청도(북위 36.1~36.2) 남쪽안쪽 — 모두 특보 나무에 있다`,
+            olds.length === 9 && mapped.every((m) => leaves.has(m)) && mapped.filter((m) => m === '서해중부북쪽안쪽먼바다').length === 7 && byName['외연도'] === '서해중부남쪽안쪽먼바다' && byName['어청도'] === '서해중부남쪽안쪽먼바다', byName);
+        ok('옛 이름이 아니면 그대로 · 좌표가 없으면 그대로', WZ.currentZoneName('울산앞바다', [129.4, 35.4]) === '울산앞바다' && WZ.currentZoneName('서해중부안쪽먼바다', []) === '서해중부안쪽먼바다');
+        const rs = fs.readFileSync(path.join(__dirname, '..', 'services', 'risk_store.js'), 'utf8');
+        ok('risk_store: 특보 찾기 3곳이 지금 구역 이름으로(warnZoneOf)', (rs.match(/warningsFor\(warnZoneOf\((p|c)\)/g) || []).length === 3 && !/warningsFor\((p|c)\.warnZone/.test(rs));
+        // 관리자 화면 — 보이는 이름만 「전남광주」, 누르는 값은 내부 이름
+        const aj = fs.readFileSync(path.join(__dirname, '..', '..', 'client', 'js', 'admin', 'admin.js'), 'utf8');
+        ok('관리자 화면: 구역 이름 글자 9곳이 _zoneLabel · onclick 값은 내부 이름 그대로', (aj.match(/_zoneLabel\(/g) || []).length >= 10 && /onclick="openAddAlertModal\('\$\{zoneName\}'\)"/.test(aj));
+        const H2 = require('../services/push_helpers');
+        const sp = H2.buildSplitPushes('publish', [{ parent: '전남북부서해앞바다', childState: null, time: null }]);
+        ok('관리자 알림 글도 「전남광주…」', JSON.stringify(sp).includes('전남광주북부서해앞바다') && !/전남북부서해/.test(JSON.stringify(sp)), JSON.stringify(sp).slice(0, 200));
+        // AI 비서 — 새 이름·전남광주 이름을 알아듣고, 옛 이름은 나뉜 구역들로 답한다
+        const as = fs.readFileSync(path.join(__dirname, '..', 'routes', 'assistant.js'), 'utf8');
+        ok('AI 비서 구역표: 서해중부 새 4 · 남해동부중간 · 제주 새 2', ['서해중부북쪽안쪽먼바다', '서해중부북쪽바깥먼바다', '서해중부남쪽안쪽먼바다', '서해중부남쪽바깥먼바다', '남해동부중간먼바다', '제주도남서쪽바깥먼바다', '제주도남동쪽바깥먼바다'].every((n) => as.includes(`'${n}':`)));
+        ok('AI 비서: 「전남광주…」 → 내부 이름 · 옛 이름 특보는 나뉜 구역 모두 · 중기는 제주 JEJU', /DISPLAY_RENAME/.test(as) && /replace\(\/전남광주\/g, '전남'\)/.test(as) && /ZS\.isOldName\(z\)/.test(as) && /'JEJU'/.test(as));
+    }
+
     ZS._forceForTest(null);
     console.log(`\n결과: ${pass} PASS / ${fail} FAIL`);
     process.exit(fail ? 1 : 0);

@@ -537,12 +537,16 @@ const ZONE_NAME_TO_CODE = {
     '제주도앞바다': '12B10300', '제주도남쪽먼바다': '12B10400',
     '제주도남서쪽안쪽먼바다': '12B10400', '제주도남동쪽안쪽먼바다': '12B10400',
     '제주도남쪽바깥먼바다': '12B10400',
+    '제주도남서쪽바깥먼바다': '12B10400', '제주도남동쪽바깥먼바다': '12B10400',   // 2026-11-26 제주 구역 분할(묶음 예보 코드)
     // 서해중부
     '인천·경기북부앞바다': '12A20101', '경기북부앞바다': '12A20101',
     '인천·경기남부앞바다': '12A20102', '충남북부앞바다': '12A20103',
     '충남남부앞바다': '12A20104', '서해중부앞바다': '12A20100',
     '서해중부먼바다': '12A20200', '서해중부안쪽먼바다': '12A20200',
     '서해중부바깥먼바다': '12A20200',
+    // [구역 개편2 2026-11-28] 새 먼바다 — 예보 코드는 그 묶음(서해중부먼바다 12A20200) 것을 쓴다(중기 권역 12A20000 도 여기서 나온다)
+    '서해중부북쪽안쪽먼바다': '12A20200', '서해중부북쪽바깥먼바다': '12A20200',
+    '서해중부남쪽안쪽먼바다': '12A20200', '서해중부남쪽바깥먼바다': '12A20200',
     // 서해남부
     '전북북부앞바다': '22A30101', '전북남부앞바다': '22A30102',
     '전남북부서해앞바다': '22A30103', '전남중부서해앞바다': '22A30104',
@@ -560,7 +564,7 @@ const ZONE_NAME_TO_CODE = {
     '경남서부남해앞바다': '12B20101', '경남중부남해앞바다': '12B20102',
     '부산앞바다': '12B20103', '거제시동부앞바다': '12B20104',
     '남해동부앞바다': '12B20100', '남해동부먼바다': '12B20200',
-    '남해동부안쪽먼바다': '12B20200', '남해동부바깥먼바다': '12B20200',
+    '남해동부안쪽먼바다': '12B20200', '남해동부중간먼바다': '12B20200', '남해동부바깥먼바다': '12B20200',   // 중간: 2026-11-28 개편2
     // 동해남부
     '울산앞바다': '12C10101', '경북남부앞바다': '12C10102',
     '경북북부앞바다': '12C10103', '동해남부앞바다': '12C10100',
@@ -612,7 +616,8 @@ function normalize(s) {
  *     '제주도'/'북부'/'앞바다' 토큰 보조 매칭으로 보강한다.
  */
 function detectZoneDeterministic(query) {
-    const nq = normalize(query);
+    // 「전남광주…」(기상청 2026-11 새 이름 — 앱 화면 이름)도 내부 이름 「전남…」으로 찾는다(config/zone_split.DISPLAY_RENAME)
+    const nq = normalize(query).replace(/전남광주/g, '전남');
 
     // 1차: 해역명 전체가 정규화 질문에 포함되는 경우 (가장 신뢰도 높음)
     let best = null;
@@ -1122,6 +1127,9 @@ const APP_CAPABILITIES = {
 function resolveZoneName(name) {
     if (!name) return null;
     if (ZONE_NAME_TO_CODE[name]) return name;
+    // 보이는 이름(「전남광주북부서해앞바다」) → 내부 이름(「전남북부서해앞바다」) — 특보 나무·예보 표의 열쇠가 내부 이름이다(2026-11-28)
+    const R = require('../config/zone_split').DISPLAY_RENAME, nn = normalize(name);
+    for (const k of Object.keys(R)) if (normalize(R[k]) === nn) return k;
     return detectZoneDeterministic(String(name));
 }
 
@@ -1341,7 +1349,7 @@ const TOOL_EXEC = {
                 if (!node || typeof node !== 'object') return;
                 if ('current' in node || 'upcoming' in node) {
                     if (node.current) active.push({
-                        zone: pathArr[pathArr.length - 1] || null,
+                        zone: pathArr.length ? require('../config/zone_split').displayName(pathArr[pathArr.length - 1]) : null,   // 보이는 이름(전남광주 — 2026-11-28)
                         type: node.current.type || '해상 특보',
                         detail: node.current
                     });
@@ -1353,7 +1361,13 @@ const TOOL_EXEC = {
             return { zone: '전국', activeCount: active.length, warnings: active.slice(0, 12), warning: null };
         }
         const z = resolveZoneName(zone);
-        return { zone: z, warning: z ? findWarning(z) : null };
+        // [구역 개편 2026-11-28] 옛 이름(서해중부안쪽먼바다·제주도남쪽바깥먼바다 등)은 나뉜 새 구역들의 특보를 모두 준다 — 나무에 옛 이름이 없다.
+        const ZS = require('../config/zone_split'), shown = (n) => ZS.displayName(n);
+        if (z && ZS.isOldName(z)) {
+            const parts = ZS.splitNames([z]);
+            return { zone: z, note: `기상청 특보구역 개편으로 ${parts.length}개 구역으로 나뉘었습니다.`, warning: null, warnings: parts.map((n) => ({ zone: shown(n), warning: findWarning(n) })) };
+        }
+        return { zone: z ? shown(z) : z, warning: z ? findWarning(z) : null };
     },
     list_buoys_near: async ({ zone } = {}) => {
         const z = resolveZoneName(zone);
@@ -1389,8 +1403,9 @@ const TOOL_EXEC = {
         const z = resolveZoneName(zone);
         const code = z && ZONE_NAME_TO_CODE[z];
         if (!code) return { error: '해역을 인식하지 못했습니다.' };
-        const regId = code.slice(0, 4) + '0000';   // 중기 권역코드 파생 (예: 12B10302 → 12B10000)
         const d = dataCache.midTermSeaForecasts && dataCache.midTermSeaForecasts.data;
+        // 중기 권역코드 파생 (예: 12B10302 → 12B10000). 제주 해역은 「제주도해상」(JEJU — 제주청 주간예보 PDF, 앱 카드와 같다 · 2026-11-27)
+        const regId = (z.startsWith('제주도') && d && d.JEJU) ? 'JEJU' : code.slice(0, 4) + '0000';
         const e = d && d[regId];
         return e ? { zone: z, regId, updatedAt: dataCache.midTermSeaForecasts.updatedAt, forecast: e } : { error: '중기예보 데이터가 없습니다.', regId };
     },

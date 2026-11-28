@@ -203,3 +203,15 @@
 - `test_ai_compare_trial`: 정답표(ai_compare_cases.json, 그때 이름)를 채점 때 `splitNames` 로 지금 이름으로 바꿔 견준다(`services/ai_compare_trial.gradeInterpret`).
 - `test_traffic_history`: 원본 도형 파일의 옛 이름은 「그 새 구역들이 나무에 다 있으면」 통과 · 나무 이름 93 → 96.
 - `test_guide_tabs`: 안내 글의 구역 수를 원본 파일(44)이 아니라 앱이 받는 그림(/api/warn-zones, 제주 전환 전 기준 47)과 견준다.
+
+### 남은 3건 처리 (2026-11-28, 사용자 「고쳐」·「고치고머지해」)
+- **위험예측·교통량·해상 날씨 상자·파출소 브리핑의 칸 판정**: `services/warn_zone_cells`·`services/risk_sea_cells` 의 본구역을 원본 파일이 아니라
+  앱이 받는 지금 그림(`warn_zones_split.body()` — 48개, 제주 전환 전이면 47개)에서 읽는다. 제주 새 두 구역도 함께 맞춰졌다(1차 때 범위 밖이던 것).
+  위험예측 관광지 표(`risk_spots.json`)는 사고 집계표와 해시로 묶여 고치지 않고, 읽을 때 `warn_zone_cells.currentZoneName`(옛 이름 + 위치 → 지금 구역)으로 바꾼다
+  (`risk_store.warnZoneOf` — 특보 찾기 3곳). 옛 이름 9곳: 백령·대청·소청 7곳 → 서해중부북쪽안쪽, **외연도·어청도 → 서해중부남쪽안쪽**(북위 36.1~36.2 — 처음엔 9곳 모두 대청도 인근이라고 잘못 적었다).
+  해상 칸 표(`data/sea_cells.json`)도 다음 수집 때 새 이름으로 다시 만들어지고, 그 전까지는 같은 함수로 맞춘다(`risk_store`·`station_briefing_inputs`).
+- **관리자 화면**: 구역 이름이 글자로 보이는 곳(특보 관리 목록·수동 추가/수정 창·확인 창·수동 푸시 제목·구독자 분포·의심 사례 표)은 `_zoneLabel`(= 보이는 이름).
+  누르는 값·서버로 보내는 값은 내부 이름 그대로. 관리자 알림 글(`push_helpers.buildSplitPushes`)도 보이는 이름.
+- **AI 비서**(`routes/assistant.js`): 구역표에 서해중부 새 4·남해동부중간·제주 새 2(예보 코드는 그 묶음 코드) · 「전남광주…」로 물어도 내부 이름으로 찾는다 ·
+  옛 이름(서해중부안쪽먼바다 등)으로 물으면 나뉜 구역들의 특보를 모두 준다 · 답의 구역 이름은 보이는 이름 · 중기예보는 제주 해역이면 「제주도해상」(JEJU).
+- 검사: `test_zone_split` I절(156 PASS) · `test_traffic_history`(본구역 먼바다 19 → 22) · `test_push_route_auth`(관리자 화면 캐시 번호).
