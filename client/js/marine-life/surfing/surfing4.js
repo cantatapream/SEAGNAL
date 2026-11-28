@@ -229,7 +229,7 @@
     function _buildAlertInlineHtml(alertName) {
         if (!alertName) return '<span class="surfing-alert-none-txt">정보 없음</span>';
 
-        var zoneName = s.utils.escapeHtml(alertName);
+        var zoneName = s.utils.escapeHtml((window.ZoneSplit && window.ZoneSplit.displayName) ? window.ZoneSplit.displayName(alertName) : alertName);   // 보이는 이름(2026-11-28) — 아래 alertMap 조회는 내부 이름 그대로
         var alertMap = s.alertMap;
 
         if (!alertMap || !alertMap[alertName]) {

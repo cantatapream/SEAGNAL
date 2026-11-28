@@ -231,13 +231,17 @@ const dayFile = (dir, d) => JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join
     });
 
     // ── 7. 칸 → 특보구역 ──────────────────────────────────────────────────────
-    await check('특보구역 파일: 앞바다25·먼바다19 / 연안바다22·평수구역27, 93개 이름이 전부 크롤러 구역 트리와 맞는다', () => {
+    await check('특보구역 파일: 앞바다25·먼바다19 / 연안바다22·평수구역27 — 이름이 전부 크롤러 구역 트리와 맞는다(개편2 옛 이름은 새 구역들로)', () => {
         const t = Z._load(), count = {};
         for (const z of [...t.main, ...t.sub]) count[z.kind] = (count[z.kind] || 0) + 1;
         assert.deepEqual(count, { '앞바다': 25, '먼바다': 19, '연안바다': 22, '평수구역': 27 });
         const names = new Set(); (function w(n) { for (const [k, v] of Object.entries(n)) { if (v && 'children' in v) { names.add(Z.zoneKey(k)); Object.keys(v.children).forEach((c) => names.add(Z.zoneKey(c))); } else if (v && typeof v === 'object') w(v); } })(skeleton());
-        assert.deepEqual([...t.main, ...t.sub].filter((z) => !names.has(z.key)).map((z) => z.name), []);
-        assert.equal(names.size, 93);
+        // [2026-11-28 개편2] 원본 도형 파일은 옛 이름(서해중부안쪽·바깥먼바다) 그대로 — 나무에는 새 구역들이 있다(config/zone_split.SPLIT2).
+        //   이 칸 판정(교통량 이력·위험예측·파출소 브리핑)은 제주 때처럼 이번 범위 밖이라 옛 도형을 쓴다 — 옛 이름이면 그 새 구역들이 나무에 다 있는지만 본다.
+        const ZS = require('../config/zone_split');
+        const inTree = (z) => names.has(z.key) || (ZS.isOldName(z.name) && ZS.splitNames([z.name]).every((n) => names.has(Z.zoneKey(n))));
+        assert.deepEqual([...t.main, ...t.sub].filter((z) => !inTree(z)).map((z) => z.name), []);
+        assert.equal(names.size, 96);   // 93 + 개편2 3(서해중부 먼바다 2→4 · 남해동부 2→3)
     });
     await check('칸 중심 판정이 기존 risk_sea_cells.describe(warnZone·warnSubZone)와 같다 — 한반도 주변 칸 1,500개', () => {
         const D = require('../services/risk_sea_cells'), L = 'ABCDEFGHIJKLMNOP', Y = 'ABCDEFGHIJKLMNOPQRSTUVWXY';

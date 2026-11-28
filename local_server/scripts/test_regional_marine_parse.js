@@ -55,5 +55,21 @@ console.log('D. 표 머리를 못 읽으면 종전대로(9칸까지 찾는다)')
     const r = parse(text([], 8), '202611270500').farSeaZones;
     ok('머리 없음 → 종전 동작(마지막 구역 9칸)', r['제주도남동쪽바깥먼바다'] && r['제주도남동쪽바깥먼바다'].periods.length === 9, r['제주도남동쪽바깥먼바다'] && r['제주도남동쪽바깥먼바다'].periods.length);
 }
+console.log('E. 부산청 「남해동부 / 안쪽먼바다 / 중간먼바다 / 바깥먼바다」(2026-11-28 구역 개편2 — 중간이 새로 생김)');
+{
+    // 부산청 05시 PDF(11-28)의 글 꼴: 상위 이름이 세로 글자(남/해/동/부)로 나오고 그 아래 구역 이름이 「…먼바다」 한 줄씩
+    const cellsOf = (base) => [0, 1, 2, 3, 4, 5, 6, 7].map((i) => ['서~북서 / 8~14', i === 1 ? '구름많고 가끔 비' : '맑음', (base + 0.5).toFixed(1), (base + 2 + i * 0.5).toFixed(1)]);
+    const T = [...head(L05), '남', '해', '동', '부',
+        '앞바다', ...cellsOf(0).flatMap((c) => cell(...c)),
+        '안쪽먼바다', ...cellsOf(0.5).flatMap((c) => cell(...c)),
+        '중간먼바다', ...cellsOf(1.0).flatMap((c) => cell(...c)),
+        '바깥먼바다', ...cellsOf(1.5).flatMap((c) => cell(...c)),
+        '※ 날씨는 풍향, 풍속'].join('\n');
+    const r = parse(T, '202611280500').farSeaZones;
+    ok('세 구역 이름이 모두 「남해동부…」로 읽힌다(「중간먼바다」 단독 이름이 없다)', !!r['남해동부안쪽먼바다'] && !!r['남해동부중간먼바다'] && !!r['남해동부바깥먼바다'] && !r['중간먼바다'], Object.keys(r));
+    const m = r['남해동부중간먼바다'];
+    ok('중간 8칸, 첫 칸 = 자기 값(1.5~3.0)', m && m.periods.length === 8 && m.periods[0].waveHeight === '1.5~3.0', m && m.periods.map((p) => p.waveHeight));
+    ok('안쪽·바깥 값과 섞이지 않는다(안쪽 1.0~2.5 · 바깥 2.0~3.5)', r['남해동부안쪽먼바다'].periods[0].waveHeight === '1.0~2.5' && r['남해동부바깥먼바다'].periods[0].waveHeight === '2.0~3.5');
+}
 console.log(`\n결과: ${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

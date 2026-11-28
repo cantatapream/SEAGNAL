@@ -190,7 +190,7 @@
                 color: 'rgba(255, 200, 80, 0.04)'
             }),
             text: new ol.style.Text({
-                text: name,
+                text: ((window.ZoneSplit && window.ZoneSplit.displayName) ? window.ZoneSplit.displayName(name) : name),   // 이름표만 보이는 이름(「전남광주…」 — core/zone_split.js), 맞추기는 내부 이름
                 font: 'bold 11px "Pretendard", sans-serif',
                 fill: new ol.style.Fill({ color: '#ffd166' }),
                 stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.85)', width: 3 }),

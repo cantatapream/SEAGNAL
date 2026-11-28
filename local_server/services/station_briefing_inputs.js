@@ -586,6 +586,9 @@ function stationSeas(geometry, zones = seaZones()) {
 function seaZones() {
     const W = require('./warn_zone_cells'), H = require('./push_helpers').ZONE_HIERARCHY, seaOf = {};
     for (const sea of Object.keys(H)) for (const list of Object.values(H[sea])) for (const n of list) seaOf[W.zoneKey(n)] = sea;
+    // 구역 개편(제주 2026-11-26 · 개편2 2026-11-28): 원본 도형 파일(warn_zones.geojson)은 옛 이름 그대로라, 옛 이름도 새 구역과 같은 해역으로 센다
+    //   (없으면: 서해중부안쪽·바깥먼바다 도형이 빠져 그 도형에만 걸치는 관할이 「가장 가까운 구역」으로 해역을 정한다).
+    { const ZS = require('../config/zone_split'); for (const [o, list] of [[ZS.OLD, ZS.NEW], ...Object.entries(ZS.SPLIT2)]) { const sea = seaOf[W.zoneKey(list[0])]; if (sea && !seaOf[W.zoneKey(o)]) seaOf[W.zoneKey(o)] = sea; } }
     return W._load().main.filter((z) => seaOf[z.key]).map((z) => ({ sea: seaOf[z.key], name: z.name, box: z.box, geometry: z.geometry }));
 }
 /**

@@ -274,7 +274,7 @@
                 .replace(/\./g, '·')
                 .replace(/\s+/g, '');
             styles[styles.length - 1].setText(new ol.style.Text({
-                text: name,
+                text: ((window.ZoneSplit && window.ZoneSplit.displayName) ? window.ZoneSplit.displayName(name) : name),   // 이름표만 보이는 이름(2026-11-28)
                 font: 'bold 11px "Pretendard", sans-serif',
                 fill: new ol.style.Fill({ color: '#ffffff' }),
                 stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.85)', width: 3 }),
@@ -342,7 +342,7 @@
                 .replace(/\./g, '·')
                 .replace(/\s+/g, '');
             style.setText(new ol.style.Text({
-                text: name,
+                text: ((window.ZoneSplit && window.ZoneSplit.displayName) ? window.ZoneSplit.displayName(name) : name),   // 이름표만 보이는 이름(2026-11-28)
                 font: '600 10px "Pretendard", sans-serif',
                 fill: new ol.style.Fill({ color: '#cbd5e1' }),
                 stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.6)', width: 2 }),

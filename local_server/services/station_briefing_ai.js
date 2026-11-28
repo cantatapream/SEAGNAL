@@ -62,7 +62,7 @@ const KMA_BIG_GROUPS = Object.freeze(['서해앞바다', '남해앞바다', '동
 const KMA_ZONE_NAMES = Object.freeze((() => {
     const { ZONE_GROUP_MAP } = require('../config/zone_group_map'), out = new Set(['제주도', ...KMA_BIG_GROUPS]);
     for (const [k, v] of Object.entries(ZONE_GROUP_MAP)) for (const n of [k, ...v]) { out.add(n); if (n.includes('·')) out.add(n.split('·').pop()); }
-    { const ZS = require('../config/zone_split'); for (const n of [ZS.OLD, ...ZS.NEW]) out.add(n); }   // 2026-11-26 구역 분할 — 이 목록은 로드 때 굳으므로 옛·새 이름을 모두 넣어 둔다(허용 이름일 뿐이라 미리 있어도 무해)
+    { const ZS = require('../config/zone_split'); for (const n of [ZS.OLD, ...ZS.NEW, ...Object.keys(ZS.SPLIT2).filter((k) => k !== ZS.OLD_INNER_SE)]) out.add(n); }   // 2026-11-26 구역 분할 · 2026-11-28 개편2(서해중부안쪽·바깥 — 묶음표에서 빠졌지만 기상청 글에 한동안 남는다) — 이 목록은 로드 때 굳으므로 옛·새 이름을 모두 넣어 둔다(허용 이름일 뿐이라 미리 있어도 무해)
     // §11.10.47(10-20 16:52 운영 place:새벽부터강원앞바다 — 기상청 16:30 해상 전망 원문에 「강원앞바다」): 도 단위 앞바다 묶음 「강원북부앞바다」 → 「강원앞바다」(경북·제주도도 같은 꼴).
     for (const n of [...out]) { const m = /^(.+?)(?:북부|중부|남부|동부|서부)앞바다$/.exec(n); if (m) out.add(m[1] + '앞바다'); }
     // §11.10.49(2026-11-13~15 운영 place:서해바깥먼바다 21건 — 기상청 전망 글의 줄임 꼴, 「강원앞바다」와 같은 꼴): 「서해중부바깥먼바다」 → 「서해바깥먼바다」,

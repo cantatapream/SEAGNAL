@@ -89,7 +89,8 @@ window.AlertDetailPopup = {
     createZoneLinks(zones, status) {
         if (!zones || zones.length === 0) return '해당 해역';
         return zones.map(zone =>
-            `<a href="#" class="alert-zone-link" data-zone="${zone}" data-status="${status}" style="color: var(--accent-blue); text-decoration: underline; cursor: pointer;">${zone}</a>`
+            // 글자는 보이는 이름(「전남광주…」 — js/core/zone_split.js), data-zone 은 내부 이름 그대로(카드 찾기에 쓴다)
+            `<a href="#" class="alert-zone-link" data-zone="${zone}" data-status="${status}" style="color: var(--accent-blue); text-decoration: underline; cursor: pointer;">${(window.ZoneSplit && window.ZoneSplit.displayName) ? window.ZoneSplit.displayName(zone) : zone}</a>`
         ).join(', ');
     },
 
@@ -427,8 +428,10 @@ window.AlertDetailPopup.scrollToZone = function (zoneName, status) {
         // 3. 대상 카드 찾기
         const cards = document.querySelectorAll(cardClass);
         let targetCard = null;
+        // [2026-11-28] 카드 제목은 보이는 이름(「전남광주…」)이라 내부 이름(「전남…」)으로는 글자가 안 맞는다 — 둘 다 본다.
+        const shownName = (window.ZoneSplit && window.ZoneSplit.displayName) ? window.ZoneSplit.displayName(zoneName) : zoneName;
         cards.forEach(card => {
-            if (card.textContent.includes(zoneName)) targetCard = card;
+            if (card.textContent.includes(zoneName) || card.textContent.includes(shownName)) targetCard = card;
         });
 
         if (targetCard) {

@@ -95,7 +95,12 @@
 
     /** 한글 해역명 정규화 — 공백·중점·마침표·괄호 제거 후 비교용. */
     function _normName(s) {
-        return ('' + (s || '')).replace(/[\s·.()]/g, '').trim();
+        var n = ('' + (s || '')).replace(/[\s·.()]/g, '').trim();
+        // [2026-11-28] 카드 제목은 「전남광주…」(보이는 이름 — core/zone_split.js displayName)인데 시정 표(nameToCode)는 내부 이름 「전남…」이다.
+        //   카드 글자로 구역을 찾는 곳(_zoneNameOfCard·_badgeAnchor)이 그대로 맞도록 보이는 이름을 내부 이름으로 되돌린다.
+        var R = (typeof window !== 'undefined' && window.ZoneSplit) ? window.ZoneSplit.DISPLAY_RENAME : null;
+        if (R) for (var k in R) if (Object.prototype.hasOwnProperty.call(R, k) && n === R[k].replace(/[\s·.()]/g, '')) return k.replace(/[\s·.()]/g, '');
+        return n;
     }
 
     /** hex → "r,g,b" (rgba() 조립용). */
@@ -778,7 +783,7 @@
             boxEl.addEventListener('click', function (e) { e.stopPropagation(); });
             var head = document.createElement('div');
             head.className = 'vsby-pop-head';
-            head.innerHTML = '<span class="vsby-pop-title">' + (meta.name || code) + ' · 시정</span>'
+            head.innerHTML = '<span class="vsby-pop-title">' + (meta.name ? (window.ZoneSplit && window.ZoneSplit.displayName ? window.ZoneSplit.displayName(meta.name) : meta.name) : code) + ' · 시정</span>'   // 보이는 이름(2026-11-28)
                 + '<span class="vsby-pop-time">' + (built.time || '') + '</span>';
             var closeBtn = document.createElement('button');
             closeBtn.type = 'button'; closeBtn.className = 'vsby-pop-close'; closeBtn.textContent = '×';

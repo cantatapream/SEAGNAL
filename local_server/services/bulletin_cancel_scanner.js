@@ -466,7 +466,8 @@ function matchesZone(release, zone) {
     if (!release || !zone) return false;
     // [구역 분할] 전환 뒤 새 두 구역은 통보문이 옛 이름(「제주도남쪽바깥먼바다의 풍랑 예비특보는 … 해제」)으로 적어도 그 구역을 가리킨 것이다 —
     //   옛 이름 = 두 구역 모두(사용자 확정). 없으면: 우리가 먼저 전환하고 기상청이 아직 옛 이름을 쓰는 동안 예비취소 푸시가 영영 안 나간다(독립 검토 2026-11-24 재현).
-    { const ZS = require('../config/zone_split'); if (ZS.isActive() && ZS.NEW.indexOf(zone) !== -1 && _matchesZoneRaw(release, ZS.OLD)) return true; }
+    //   2026-11-28 개편2: 서해중부 새 4구역도 옛 이름(서해중부안쪽·바깥먼바다)으로 적힌 해제를 그 구역 것으로 본다(oldNamesOf).
+    { const ZS = require('../config/zone_split'); if (ZS.oldNamesOf(zone).some((o) => _matchesZoneRaw(release, o))) return true; }
     return _matchesZoneRaw(release, zone);
 }
 /** matchesZone 의 본체(구역 분할 전 이름 그대로). [연계] ← matchesZone(이 파일) */

@@ -7,6 +7,7 @@
  *   ② 인덱스 카드·지도 구역이 2개로  ③ 옛 이름 = 두 구역 모두 · 제주도먼바다 = 4 · 제주도전해상 = 8
  *   ④ 특보는 MMIS 그대로(새 코드 S1324120·S1324220), 푸시도 연다 — 옛 구역 구독자는 두 구역을 이어받는다
  *   ⑤ 전환 순간 발효 중이던 특보는 거짓 「해제·발효」 없이 두 구역으로 이어진다
+ *   ⑥ 2차 개편(2026-11-28, H절): 서해중부 2→4 · 남해동부 2→3(남해동부안쪽은 이름 그대로) · 전남→전남광주 보이는 이름 — 늘 적용
  * [연계] config/zone_split · marine_warning_crawler · analysis/bulletin_survey/lifecycle_check · services/bulletin_status ·
  *        config/zone_group_map · services/push_helpers · push_sender · services/warn_zones_split · client/js/core/zone_split.js
  */
@@ -270,6 +271,136 @@ const info = (lv) => ({ wrnTp: 'V', wrnTpNm: '풍랑', wrnLvlNm: lv, tmFc: '2026
             ok(nm + ': 회색 버튼 = 해구기상·윈디·종합정보', /'해구기상'/.test(blk) && /'윈디'/.test(blk) && /'종합정보'/.test(blk) && !/makeDisabledButton\([^)]*buoy/i.test(blk));
             ok(nm + ': 「기상예보」는 회색으로 만들지 않고 진짜 버튼을 다시 붙인다', !/\['기상예보'/.test(blk) && !/\['기상예보',/.test(blk) && /liveForecast/.test(blk) && !/makeDisabledButton\('기상예보'/.test(blk));
         }
+    }
+
+    console.log('H. 2차 개편(2026-11-28 — 서해중부 2→4 · 남해동부 2→3 · 전남광주 이름, 늘 적용)');
+    {
+        const NI = '서해중부북쪽안쪽먼바다', NO = '서해중부북쪽바깥먼바다', SI = '서해중부남쪽안쪽먼바다', SO = '서해중부남쪽바깥먼바다';
+        const IN = '남해동부안쪽먼바다', MID = '남해동부중간먼바다', OUT = '남해동부바깥먼바다';
+        for (const jeju of [false, true]) {
+            ZS._forceForTest(jeju);
+            const tag = jeju ? '(제주 전환 뒤)' : '(제주 전환 전)';
+            ok('이름: 서해중부안쪽 = 북쪽안쪽+남쪽안쪽 · 바깥 = 북쪽바깥+남쪽바깥 ' + tag, ZS.splitNames(['서해중부안쪽먼바다', '서해중부바깥먼바다']).join() === [NI, SI, NO, SO].join());
+            ok('이름: 남해동부안쪽은 이름이 그대로라 늘리지 않는다 ' + tag, ZS.splitNames([IN]).join() === IN && !ZS.isOldName(IN));
+            const t = C._buildZoneTreeFromSnapshot(new C.StateSnapshot());   // 빈 스냅샷 → 뼈대 그대로
+            ok('뼈대: 서해중부먼바다 4잎 · 남해동부먼바다 3잎 ' + tag, Object.keys(t['서해']['서해중부해상']['서해중부먼바다']).join() === [NI, NO, SI, SO].join() && Object.keys(t['남해']['남해동부해상']['남해동부먼바다']).join() === [IN, MID, OUT].join());
+        }
+        ZS._forceForTest(true);
+        // MMIS 코드표 — 2026-11-28 실측(warn/list·WFS shp_wrn_poly)
+        const codes = { S1252110: NI, S1252120: NO, S1252210: SI, S1252220: SO, S1312030: IN, S1312040: MID, S1312020: OUT };
+        ok('MMIS 새 코드 6개 → 새 이름(남해동부바깥 그대로)', Object.entries(codes).every(([c, n]) => C.MMIS_CODE_TO_NAME[c] === n), Object.keys(codes).map((c) => C.MMIS_CODE_TO_NAME[c]));
+        ok('폐지 코드: S1252010·S1252020 = 옛 이름 · S1312010 = 옛 넓이 이름표', C.MMIS_CODE_TO_NAME.S1252010 === '서해중부안쪽먼바다' && C.MMIS_CODE_TO_NAME.S1252020 === '서해중부바깥먼바다' && C.MMIS_CODE_TO_NAME.S1312010 === ZS.OLD_INNER_SE);
+        ok('코드표 = config/zone_split 새 코드표', Object.entries(ZS.SPLIT2_NEW_CODES).every(([c, n]) => C.MMIS_CODE_TO_NAME[c] === n) && Object.entries(ZS.SPLIT2_OLD_CODES).every(([c, n]) => C.MMIS_CODE_TO_NAME[c] === n));
+        // 2026-11-28 실제로 버려지던 줄 — 새 코드 줄이 나무 잎에 닿는다
+        const row = (cd, nm, lv) => ({ warn_zone_cd: cd, warn_zone_nm: nm, warn_tp: 'V', warn_lvl: '2', warn_tp_nm: '풍랑', warn_lvl_nm: lv || '주의보', tm_fc: '2026.11.28 00:00', tm_ef: '2026.11.28 03:00', warn_cmd: '1' });
+        const snap = C._buildSnapshotFromMarine([row('S1252110', '서해중부 북쪽 안쪽 먼바다'), row('S1252220', '서해중부남쪽바깥먼바다'), row('S1312040', '남해동부중간먼바다'), row('S1312030', '남해동부안쪽먼바다')], [], [], []);
+        C._foldOldSplitZone(snap);
+        const tr = C._buildZoneTreeFromSnapshot(snap), sea = tr['서해']['서해중부해상']['서해중부먼바다'], se = tr['남해']['남해동부해상']['남해동부먼바다'];
+        ok('나무: 서해중부 새 코드 특보가 그 잎에(북쪽안쪽·남쪽바깥), 다른 잎은 비어 있다', sea[NI].current && sea[SO].current && sea[NI].current.wrnLvl === '주의보' && sea[NO].current === null && sea[SI].current === null);
+        ok('나무: 남해동부 중간·안쪽 잎에 특보, 바깥은 비어 있다', se[MID].current && se[IN].current && se[OUT].current === null);
+        // 옛 코드로 오면 = 새 구역 모두
+        const old = C._buildSnapshotFromMarine([row('S1252010', '서해중부안쪽먼바다'), row('S1312010', '남해동부안쪽먼바다')], [], [], []);
+        ok('옛 코드 줄: 서해중부안쪽(옛) · 남해동부안쪽(옛 넓이 이름표)으로 읽힌다', old.parents.has('서해중부안쪽먼바다') && old.parents.has(ZS.OLD_INNER_SE) && !old.parents.has(IN));
+        const n = C._foldOldSplitZone(old);
+        ok('접으면: 서해중부안쪽 → 북쪽안쪽+남쪽안쪽 · 옛 남해동부안쪽 → 안쪽+중간', n === 4 && old.parents.has(NI) && old.parents.has(SI) && old.parents.has(IN) && old.parents.has(MID) && !old.parents.has('서해중부안쪽먼바다') && !old.parents.has(ZS.OLD_INNER_SE), [...old.parents.keys()]);
+        ZS._forceForTest(false);
+        const old2 = C._buildSnapshotFromMarine([row('S1252020', '서해중부바깥먼바다')], [], [], []);
+        ok('제주 전환 전이어도 2차 개편 접기는 한다', C._foldOldSplitZone(old2) === 2 && old2.parents.has(NO) && old2.parents.has(SO));
+        ZS._forceForTest(true);
+        // 묶음 이름
+        ok('묶음: 서해중부먼바다 = 4 · 남해동부먼바다 = 3', ZONE_GROUP_MAP['서해중부먼바다'].join() === [NI, NO, SI, SO].join() && ZONE_GROUP_MAP['남해동부먼바다'].join() === [IN, MID, OUT].join());
+        ok('묶음: 서해중부전해상 = 앞바다 4 + 먼바다 4 · 남해동부전해상 = 앞바다 4 + 먼바다 3', ZONE_GROUP_MAP['서해중부전해상'].length === 8 && ZONE_GROUP_MAP['남해동부전해상'].length === 7 && ZONE_GROUP_MAP['남해동부전해상'].includes(MID));
+        ok('통보문 해석: 「서해중부안쪽먼바다」 = 북쪽안쪽+남쪽안쪽', parentsOf('서해중부안쪽먼바다').join() === [NI, SI].sort().join(), parentsOf('서해중부안쪽먼바다'));
+        ok('통보문 해석: 「서해중부먼바다」 = 4 · 「남해동부먼바다」 = 3', parentsOf('서해중부먼바다').length === 4 && parentsOf('남해동부먼바다').join() === [IN, MID, OUT].sort().join());
+        ok('통보문 해석: 새 이름은 그대로 하나', parentsOf(MID).join() === MID && parentsOf(NO).join() === NO);
+        ok('옛 이름 찾기: 서해중부 새 구역 → 옛 안쪽/바깥 · 남해동부 → 없음', ZS.oldNamesOf(SI).join() === '서해중부안쪽먼바다' && ZS.oldNamesOf(SO).join() === '서해중부바깥먼바다' && ZS.oldNamesOf(MID).length === 0 && ZS.oldNamesOf(IN).length === 0);
+        {
+            const SC = require('../services/bulletin_cancel_scanner');
+            const rel = SC.parseCancelPhrases('참고사항 o 서해중부안쪽먼바다의 풍랑 예비특보는 발표 가능성이 낮아져 해제합니다')[0];
+            const got = rel ? [SC.matchesZone(rel, NI), SC.matchesZone(rel, SI), SC.matchesZone(rel, NO)] : 'no release';
+            ok('취소 문구가 옛 이름(서해중부안쪽)이어도 북쪽안쪽·남쪽안쪽에 맞고 바깥에는 안 맞는다', Array.isArray(got) && got[0] && got[1] && !got[2], got);
+        }
+        // 구독
+        ok('구독 계층: 서해중부해상 = 8곳 · 남해동부해상 = 7곳', PH.expandToMinorZones(['서해중부해상']).length === 8 && PH.expandToMinorZones(['남해동부해상']).length === 7 && PH.expandToMinorZones(['남해동부해상']).includes(MID));
+        ok('구독: 옛 서해중부안쪽 구독 = 북쪽안쪽+남쪽안쪽', PH.expandToMinorZones(['서해중부안쪽먼바다']).sort().join() === [NI, SI].sort().join());
+        ok('이어받기: 옛 앱 구독(새 앱 표시 zoneSchema 없음)의 남해동부안쪽 = 안쪽+중간', ZS.legacyExpand({ zones: [IN, '부산앞바다'], updatedAt: Date.now() }).join() === [IN, MID, '부산앞바다'].join());
+        ok('이어받기: 새 앱 구독(zoneSchema:2) — 안쪽만 고르면 안쪽만', ZS.legacyExpand({ zones: [IN], zoneSchema: 2 }).join() === IN);
+        ok('이어받기: 빈 구독(= 전체 수신)은 그대로 비어 있다', ZS.legacyExpand({ zones: [] }).length === 0);
+        {
+            const items = [{ zones: [MID] }];
+            const oldSub = PH.getMatchedZones(ZS.legacyExpand({ zones: [IN] }), items, {});
+            const newSub = PH.getMatchedZones(ZS.legacyExpand({ zones: [IN], zoneSchema: 2 }), items, {});
+            ok('발송 대상: 중간 특보 → 옛 안쪽 구독자는 받고, 새 앱에서 안쪽만 고른 사람은 안 받는다', oldSub.length === 1 && newSub.length === 0);
+        }
+        {
+            // 누구나 부를 수 있는 /api/subscribe 에 이런 이름이 올라와도 발송이 멈추지 않는다(독립 검토 2026-11-28 재현 — 일반 객체 표의 Object 칸)
+            let threw = null; try { ZS.legacyExpand({ zones: ['constructor', '__proto__', 'toString', IN] }); ZS.splitNames(['constructor', 'hasOwnProperty']); ZS.displayName('constructor'); } catch (e) { threw = e.message; }
+            ok('이상한 구역 이름(constructor·__proto__ 등)에 예외 없음', threw === null, threw);
+            ok('이상한 이름은 그대로 지나간다', ZS.splitNames(['constructor']).join() === 'constructor' && ZS.displayName('toString') === 'toString');
+        }
+        {
+            // 구독 저장과 발송이 이 규칙에 실제로 연결돼 있다(routes/push.js — 표시 저장 1곳 · 이어받기 3곳)
+            const pj = fs.readFileSync(path.join(__dirname, '..', 'routes', 'push.js'), 'utf8');
+            ok('routes/push.js: 구독에 zoneSchema 저장 · legacyExpand 3곳(개인화 발송·직접 발송·구독자 통계)', /zoneSchema: zoneSchema === 2 \? 2 : undefined/.test(pj) && (pj.match(/legacyExpand\((user|sub)\)/g) || []).length === 3);
+            const cj = fs.readFileSync(path.join(__dirname, '..', '..', 'client', 'capacitor-plugins.js'), 'utf8');
+            ok('capacitor-plugins.js: 구독 본문에 zoneSchema: 2', /zoneSchema: 2/.test(cj));
+        }
+        // 푸시 글의 보이는 이름(전남 → 전남광주) — 구독 열쇠는 그대로
+        const msg = PH.generateMessage({ templateId: 'publish', typeName: '풍랑', level: '주의보', items: [{ zones: ['전남북부서해앞바다', '전남동부남해앞바다', NI], time: '28일 12시' }] });
+        ok('푸시 글: 「전남…」 → 「전남광주…」, 새 이름은 그대로', /전남광주북부서해앞바다/.test(msg.body) && /전남광주동부남해앞바다/.test(msg.body) && !/(^|[^광주])전남북부서해/.test(msg.body.replace(/전남광주/g, '')) && msg.body.includes(NI), msg.body);
+        ok('보이는 이름 표 = 서버·화면 같다(5곳)', Object.keys(ZS.DISPLAY_RENAME).length === 5);
+        // 지도 그림 48개 = 날씨누리 특보(종합) GIS 그림(wrnArea.geojson, 2026-11-28)의 특보구역 코드 48개
+        const WN48 = ['S1131100','S1131200','S1131300','S1132110','S1132120','S1132210','S1132220','S1151100','S1151200','S1151300','S1152010','S1152020','S1231100','S1231200','S1231300','S1231400','S1231500','S1232110','S1232120','S1232210','S1232220','S1251100','S1251200','S1251300','S1251400','S1252110','S1252120','S1252210','S1252220','S1311100','S1311200','S1311300','S1311400','S1312020','S1312030','S1312040','S1321100','S1321200','S1322100','S1322200','S1323100','S1323200','S1323300','S1323400','S1324110','S1324120','S1324210','S1324220'];
+        const fc = JSON.parse(WS.body()), got = fc.features.map((f) => f.properties.WarnCode).sort();
+        ok('지도 그림: 48개 · 코드가 날씨누리·MMIS 목록과 하나도 안 다르다', fc.features.length === 48 && got.join() === WN48.slice().sort().join(), got.filter((c) => !WN48.includes(c)).concat(WN48.filter((c) => !got.includes(c))));
+        const nm = (f) => f.properties.name.replace(/\s+/g, '');
+        ok('지도 그림: 옛 도형 3개(서해중부안쪽·바깥, 옛 남해동부안쪽 S1312010)가 없다', !fc.features.some((f) => ['서해중부안쪽먼바다', '서해중부바깥먼바다'].includes(nm(f)) || f.properties.WarnCode === 'S1312010'));
+        ok('지도 그림: 이름이 뼈대 잎 이름과 같다(화면은 이름으로 맞춘다)', [NI, NO, SI, SO, IN, MID].every((x) => fc.features.some((f) => nm(f) === x)));
+        {
+            // 새 도형끼리·이웃과 꼭짓점이 맞물린다 — 남해동부 중간의 남쪽 변 = 원본 바깥먼바다의 북쪽 변
+            const ring = (n) => fc.features.find((f) => nm(f) === n).geometry.coordinates[0][0];
+            const has = (r, p) => r.some((q) => Math.abs(q[0] - p[0]) < 1e-6 && Math.abs(q[1] - p[1]) < 1e-6);
+            ok('경계: 중간·바깥이 (127.833334,32.615)·(130.168056,33.678889)를 함께 쓴다', [[127.833334, 32.615], [130.168056, 33.678889]].every((p) => has(ring(MID), p) && has(ring(OUT), p)));
+            ok('경계: 안쪽·중간이 새 경계선 3점을 함께 쓴다(기상청 공지 34°08′18″·127°50′, 34°20′·128°42′, 35°08′·129°25′)', [[127.833333, 34.138333], [128.7, 34.333333], [129.416667, 35.133333]].every((p) => has(ring(IN), p) && has(ring(MID), p)));
+            ok('경계: 서해중부 네 구역이 북위 36°50′(36.833333) 선에서 맞물린다', [NI, NO, SI, SO].every((x) => ring(x).some((q) => Math.abs(q[1] - 36.833333) < 1e-6)));
+        }
+        // 지방청 PDF 줄 · 중기 권역 · 관할
+        const RF = require('../regional_forecast_collector');
+        ok('단기예보: 새 구역 → 관할 지방청(서해중부 109 · 남해동부중간 159)', [NI, NO, SI, SO].every((x) => RF.ZONE_TO_OFFICE_MAP[x] === '109') && RF.ZONE_TO_OFFICE_MAP[MID] === '159');
+        const { ZONE_HOME_OFFICE } = require('../config/zone_home_office');
+        ok('통보문 관할: 서해중부 새 4 → 109 · 중간 → 159', [NI, NO, SI, SO].every((x) => ZONE_HOME_OFFICE[x] === '109') && ZONE_HOME_OFFICE[MID] === '159');
+        const LAF = require('../services/location_alert_forecast');
+        ok('중기 권역(위치 알림): 서해중부 새 4 → 12A20000 · 중간 → 12B20000', [NI, NO, SI, SO].every((x) => LAF._internals.midTermRegId(x) === '12A20000') && LAF._internals.midTermRegId(MID) === '12B20000');
+        const oz = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'analysis', 'bulletin_survey', 'office_zones.json'), 'utf8'));
+        ok('관서 관할표: 수도권청에 서해중부 새 4 · 부산청에 중간', [NI, NO, SI, SO].every((x) => oz['수도권청'].includes(x)) && oz['부산청'].includes(MID));
+        // 화면 짝
+        const CL = path.join(__dirname, '..', '..', 'client');
+        const loadC = (inj, store) => {
+            const win = { __ZONE_SPLIT__: inj, localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; } }, setTimeout: () => 0, setInterval: () => 0, console };
+            new Function('window', 'globalThis', 'console', fs.readFileSync(path.join(CL, 'js', 'core', 'zone_split.js'), 'utf8'))(win, win, console);
+            return win.ZoneSplit;
+        };
+        const st = { weatherAppSettings_v1: JSON.stringify({ '서해중부안쪽먼바다': false, '서해중부바깥먼바다': true, [IN]: false, '부산앞바다': false }) };
+        const zc = loadC({ active: false }, st), a1 = JSON.parse(st.weatherAppSettings_v1);
+        ok('화면 저장값: 서해중부안쪽 끔 → 북쪽안쪽·남쪽안쪽 끔 · 바깥 켬 → 둘 켬 · 옛 키 삭제(제주 전환 전이어도)', a1[NI] === false && a1[SI] === false && a1[NO] === true && a1[SO] === true && !('서해중부안쪽먼바다' in a1) && !('서해중부바깥먼바다' in a1), a1);
+        ok('화면 저장값: 남해동부안쪽 끔 → 중간도 끔(한 번)', a1[IN] === false && a1[MID] === false && st.zoneSplit2Migrated_v1 === '1');
+        const a2 = JSON.parse(st.weatherAppSettings_v1); delete a2[MID]; st.weatherAppSettings_v1 = JSON.stringify(a2);
+        loadC({ active: false }, st);
+        ok('화면 저장값: 한 번 한 기기는 다시 안 한다(뒤에 중간만 켠 사람을 다시 끄지 않는다)', !(MID in JSON.parse(st.weatherAppSettings_v1)));
+        ok('화면 「수정 진행 중」: 서해중부 새 4 · 남해동부 안쪽·중간 (바깥·다른 구역 아님)', [NI, NO, SI, SO, IN, MID].every((x) => zc.isPending(x)) && !zc.isPending(OUT) && !zc.isPending('부산앞바다'));
+        ok('화면·서버 「수정 진행 중」 목록이 같다', zc.SPLIT2_PENDING.join() === ZS.SPLIT2_PENDING.join() && JSON.stringify(zc.DISPLAY_RENAME) === JSON.stringify(ZS.DISPLAY_RENAME) && JSON.stringify(zc.SPLIT2) === JSON.stringify(Object.fromEntries(Object.entries(ZS.SPLIT2).filter(([k]) => k !== ZS.OLD_INNER_SE))));
+        ok('화면 보이는 이름: 전남북부서해앞바다 → 전남광주북부서해앞바다 · 문장 속도', zc.displayName('전남북부서해앞바다') === '전남광주북부서해앞바다' && zc.displayText('전남동부남해앞바다중서부평수구역') === '전남광주동부남해앞바다중서부평수구역' && zc.displayText('전남광주북부서해앞바다') === '전남광주북부서해앞바다');
+        const cfg = fs.readFileSync(path.join(CL, 'js', 'core', 'config.js'), 'utf8');
+        ok('화면 구역 목록(config.js SUB_REGION_ZONES): 새 이름 7개, 옛 서해중부 두 이름 없음', [NI, NO, SI, SO, MID].every((x) => cfg.includes(`'${x}'`)) && !/SUB_REGION_ZONES[\s\S]*'서해중부해상': \[[^\]]*'서해중부안쪽먼바다'/.test(cfg));
+        const cap = fs.readFileSync(path.join(CL, 'capacitor-plugins.js'), 'utf8');
+        ok('푸시 구독 목록(capacitor-plugins.js): 새 이름 포함', [NI, NO, SI, SO, MID].every((x) => cap.includes(`'${x}'`)) && !cap.includes("'서해중부안쪽먼바다'"));
+        const mp = fs.readFileSync(path.join(CL, 'js', 'shared', 'utils', 'mappings.js'), 'utf8');
+        const buoysOf = (z) => { const m = mp.match(new RegExp(`'${z}': \\[([\\s\\S]*?)\\]`)); return m ? (m[1].match(/name: '([^']+)'/g) || []).map((x) => x.slice(7, -1)) : null; };
+        ok('부이(실제 위치로 새 도형 안): 북쪽안쪽 서해151·인천 · 남쪽안쪽 서해163·외연도 · 북쪽바깥 서해143 · 남쪽바깥 서해170', String(buoysOf(NI)) === '서해151,인천' && String(buoysOf(SI)) === '서해163,외연도' && String(buoysOf(NO)) === '서해143' && String(buoysOf(SO)) === '서해170');
+        ok('부이: 남해동부안쪽 통영·거제도·간여암 · 중간 남해111', String(buoysOf(IN)) === '통영,거제도,간여암' && String(buoysOf(MID)) === '남해111');
+        const fj = fs.readFileSync(path.join(CL, 'js', 'forecast', 'outlook', 'forecast.js'), 'utf8');
+        ok('중기 권역(카드): 서해중부 새 4 → 12A20000 · 중간 → 12B20000', [NI, NO, SI, SO].every((x) => fj.includes(`'${x}': '12A20000'`)) && fj.includes(`'${MID}': '12B20000'`));
+        ZS._forceForTest(true);
     }
 
     ZS._forceForTest(null);

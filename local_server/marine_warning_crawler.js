@@ -183,14 +183,24 @@ const MMIS_CODE_TO_NAME = {
     'S1251200': '인천·경기남부앞바다',
     'S1251300': '충남북부앞바다',
     'S1251400': '충남남부앞바다',
+    // [구역 개편2 2026-11-28] 서해중부 먼바다 2 → 4 (config/zone_split.js SPLIT2_* 와 같다). 옛 두 코드는 폐지됐지만 남겨 둔다 —
+    //   혹시 옛 코드로 특보가 오면 옛 이름으로 읽고 _foldOldSplitZone 이 새 구역들로 옮긴다.
     'S1252010': '서해중부안쪽먼바다',
     'S1252020': '서해중부바깥먼바다',
+    'S1252110': '서해중부북쪽안쪽먼바다',
+    'S1252120': '서해중부북쪽바깥먼바다',
+    'S1252210': '서해중부남쪽안쪽먼바다',
+    'S1252220': '서해중부남쪽바깥먼바다',
     'S1311100': '부산앞바다',
     'S1311200': '경남서부남해앞바다',
     'S1311300': '경남중부남해앞바다',
     'S1311400': '거제시동부앞바다',
-    'S1312010': '남해동부안쪽먼바다',
+    // [구역 개편2 2026-11-28] 남해동부 먼바다 2 → 3. 새 안쪽(S1312030)은 이름이 같고 넓이만 줄었다 —
+    //   폐지된 옛 안쪽(S1312010)은 옛 넓이(= 안쪽+중간)라 따로 이름표를 달아 _foldOldSplitZone 이 둘로 옮긴다(config/zone_split.OLD_INNER_SE).
+    'S1312010': '남해동부안쪽먼바다(옛구역)',
     'S1312020': '남해동부바깥먼바다',
+    'S1312030': '남해동부안쪽먼바다',
+    'S1312040': '남해동부중간먼바다',
     'S1321100': '전남서부남해앞바다',
     'S1321200': '전남동부남해앞바다',
     'S1322100': '남해서부서쪽먼바다',
@@ -3208,9 +3218,12 @@ function _createZoneSkeleton() {
                     "충남북부앞바다": leaf({ "천수만평수구역": null, "안면도서쪽평수구역": null, "당진평수구역": null, "태안·서산북쪽평수구역": null }),
                     "충남남부앞바다": leaf({ "충남남부앞바다중평수구역": null })
                 },
+                // [구역 개편2 2026-11-28] 서해중부안쪽·바깥 → 북쪽·남쪽 안쪽·바깥 4개(config/zone_split.SPLIT2 — 늘 적용)
                 "서해중부먼바다": {
-                    "서해중부안쪽먼바다": leaf(),
-                    "서해중부바깥먼바다": leaf()
+                    "서해중부북쪽안쪽먼바다": leaf(),
+                    "서해중부북쪽바깥먼바다": leaf(),
+                    "서해중부남쪽안쪽먼바다": leaf(),
+                    "서해중부남쪽바깥먼바다": leaf()
                 }
             }
         },
@@ -3222,8 +3235,10 @@ function _createZoneSkeleton() {
                     "경남중부남해앞바다": leaf({ "경남중부남해앞바다중평수구역": null, "경남중부남해앞바다중연안바다": null }),
                     "거제시동부앞바다": leaf({ "거제시동부앞바다중연안바다": null })
                 },
+                // [구역 개편2 2026-11-28] 남해동부 안쪽(넓이 줄어듦)·중간(새로)·바깥
                 "남해동부먼바다": {
                     "남해동부안쪽먼바다": leaf(),
+                    "남해동부중간먼바다": leaf(),
                     "남해동부바깥먼바다": leaf()
                 }
             },
@@ -3272,13 +3287,16 @@ function _createZoneSkeleton() {
  * [연계] ← run(이 파일) — 스냅샷을 다 만든 직후, 디바운스·가드·변화 비교 전에
  */
 function _foldOldSplitZone(snap) {
-    if (!snap || !ZONE_SPLIT.isActive()) return 0;
+    if (!snap) return 0;
     let n = 0;
-    for (const m of [snap.parents, snap.upcomings]) {
-        if (!(m instanceof Map) || !m.has(ZONE_SPLIT.OLD)) continue;
-        const info = m.get(ZONE_SPLIT.OLD);
-        m.delete(ZONE_SPLIT.OLD);
-        for (const name of ZONE_SPLIT.NEW) {
+    // 제주(전환 뒤에만) + 2차 개편(늘 — 서해중부안쪽·바깥, 옛 남해동부안쪽 코드 S1312010). 옛 이름 = 그 새 구역들 모두.
+    const pairs = Object.entries(ZONE_SPLIT.SPLIT2);
+    if (ZONE_SPLIT.isActive()) pairs.unshift([ZONE_SPLIT.OLD, ZONE_SPLIT.NEW]);
+    for (const [OLD_NAME, NEW_NAMES] of pairs) for (const m of [snap.parents, snap.upcomings]) {
+        if (!(m instanceof Map) || !m.has(OLD_NAME)) continue;
+        const info = m.get(OLD_NAME);
+        m.delete(OLD_NAME);
+        for (const name of NEW_NAMES) {
             const has = m.get(name);
             if (!has) { m.set(name, Object.assign({}, info)); n++; continue; }
             // 옛 코드로는 발효 중인데 새 코드로는 예비만 온 경우(코드가 섞여 오는 동안) — 발효 중인 것을 지우지 않는다: 새 코드 예비는 「다가오는 특보」로 옮기고 발효를 둔다.
@@ -3292,7 +3310,9 @@ function _foldOldSplitZone(snap) {
     return n;
 }
 
-const SPLIT_ZONE_LIST_URL = 'https://marine.kma.go.kr/geoserver/mmis/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=mmis:shp_wrn_poly&outputFormat=application/json&propertyName=WarnCode,name';
+// ⚠2026-11-28 실측: 이 지도 목록의 속성 이름이 WarnCode·name → zone_id·kor_nm 으로 바뀌었다(옛 이름을 물으면 오류 쪽을 준다).
+//   제주 전환은 이미 끝나 이 감지는 더 쓰이지 않지만, 오류를 모른 채 두지 않으려고 새 이름으로 묻는다.
+const SPLIT_ZONE_LIST_URL = 'https://marine.kma.go.kr/geoserver/mmis/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=mmis:shp_wrn_poly&outputFormat=application/json&propertyName=zone_id,kor_nm';
 const SPLIT_ZONE_LIST_EVERY_MS = 5 * 60 * 1000;   // 구역 지도 목록은 5분에 한 번만 묻는다(특보 자료는 매분 본다) — 없으면: 포털 지도 서버에 매분 요청이 는다
 let _splitZoneList = { at: 0, code: null, busy: false };
 /**
@@ -3312,7 +3332,7 @@ function _newCodeInZoneList() {
         fetch(SPLIT_ZONE_LIST_URL, { signal: ctl.signal })
             .then((res) => (res.ok ? res.json() : null))
             .then((j) => {
-                const codes = j && Array.isArray(j.features) ? j.features.map((f) => f && f.properties && f.properties.WarnCode) : [];
+                const codes = j && Array.isArray(j.features) ? j.features.map((f) => f && f.properties && (f.properties.zone_id || f.properties.WarnCode)) : [];
                 _splitZoneList.code = Object.keys(ZONE_SPLIT.NEW_CODES).find((c) => codes.includes(c)) || null;
             })
             .catch((e) => { _splitZoneList.code = null; console.warn('[구역 분할] 특보구역 지도 목록을 못 받음(다음에 다시):', e && e.message); })
@@ -4635,7 +4655,9 @@ async function run(opts = {}) {
             try { _observeZoneSplitCode(fetched); }
             catch (e) { console.warn('[구역 분할] 전환 감지 실패(이번 주기 건너뜀):', e && e.message); }
         }
-        if (ZONE_SPLIT.isActive()) { _foldOldSplitZone(curr); _foldOldSplitZone(_prevSnapshot); _migrateSplitMemories(); if (detectSplit) _notifyZoneSplit(); }
+        //   [구역 개편2 2026-11-28] 옛 코드 접기는 늘 한다(서해중부안쪽·바깥·옛 남해동부안쪽 → 새 구역들) — 제주 몫은 함수 안에서 전환 뒤에만.
+        _foldOldSplitZone(curr); _foldOldSplitZone(_prevSnapshot);
+        if (ZONE_SPLIT.isActive()) { _migrateSplitMemories(); if (detectSplit) _notifyZoneSplit(); }
 
         const forceBaseline = !!opts.forceBaselinePush || _forceBaselinePending;
         if (_isSnapshotEmpty(_prevSnapshot) && !forceBaseline && isFirstLoad) {

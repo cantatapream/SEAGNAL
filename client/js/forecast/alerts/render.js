@@ -653,7 +653,7 @@ function createAlertElement(items) {
     const zoneName = clone.querySelector('.zone-name');
     zoneName.innerHTML = '';
     const nameSpan = document.createElement('span');
-    nameSpan.textContent = zoneNameStr;
+    nameSpan.textContent = (window.ZoneSplit && window.ZoneSplit.displayName) ? window.ZoneSplit.displayName(zoneNameStr) : zoneNameStr;   // 보이는 이름만 「전남광주…」(2026-11-28 — core/zone_split.js)
     zoneName.appendChild(nameSpan);
 
     // 원본 이름에 추가 정보(해제예고 등)가 있다면 함께 표시

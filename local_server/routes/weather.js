@@ -296,10 +296,8 @@ router.get('/api/warn-zones', (req, res) => {
         res.setHeader('Cache-Control', 'no-cache, must-revalidate');
         // [구역 분할] 전환(config/zone_split.js) 뒤 「제주도 남쪽 바깥먼바다」를 둘로 나눈 그림(45개)을 내보낸다 — 원본 파일은 그대로(services/warn_zones_split.js).
         //   no-cache 라 전환 뒤 다음 요청부터 바뀐다.
-        if (require('../config/zone_split').isActive()) {
-            return res.type('application/json').send(require('../services/warn_zones_split').body());
-        }
-        res.sendFile(filePath);
+        // [구역 개편2 2026-11-28] 서해중부 4·남해동부 3 은 늘 바꿔 내보낸다(48개) — 그래서 원본 파일을 그대로 보내는 길은 없다.
+        return res.type('application/json').send(require('../services/warn_zones_split').body());
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -1222,8 +1220,9 @@ router.get('/api/zone-bulletins', async (req, res) => {
         // [구역 분할] 전환 뒤 새 두 구역 카드의 통보문은 옛 이름 줄도 받는다 — 기상청이 작업을 마치기 전에는 MMIS 줄이 옛 이름(S1324020)으로 온다.
         //   없으면: 카드에는 특보가 뜨는데(옛 코드 특보 = 두 구역 모두) 📋 팝업은 「통보문이 없습니다」가 된다(독립 검토 2026-11-24).
         const _zs = require('../config/zone_split');
-        const _zbAlso = (_zs.isActive() && _zs.NEW.includes(z)) ? _zs.OLD : null;
-        const _zbSame = (nm) => { const n = _zbNorm(nm); return n === z || (_zbAlso !== null && n === _zbAlso); };
+        //   2026-11-28 개편2: 서해중부 새 4구역은 옛 「서해중부안쪽·바깥먼바다」 줄도 받는다(oldNamesOf — 제주도 같은 함수로).
+        const _zbAlso = _zs.oldNamesOf(z);
+        const _zbSame = (nm) => { const n = _zbNorm(nm); return n === z || _zbAlso.includes(n); };
         // 발효(이벤트) 단위로 묶고, 관할 지방청 > 그 외 지방청 > 전국(108) 순으로 PDF 선택
         const groups = new Map();   // key -> rows[]
         for (const r of rows) {

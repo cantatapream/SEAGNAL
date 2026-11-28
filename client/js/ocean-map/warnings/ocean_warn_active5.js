@@ -243,7 +243,7 @@
         // 박스 콘텐츠 빌드
         var html = ''
             + '<div class="warn-active-box-header">'
-            +   '<span class="warn-active-box-title">' + _esc(parentZone) + '</span>'
+            +   '<span class="warn-active-box-title">' + _esc(window.ZoneSplit && window.ZoneSplit.displayText ? window.ZoneSplit.displayText(parentZone) : parentZone) + '</span>'   // 보이는 이름만 「전남광주…」(2026-11-28)
             +   '<button type="button" class="warn-active-box-close" aria-label="닫기">&times;</button>'
             + '</div>'
             + '<div class="warn-active-box-body">';
@@ -613,7 +613,7 @@
         // 박스 콘텐츠 구성
         var html = ''
             + '<div class="warn-active-box-header">'
-            +   '<span class="warn-active-box-title">' + _esc(fullName) + '</span>'
+            +   '<span class="warn-active-box-title">' + _esc(window.ZoneSplit && window.ZoneSplit.displayText ? window.ZoneSplit.displayText(fullName) : fullName) + '</span>'   // 자식 이름(…중평수구역)에 든 부모 이름도 「전남광주…」로
             +   '<button type="button" class="warn-active-box-close" aria-label="닫기">&times;</button>'
             + '</div>'
             + '<div class="warn-active-box-body">'

@@ -352,7 +352,7 @@ window.showAlertHistoryPopup = function (zoneName, history) {
     // 헤더
     var header = document.createElement('div');
     header.className = 'alert-history-header';
-    header.innerHTML = '<h3>\uD83D\uDCCB ' + escapeHtml(zoneName) + ' \uD2B9\uBCF4 \uD788\uC2A4\uD1A0\uB9AC</h3>';
+    header.innerHTML = '<h3>\uD83D\uDCCB ' + escapeHtml((window.ZoneSplit && window.ZoneSplit.displayName ? window.ZoneSplit.displayName(zoneName) : zoneName)) + ' \uD2B9\uBCF4 \uD788\uC2A4\uD1A0\uB9AC</h3>';   // 보이는 이름(2026-11-28)
     var closeBtn = document.createElement('button');
     closeBtn.className = 'alert-history-close';
     closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
@@ -433,7 +433,7 @@ window.showZoneBulletins = function (zoneName) {
 
     var header = document.createElement('div');
     header.className = 'alert-history-header';
-    header.innerHTML = '<h3>📋 ' + escapeHtml(zoneName) + ' 통보문</h3>';
+    header.innerHTML = '<h3>📋 ' + escapeHtml((window.ZoneSplit && window.ZoneSplit.displayName ? window.ZoneSplit.displayName(zoneName) : zoneName)) + ' 통보문</h3>';   // 보이는 이름(2026-11-28)
     var closeBtn = document.createElement('button');
     closeBtn.className = 'alert-history-close';
     closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
