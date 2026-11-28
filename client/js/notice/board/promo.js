@@ -228,7 +228,7 @@ async function loadPromoPosts() {
     try {
         // 게시판 목록, 게시글, 댓글 수, 리액션 수를 병렬 로드
         const [promoRes, boardsRes, countsRes, reactionsRes] = await Promise.all([
-            fetch(CONFIG.API_BASE + '/api/promo'),
+            fetch(CONFIG.API_BASE + '/api/promo?lite=1'),   // 목록은 제목·날짜 등만(본문·사진 제외 — 2026-11-28, 본문은 글을 열 때 받는다)
             fetch(CONFIG.API_BASE + '/api/boards'),
             fetch(CONFIG.API_BASE + '/api/comments/counts'),
             fetch(CONFIG.API_BASE + '/api/reactions/counts')
@@ -396,11 +396,10 @@ function renderPromoPosts(posts) {
     let displayPosts = allPromoPosts.filter(post => {
         // 1. 카테고리 필터
         if (currentPromoCategory !== 'ALL' && post.category !== currentPromoCategory) return false;
-        // 2. 검색 필터
+        // 2. 검색 필터 — 제목만(사용자 확정 2026-11-28 「검색은 제목만」: 목록이 본문을 받지 않게 됐다)
         if (currentSearchKeyword) {
             const keyword = currentSearchKeyword.toLowerCase();
-            return (post.title || '').toLowerCase().includes(keyword) ||
-                (post.content || '').toLowerCase().includes(keyword);
+            return (post.title || '').toLowerCase().includes(keyword);
         }
         return true;
     });
@@ -625,8 +624,9 @@ window.openPromoDetail = async function (postId) {
         }
         const post = await res.json();
 
-        // 목록의 조회수도 업데이트하기 위해 목록 새로고침 (백그라운드)
-        loadPromoPosts();
+        // 목록의 조회수는 받은 글의 값으로 그 줄만 고친다(2026-11-28 — 종전에는 글을 열 때마다 목록 전체를 다시 받았다)
+        const listed = allPromoPosts.find(p => String(p.id) === String(post.id));
+        if (listed) { listed.views = post.views; renderPromoPosts(); }
 
         document.getElementById('promo-detail-title').textContent = post.title;
         document.getElementById('promo-detail-date').textContent = post.createdAt;
@@ -1509,13 +1509,6 @@ document.addEventListener('DOMContentLoaded', async function () {
         });
     }
 
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', function (e) {
-            // 홍보정보 탭 - 게시글 로드
-            if (this.dataset.target === 'promo-section') {
-                setTimeout(() => loadPromoPosts(), 100);
-            }
-        });
-    });
+    // 공지 탭을 누르면 목록을 받는 일은 switchMainTab(forecast/alerts/marine.js)이 한다 — 여기서도 받으면 탭 한 번에 두 번 받았다(2026-11-28 삭제).
 });
 

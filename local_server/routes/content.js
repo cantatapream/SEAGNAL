@@ -30,6 +30,7 @@ const path = require('path');
 const { DATA_DIR } = require('../config/server_config');
 const { dataCache } = require('../services/cache_manager');
 const { upload } = require('../services/upload_manager');
+const { writeFileAtomic } = require('../services/atomic_write');
 
 // ============================================================================
 // 공지사항 API
@@ -325,6 +326,35 @@ router.delete('/api/boards/:id', (req, res) => {
 // 홍보 게시판 API
 // ============================================================================
 
+// ----------------------------------------------------------------------------
+// 공지 조회수 — promo.json 과 따로 둔다(2026-11-28)
+//   왜: 종전에는 글을 열 때마다 promo.json 전체(운영 9.5MB — 본문 속 사진 base64)를 읽고, 조회수 1 을 올려 전체를 다시 썼다.
+//       동기식이라 그동안 서버가 다른 요청을 못 받았고, 공지가 쌓일수록 길어졌다. 사용자 「조회수만 작은 파일에 따로 … 반영해줘」.
+//   promo_views.json = { count: { <글 id>: 조회수 }, adminDay: { <글 id>: 'YYYY-MM-DD'(관리자가 마지막으로 센 KST 날) } } — 글 60개면 수 KB.
+//   옮겨 오기: 이 파일에 아직 없는 글은 promo.json 의 views·adminViewDate 를 이어받는다(따로 옮기는 작업 없음). promo.json 의 views 는 더 고치지 않는다.
+//   [연계] ← GET /api/promo(목록 — 조회수를 여기 값으로 바꿔 보냄) · GET /api/promo/:id(조회수 +1) · cloud_backup.js(매일 백업 목록)
+// ----------------------------------------------------------------------------
+const PROMO_VIEWS_FILE = 'promo_views.json';
+/** 조회수 파일을 읽는다(없거나 깨졌으면 빈 꼴). 작아서 매번 읽는다(서버 밖에서 바뀌어도 바로 맞는다). @returns {{count:object, adminDay:object}} */
+function readPromoViews() {
+    let v = null;
+    try { v = JSON.parse(fs.readFileSync(path.join(DATA_DIR, PROMO_VIEWS_FILE), 'utf8')); } catch (e) { v = null; }   // 처음엔 파일이 없다 — 빈 꼴로 시작
+    if (!v || typeof v !== 'object') v = {};
+    if (!v.count || typeof v.count !== 'object') v.count = {};
+    if (!v.adminDay || typeof v.adminDay !== 'object') v.adminDay = {};
+    return v;
+}
+/** 글의 조회수 — 조회수 파일에 있으면 그 값, 없으면 promo.json 의 옛 값. 예: promoViewsOf({id:1, views:5}, {count:{1:9}}) → 9 */
+function promoViewsOf(post, views) {
+    const c = views.count[String(post && post.id)];
+    return typeof c === 'number' ? c : ((post && post.views) || 0);
+}
+/** 목록에 조회수 파일의 값을 입혀 새 배열로(원본 캐시는 건드리지 않는다). */
+function withPromoViews(posts) {
+    const views = readPromoViews();
+    return posts.map(p => ({ ...p, views: promoViewsOf(p, views) }));
+}
+
 // 게시글 목록 조회
 // - 기본(쿼리 없음): 일반 사용자 홍보 게시판(promo.js)이 자체적으로 client-side
 //   slice 로 페이지네이션 하므로 기존처럼 raw 배열을 그대로 반환 (하위호환).
@@ -338,7 +368,7 @@ router.get('/api/promo', (req, res) => {
         const keyOf = p => (p && p.id != null)
             ? p.id
             : new Date((p && p.createdAt) || 0).getTime();
-        const sorted = all.slice().sort((a, b) => keyOf(b) - keyOf(a));
+        const sorted = withPromoViews(all).sort((a, b) => keyOf(b) - keyOf(a));
         const page = Math.max(1, parseInt(req.query.page, 10) || 1);
         const rawLimit = parseInt(req.query.limit, 10) || 15;
         const limit = Math.min(200, Math.max(1, rawLimit));
@@ -351,55 +381,62 @@ router.get('/api/promo', (req, res) => {
         });
     }
 
+    // ?lite=1 (2026-11-28): 목록 화면·새 글 N 확인용 — 제목·분류·날짜·고정·조회수만 보낸다(본문·첨부 제외).
+    //   왜: 본문에 사진이 base64 로 들어 있어 목록 전체가 9.5MB(운영 60개, 98% 가 사진)였고, 공지가 쌓일수록 목록이 느려졌다.
+    //   본문은 글을 열 때 GET /api/promo/:id 로 받는다. 관리자 화면들은 본문이 필요해 종전대로 lite 없이 부른다.
+    //   [연계] ← client/js/notice/board/promo.js loadPromoPosts · notice/hub/notice_hub.js refreshBadges · admin/admin_collect.js initPromoBadges
+    if (req.query.lite != null) {
+        return res.json(withPromoViews(all).map(p => ({
+            id: p.id, title: p.title, category: p.category, isPinned: p.isPinned,
+            createdAt: p.createdAt, views: p.views
+        })));
+    }
+
     // 기존 동작: raw array (일반 사용자 화면 호환)
-    res.json(all);
+    res.json(withPromoViews(all));
 });
 
 // 게시글 상세 조회 (조회수 증가)
+// - 글은 메모리 캐시(dataCache.promo — cache_manager 가 파일이 바뀌면 다시 읽고, 저장·삭제가 바로 바꿔 넣는다)에서 꺼낸다.
+// - 조회수는 promo_views.json 에만 쓴다(위 「공지 조회수」 — 2026-11-28, 종전에는 promo.json 9.5MB 를 매번 읽고 다시 썼다).
 router.get('/api/promo/:id', (req, res) => {
     const id = req.params.id;
     try {
-        const filePath = path.join(DATA_DIR, 'promo.json');
-        let posts = [];
-        if (fs.existsSync(filePath)) {
-            const fileContent = fs.readFileSync(filePath, 'utf8');
-            if (fileContent) posts = JSON.parse(fileContent);
+        let posts = Array.isArray(dataCache.promo) ? dataCache.promo : null;
+        if (!posts) {   // 서버가 막 떠서 캐시가 아직 비었을 때만 파일에서
+            const filePath = path.join(DATA_DIR, 'promo.json');
+            posts = fs.existsSync(filePath) ? (JSON.parse(fs.readFileSync(filePath, 'utf8') || '[]')) : [];
         }
 
-        const index = posts.findIndex(p => String(p.id) === String(id));
-        if (index === -1) {
+        const post = posts.find(p => String(p.id) === String(id));
+        if (!post) {
             return res.status(404).json({ error: '게시글을 찾을 수 없습니다.' });
         }
 
         // 조회수 증가 로직
         // - 관리자 기기(?admin=true)인 경우: 하루에 1회만 조회수 증가
-        //   → 해당 게시글의 adminViewDate가 오늘이면 증가하지 않음
+        //   → 해당 게시글을 관리자가 오늘 이미 셌으면 증가하지 않음
         // - 일반 사용자인 경우: 기존과 동일하게 매번 +1
         const isAdmin = req.query.admin === 'true';
         const now = new Date();
         const kstDate = new Date(now.getTime() + (9 * 60 * 60 * 1000));
         const todayStr = kstDate.toISOString().split('T')[0];
 
-        let shouldIncView = true;
-        if (isAdmin && posts[index].adminViewDate === todayStr) {
-            // 관리자가 오늘 이미 이 게시글을 조회한 적 있으면 조회수 증가 안 함
-            shouldIncView = false;
-        }
-
-        if (shouldIncView) {
-            posts[index].views = (posts[index].views || 0) + 1;
-            if (isAdmin) {
-                // 관리자 조회 날짜 기록 (하루 1회 제한용, 화면에는 표시되지 않음)
-                posts[index].adminViewDate = todayStr;
+        const views = readPromoViews(), key = String(post.id);
+        let count = promoViewsOf(post, views);
+        const adminDay = views.adminDay[key] || post.adminViewDate;   // 옛 기록(promo.json adminViewDate)도 이어받는다
+        if (!(isAdmin && adminDay === todayStr)) {
+            count += 1;
+            views.count[key] = count;
+            if (isAdmin) views.adminDay[key] = todayStr;   // 관리자 조회 날짜 기록 (하루 1회 제한용, 화면에는 표시되지 않음)
+            try {
+                writeFileAtomic(path.join(DATA_DIR, PROMO_VIEWS_FILE), JSON.stringify(views), 'utf8');
+            } catch (e) {
+                console.warn('[공지] 조회수 저장 실패 — 글은 보여 주되 이번 조회는 안 세어진다:', e && e.message);
             }
         }
 
-        fs.writeFileSync(filePath, JSON.stringify(posts, null, 2), 'utf8');
-
-        dataCache.promo = posts;
-        // dataCache.lastUpdate.promo 는 dead code 로 제거 (refreshCache 가 mtime 으로 자동 갱신)
-
-        res.json(posts[index]);
+        res.json({ ...post, views: count });
     } catch (e) {
         console.error('상세 조회 실패:', e);
         res.status(500).json({ error: '서버 오류' });

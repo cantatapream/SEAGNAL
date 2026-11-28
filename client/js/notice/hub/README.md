@@ -16,7 +16,7 @@
 - 하단 탭이 이 탭으로 바뀌면(`core/index2_patch.js switchMainTab` 이 `body[data-active-tab]` 을 바꾼다 — 누름·딥링크 어느 길이든) `onMainOpen`.
   공지 판정이 있으면 바로 고르고, 없으면 `promo.js loadPromoPosts → updateNewBadges → NoticeHub.setNoticeNew` 를 최대 3초 기다린다(못 받으면 뉴스).
 - N: 공지 = 24시간 안 글(종전 규칙) · 뉴스 = 마지막으로 본 뒤 새 기사(`news.js`, 기기 저장소) · 어황 = 마지막으로 본 뒤 새 글(`fishcond.js`). 하단 탭 N = 셋 중 하나라도.
-- 앱이 켜지고 4초 뒤 `/api/promo` · `NewsTab.prefetch` · `FishcondTab.prefetch` 로 N 을 미리 알아 둔다.
+- 앱이 켜지고 4초 뒤 `NewsTab.prefetch` · `FishcondTab.prefetch` 로 N 을 미리 알아 둔다. 공지 N 은 켤 때 `admin/admin_collect.js initPromoBadges` 가 한 번 받으므로 첫 회에는 건너뛰고, 30분마다 `/api/promo?lite=1`(제목·날짜만)로 다시 본다(2026-11-28 — 종전에는 켤 때 본문째 두 번 받았다).
 
 - 당겨서 새로고침(2026-11-22): `shared/ui/pull_refresh.js` 를 `#promo-section` 에 붙인다(띠 `#nhub-ptr`). 이 탭이 보이고 팝업(PopupStack·보이는 `.modal`)이 없을 때만, 지금 보이는 칸만 다시 받는다 — 뉴스 `NewsTab.refresh` · 공지 `loadPromoPosts` · 어황 `FishcondTab.refresh`.
 
