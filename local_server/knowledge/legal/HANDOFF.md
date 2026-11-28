@@ -1537,6 +1537,10 @@ reach_eval 20→**18** · xref 0. **기준선은 하나도 건드리지 않았�
 ## 작업 로그 (append-only · 최신이 위)
 > 형식: `### [YYYY-MM-DD HH:MM KST] 🟢착수 / ✅완료 — 제목` + 무엇을·어떻게·진행률·다음.
 
+### [2026-11-29 03:49 KST] ✅완료 — 2027 조석 1년치 미리 받기 — ①~④ 전부 완료
+표준항 166곳×365일(조석예보 API) → client/tide_data/tide_data_2027.js 재생성. 임의항(바다타임 목록 1,575곳): 표준항 147 · tidebed계산 1,358(TideBED 재료=기준항·조시차·조고비로 1년치 계산) · tidebed실측 5(12일 대조 불합격 — 감포·삼정방파제·임곡항·모포항·연동방파제, TideBED 1년치 실측 365/365일) · 표준항3곳 IDW 47(동해 36°N 이북) · 자료 없음 18(격자 밖). 지점 파일 client/tide_data/points_2027/p/<id>.json 1,557개(날마다 고조·저조·range·flow). 12일 대조 1,363곳: ±2분·2cm 안 1,347 · ±5 안 11 · 불합격 5(실측으로 교체). 보고서 points_2027/VERIFY_REPORT.md(리스트업 ①~⑤). 예약 작업 2개(02:40 TideBED · 6시간 이어받기) 끔. 진행률 100%(수집·계산). 다음(사용자 복귀 후 결정): 본선(main) 반영·바텀시트 화면 연결 · 2026 파일에 옛 2027과 같은 오류(어청도·사천진항·아야진항·원평항·장호항)가 있는지 점검 · API 가 2028-01-01 을 17곳만 줌 → 나중에 --edge 재실행 · node_modules 있는 환경에서 verify_all 재실행 · 물흐름 0% 기준(바다타임) 미상. 상세: local_server/scripts/TIDE_YEAR_COLLECT_README.md
+
+
 ### [2026-11-23 22:32 KST] 🟢착수 — 2027년 조석 — 임의항(TideBED) 계획 확정·도구 추가, 사용자 부재 중 무질문 진행
 사용자 확정(2026-11-23): 약 10일 부재 — 묻지 말고 확정한 작업을 끝까지. 순서·확정 사항·기본값·막혔을 때는 전부 local_server/scripts/TIDE_YEAR_COLLECT_README.md 에 있다(이 문서 하나로 이어간다). 요약: ①표준항 166곳 1년치(collect_tide_hghlw.py, 진행 중) ②임의항 1,381곳 × 12일 실제 TideBED 곡선(collect_tidebed_verify.js, 02:40~06:50 KST 만) ③tide_data_2027.js 다시 만들기 ④임의항·동해북부 1년치 계산 + 12일 대조 ⑤마무리. ③④ 도구는 아직 없다(문서에 만드는 법). 예약 작업: trig_019wUNted7X4dSJFUchucyHw(00:05·06:05·12:05·18:05 KST), trig_01HPbHee69kVFfR3HaVNwGvB(02:40 KST) — 둘 다 이 세션으로 들어온다. main 머지·앱 코드 변경은 하지 않는다.
 
