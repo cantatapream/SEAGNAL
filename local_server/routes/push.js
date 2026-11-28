@@ -212,7 +212,7 @@ router.get('/api/vapid-public-key', (req, res) => {
 
 // 구독 추가/갱신 (Web Push & FCM)
 router.post('/api/subscribe', (req, res) => {
-    const { subscription, token, zones, options, deviceId, osPermission } = req.body;
+    const { subscription, token, zones, options, deviceId, osPermission, zoneSchema } = req.body;
 
     const isWebPush = subscription && subscription.endpoint;
     const isFcm = !!token;
@@ -243,6 +243,8 @@ router.post('/api/subscribe', (req, res) => {
             deviceId: deviceId || undefined,
             // 폰 자체의 알림 권한 상태(앱이 알려 옴 — 옛 앱은 안 보낸다). 「실제 수신자」를 세는 데만 쓰고 발송에서는 빼지 않는다.
             osPermission: ['granted', 'denied', 'prompt', 'prompt-with-rationale'].includes(osPermission) ? osPermission : undefined,
+            // [구역 개편2 2026-11-28] 새 구역표를 아는 앱(capacitor-plugins.js 가 2 를 보낸다). 없으면 옛 앱 구독 — config/zone_split.legacyExpand 가 이어받는다.
+            zoneSchema: zoneSchema === 2 ? 2 : undefined,
             updatedAt: Date.now()
         };
 
@@ -341,7 +343,8 @@ router.post('/api/push-custom', requireAdminOrInternal, async (req, res) => {
                 // 2. 모드별 처리
                 if (isManualGroupSend && payload) {
                     // [개인화 모드]
-                    userFilteredItems = getMatchedZones(user.zones, payload.items, user.options || {});
+                    // [구역 개편2 2026-11-28] 옛 앱이 저장한 「남해동부안쪽먼바다」 구독 = 지금 안쪽 + 중간(사용자 「이어받기 그대로」 — config/zone_split.legacyExpand)
+                    userFilteredItems = getMatchedZones(require('../config/zone_split').legacyExpand(user), payload.items, user.options || {});
                     if (!userFilteredItems || userFilteredItems.length === 0) return;
 
                     // [작업2b] "특정관리해역 푸시 알림 허용" — 기본 ON.
@@ -363,7 +366,7 @@ router.post('/api/push-custom', requireAdminOrInternal, async (req, res) => {
                     if (sendAll || (user.options && user.options.target === 'all')) {
                         shouldSend = true;
                     } else {
-                        const expandedUserZones = expandToMinorZones(user.zones);
+                        const expandedUserZones = expandToMinorZones(require('../config/zone_split').legacyExpand(user));   // 개편2 옛 구독 이어받기(위와 같다)
                         if (!expandedUserZones || expandedUserZones.length === 0) {
                             shouldSend = true;
                         } else {
@@ -959,7 +962,7 @@ router.get('/api/push-subscriber-stats', (req, res) => {
                 allMinorZones.forEach(z => { zoneCounts[z]++; });
             } else {
                 // 개별 해역 구독자 → 소분류로 확장하여 해당 해역에만 +1
-                const expanded = expandToMinorZones(sub.zones);
+                const expanded = expandToMinorZones(require('../config/zone_split').legacyExpand(sub));   // 개편2 옛 구독 이어받기(발송과 같은 규칙으로 센다)
                 expanded.forEach(z => {
                     if (zoneCounts[z] !== undefined) zoneCounts[z]++;
                 });

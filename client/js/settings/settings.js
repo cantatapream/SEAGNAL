@@ -953,7 +953,7 @@ function createSettingItem(zoneName, parentKey) {
 
     div.innerHTML = `
         <div class="setting-label" style="font-size: 0.9rem; color: #ddd;">
-            ${zoneName}
+            ${(window.ZoneSplit && window.ZoneSplit.displayName) ? window.ZoneSplit.displayName(zoneName) : zoneName}
         </div>
         <label class="switch" style="transform: scale(0.8);">
             <input type="checkbox" ${isVisible ? 'checked' : ''} onchange="toggleSetting('${zoneName}', this.checked)">

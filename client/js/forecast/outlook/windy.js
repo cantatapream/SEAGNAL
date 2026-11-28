@@ -53,7 +53,7 @@ function showWindyPopup(zoneName) {
         <div class="windy-modal-overlay" onclick="closeWindyPopup()"></div>
         <div class="windy-modal-content">
             <div class="windy-modal-header">
-                <h3>🌀 ${zoneName} - Windy</h3>
+                <h3>🌀 ${(window.ZoneSplit && window.ZoneSplit.displayName) ? window.ZoneSplit.displayName(zoneName) : zoneName} - Windy</h3>
                 <button class="windy-close-btn" onclick="closeWindyPopup()">✕</button>
             </div>
             <div class="windy-iframe-container">
@@ -620,7 +620,7 @@ function createStatusCard(zoneName) {
 
     // 구역명
     const zoneNameEl = document.createElement('span');
-    zoneNameEl.textContent = zoneName;
+    zoneNameEl.textContent = (window.ZoneSplit && window.ZoneSplit.displayName) ? window.ZoneSplit.displayName(zoneName) : zoneName;   // 보이는 이름만 「전남광주…」(2026-11-28 — core/zone_split.js)
     zoneNameEl.style.cssText = `
         font-size: 0.9rem;
         font-weight: 600;

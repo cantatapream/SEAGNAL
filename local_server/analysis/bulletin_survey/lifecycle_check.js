@@ -21,7 +21,8 @@ const SHOW = +((args.find((a) => a.startsWith('--show=')) || '--show=15').split(
 const norm = (s) => String(s || '').replace(/\s+/g, '').replace(/[.]/g, '·');
 // 구역 분할(config/zone_split.js): 통보문이 새 두 이름을 쓰면 읽을 수 있게 한다(코드표에도 새 코드가 있지만 여기서도 분명히 더해 둔다).
 //   없으면: 「제주도남서쪽바깥먼바다」를 「바다가 아님」으로 버리고, 「제주도먼바다(제주도남서쪽바깥먼바다)」는 괄호 안을 몰라 묶음 전체(안쪽먼바다까지)에 특보를 붙인다.
-const PARENTS = new Set([...Object.values(MMIS_CODE_TO_NAME).filter((n) => !Object.values(PARENT_TO_CHILDREN).flat().includes(n)), ...ZONE_SPLIT.NEW]);
+//   2026-11-28 개편2: 새 이름(서해중부 4·남해동부중간)은 코드표에 있다. 옛 서해중부안쪽·바깥도 코드표(폐지 코드)에 남아 있어 읽히고, 아래 expand 가 새 구역들로 바꾼다.
+const PARENTS = new Set([...Object.values(MMIS_CODE_TO_NAME).filter((n) => !Object.values(PARENT_TO_CHILDREN).flat().includes(n) && n !== ZONE_SPLIT.OLD_INNER_SE), ...ZONE_SPLIT.NEW]);
 const childrenOf = (p) => PARENT_TO_CHILDREN[p] || [];
 const lines = (s) => String(s || '').replace(/<br\s*\/?>/gi, '\n').replace(/\r/g, '').split('\n').map((x) => x.trim()).filter(Boolean);
 /** 괄호 짝을 지켜 쉼표로 나눈다. */
@@ -56,7 +57,8 @@ function expand(token, unknown) {
     const set = expandRaw(token, unknown);
     // 2026-11-26 부터 「제주도남쪽바깥먼바다」 = 새 두 구역 모두(사용자 확정 — config/zone_split.js). 묶음(제주도먼바다·제주도전해상)·괄호 안·단독 어느 꼴로 와도
     //   여기 한 곳에서 바꾼다 → 제주도먼바다 = 4구역, 제주도전해상 = 8구역. 25일 이전 통보문(옛 이름)으로 발효 중인 특보도 26일에 끊기지 않고 두 구역으로 이어진다.
-    return set && set.has(ZONE_SPLIT.OLD) && ZONE_SPLIT.isActive() ? new Set(ZONE_SPLIT.splitNames(set)) : set;
+    //   2026-11-28 개편2: 「서해중부안쪽먼바다」 = 북쪽안쪽+남쪽안쪽, 「서해중부바깥먼바다」 = 북쪽바깥+남쪽바깥(늘). 묶음 「서해중부먼바다」는 묶음표가 이미 새 4개다.
+    return set && [...set].some((n) => ZONE_SPLIT.isOldName(n)) ? new Set(ZONE_SPLIT.splitNames(set)) : set;
 }
 /** expand 의 본체(구역 분할 전 이름 그대로). [연계] ← expand(이 파일) */
 function expandRaw(token, unknown) {

@@ -375,7 +375,7 @@
             fill: new ol.style.Fill({ color: on ? 'rgba(68,138,255,0.45)' : 'rgba(13,24,48,0.10)' }),
             stroke: new ol.style.Stroke({ color: on ? C_ACCENT : 'rgba(13,24,48,0.55)', width: on ? 2.5 : 1.2 }),
             text: new ol.style.Text({
-                text: _appName(feature.get('name')),
+                text: (window.ZoneSplit && window.ZoneSplit.displayName ? window.ZoneSplit.displayName(_appName(feature.get('name'))) : _appName(feature.get('name'))),   // 이름표만 보이는 이름(2026-11-28 — core/zone_split.js)
                 font: '11px "Noto Sans KR",sans-serif',
                 fill: new ol.style.Fill({ color: on ? '#ffffff' : '#0f172a' }),
                 stroke: new ol.style.Stroke({ color: on ? 'rgba(6,11,24,0.85)' : 'rgba(255,255,255,0.9)', width: 3 }),
@@ -395,7 +395,7 @@
         //   그래서 고른 구역 이름을 여기에 적어 무엇을 골랐는지 확실히 보이게 한다.
         var got = _zonesOf(macro).filter(function (z) { return _picked[z]; });
         el.textContent = got.length
-            ? ('고른 구역 ' + got.length + '개 — ' + got.join(', '))
+            ? ('고른 구역 ' + got.length + '개 — ' + got.map(function (z) { return (window.ZoneSplit && window.ZoneSplit.displayName ? window.ZoneSplit.displayName(z) : z); }).join(', '))
             : '아직 고른 구역이 없습니다. 지도를 눌러 고르세요.';
     }
 

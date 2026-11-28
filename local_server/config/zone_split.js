@@ -38,6 +38,17 @@
  *  - 저장          : data/zone_split_state.json — {active, at, reason}. 전환은 한 번이고 서버를 다시 켜도 이어진다.
  *  - 환경변수      : ZONE_SPLIT_AT — 전환 조건 ②가 시작되는 시각(시간대까지 적은 ISO 시각. 없으면 2026-11-25T00:00:00+09:00) ·
  *                   ZONE_SPLIT_FORCE=on|off — 손으로 켜거나(감지가 안 될 때) 끈다(스테이징 미리보기·되돌리기). 저장된 상태보다 먼저 본다.
+ * [2차 개편 — 2026-11-28 반영] 서해중부 먼바다 2 → 4 · 남해동부 먼바다 2 → 3 (기상청 2026-11-26 시행)
+ *   MMIS 가 이미 새 코드로 특보를 준다(2026-11-28 실측: 서해중부 새 4코드 풍랑주의보 00:00 발표 — 우리 표에 없어 버려지고 있었다).
+ *   그래서 1차(제주)와 달리 「전환 대기」가 없다 — 이 파일의 SPLIT2_* 는 늘 적용된다.
+ *   · 서해중부안쪽먼바다(S1252010 폐지) → 서해중부북쪽안쪽먼바다(S1252110)·서해중부남쪽안쪽먼바다(S1252210)
+ *   · 서해중부바깥먼바다(S1252020 폐지) → 서해중부북쪽바깥먼바다(S1252120)·서해중부남쪽바깥먼바다(S1252220)
+ *   · 남해동부안쪽먼바다(S1312010 폐지) → 남해동부안쪽먼바다(S1312030, 이름 그대로·넓이 줄어듦)·남해동부중간먼바다(S1312040)
+ *     ★이름이 그대로라 「옛 이름 = 둘」 규칙을 이름에 걸 수 없다(새로 고른 사람이 「안쪽만」을 골라도 중간이 따라붙는다).
+ *       그래서 옛 구독만 이어받는다: 서버는 새 앱 표시(zoneSchema:2)가 없는 구독(legacyExpand), 화면은 기기마다 한 번만(client zone_split.js).
+ *   사용자 확정 2026-11-28(원문): 「바로시작」「이어받기 그대로」「전남광주 이름 변경」
+ *     「우리가 제주도 남쪽 바깥 먼바다를 분할하면서 했던 과정을 모두 거쳐야 된다는 거야. 면밀히 살펴가지고 오류가 없도록 해줘.」
+ *   ※ 전남 앞바다 5곳의 「전남광주…」 개명(코드 그대로)은 화면에 보이는 이름만 바꾼다(DISPLAY_RENAME) — 내부 이름·구독 열쇠는 그대로.
  * [로드 순서] 없음(서버 모듈)
  * ============================================================================
  */
@@ -51,6 +62,33 @@ const NEW = [NEW_WEST, NEW_EAST];
 // 기상청 회신(2026-11-24): 옛 코드는 폐지, 새 코드 둘. 전환 감지와 MMIS 코드표(marine_warning_crawler.MMIS_CODE_TO_NAME)가 함께 쓴다.
 const OLD_CODE = 'S1324020';
 const NEW_CODES = { S1324220: NEW_WEST, S1324120: NEW_EAST };
+// ── 2차 개편(늘 적용 — 파일 머리 [2차 개편]) ──
+const SPLIT2 = {
+    '서해중부안쪽먼바다': ['서해중부북쪽안쪽먼바다', '서해중부남쪽안쪽먼바다'],
+    '서해중부바깥먼바다': ['서해중부북쪽바깥먼바다', '서해중부남쪽바깥먼바다'],
+};
+// 폐지된 옛 남해동부안쪽(S1312010) 코드로 온 특보만 이 이름표로 읽는다(새 코드 S1312030 은 이름이 같은 「남해동부안쪽먼바다」) — 옛 넓이 = 안쪽+중간.
+const OLD_INNER_SE = '남해동부안쪽먼바다(옛구역)';
+SPLIT2[OLD_INNER_SE] = ['남해동부안쪽먼바다', '남해동부중간먼바다'];
+const SPLIT2_NEW_CODES = {
+    S1252110: '서해중부북쪽안쪽먼바다', S1252120: '서해중부북쪽바깥먼바다',
+    S1252210: '서해중부남쪽안쪽먼바다', S1252220: '서해중부남쪽바깥먼바다',
+    S1312030: '남해동부안쪽먼바다', S1312040: '남해동부중간먼바다',
+};
+const SPLIT2_OLD_CODES = { S1252010: '서해중부안쪽먼바다', S1252020: '서해중부바깥먼바다', S1312010: OLD_INNER_SE };
+// 「수정 진행 중」 카드(해구기상·윈디·종합정보 회색, 시정·평균 「-」) — 넓이가 바뀐 구역 전부(이름이 같은 남해동부안쪽 포함)
+const SPLIT2_PENDING = ['서해중부북쪽안쪽먼바다', '서해중부북쪽바깥먼바다', '서해중부남쪽안쪽먼바다', '서해중부남쪽바깥먼바다', '남해동부안쪽먼바다', '남해동부중간먼바다'];
+// 옛 앱이 저장한 구독의 이어받기(이름이 그대로인 구역만 — 사라진 이름은 SPLIT2 가 늘 바꾼다)
+const SPLIT2_LEGACY = { '남해동부안쪽먼바다': ['남해동부안쪽먼바다', '남해동부중간먼바다'] };
+// 화면에 보이는 이름만 바꾼다(코드 S1231300 등 그대로 — 기상청이 「전남」→「전남광주」로 이름만 바꿨다. 2026-11-28 MMIS 실측)
+const DISPLAY_RENAME = {
+    '전남북부서해앞바다': '전남광주북부서해앞바다', '전남중부서해앞바다': '전남광주중부서해앞바다',
+    '전남남부서해앞바다': '전남광주남부서해앞바다', '전남서부남해앞바다': '전남광주서부남해앞바다',
+    '전남동부남해앞바다': '전남광주동부남해앞바다',
+};
+// 표에 「자기 칸」으로 있는 이름만 본다 — 일반 객체라 'constructor'·'__proto__' 같은 이름이 오면 Object 의 것이 잡힌다.
+//   없으면: 누구나 부를 수 있는 /api/subscribe 에 그런 이름 하나만 올라와도 발송 묶음 전체가 예외로 멈춘다(독립 검토 2026-11-28 재현).
+const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 const STATE_FILE = process.env.ZONE_SPLIT_STATE_FILE || path.join(__dirname, '..', 'data', 'zone_split_state.json');
 const DEFAULT_QUIET_FROM = '2026-11-25T00:00:00+09:00';   // 사용자 2026-11-24 「내일 정오로 보지말고 내일 특보가없는 순간에 변경하는것으로 보자」 — 25일이 되는 순간부터
 const QUIET_FROM_MS = (() => {
@@ -147,14 +185,63 @@ function observe(o) {
  * 구역 이름 목록에서 옛 이름을 새 두 이름으로 바꾼다(전환 뒤에만. 순서 유지·중복 없음).
  * 예: splitNames(['제주도남쪽바깥먼바다', '제주도남동쪽안쪽먼바다']) → ['제주도남서쪽바깥먼바다', '제주도남동쪽바깥먼바다', '제주도남동쪽안쪽먼바다']
  * @param {Iterable<string>} names
- * @returns {string[]} 전환 전이면 그대로(복사본)
+ *     2차 개편(늘): splitNames(['서해중부안쪽먼바다']) → ['서해중부북쪽안쪽먼바다', '서해중부남쪽안쪽먼바다']
+ * @returns {string[]} 바꿀 이름이 없으면 그대로(복사본)
  * [연계] ← lifecycle_check.expand · zone_group_map · push_helpers — 「제주도남쪽바깥먼바다 = 두 구역 모두」를 한 규칙으로
  */
 function splitNames(names) {
     const list = [...names];
-    if (!isActive()) return list;
+    const jeju = isActive();
     const out = [];
-    for (const n of list) for (const x of (n === OLD ? NEW : [n])) if (!out.includes(x)) out.push(x);
+    for (const n of list) for (const x of (jeju && n === OLD ? NEW : (own(SPLIT2, n) ? SPLIT2[n] : [n]))) if (!out.includes(x)) out.push(x);
+    return out;
+}
+
+/**
+ * 옛 이름인가 — 지금 기준으로 새 이름들로 바뀌는 이름(제주는 전환 뒤에만, 2차 개편은 늘).
+ * 예: isOldName('서해중부안쪽먼바다') → true · isOldName('남해동부안쪽먼바다') → false(이름이 그대로다)
+ * @param {string} name
+ * @returns {boolean}
+ * [연계] ← lifecycle_check.expand · 검사
+ */
+function isOldName(name) { return (isActive() && name === OLD) || own(SPLIT2, name); }
+
+/**
+ * 이 새 구역을 덮던 옛 이름들 — 통보문·MMIS 가 아직 옛 이름으로 적은 줄도 이 구역 것으로 읽으려고.
+ * 예: oldNamesOf('서해중부북쪽안쪽먼바다') → ['서해중부안쪽먼바다'] · oldNamesOf('제주도남서쪽바깥먼바다') → ['제주도남쪽바깥먼바다'](전환 뒤) · 그 밖 → []
+ * @param {string} name
+ * @returns {string[]}
+ * [연계] ← routes/weather.js(📋 통보문 팝업) · services/bulletin_cancel_scanner.matchesZone
+ */
+function oldNamesOf(name) {
+    const out = [];
+    if (isActive() && NEW.includes(name)) out.push(OLD);
+    for (const [o, list] of Object.entries(SPLIT2)) if (o !== OLD_INNER_SE && list.includes(name) && !out.includes(o)) out.push(o);
+    return out;
+}
+
+/** 「수정 진행 중」 카드인가(제주 새 두 구역은 전환 뒤, 2차 개편 구역은 늘). 예: isPendingZone('남해동부중간먼바다') → true [연계] ← 검사(화면 짝은 client zone_split.isPending) */
+function isPendingZone(name) { return (isActive() && NEW.includes(name)) || SPLIT2_PENDING.includes(name); }
+
+/** 화면에 보일 이름(전남 → 전남광주 개명). 예: displayName('전남북부서해앞바다') → '전남광주북부서해앞바다' · 그 밖은 그대로 [연계] ← 푸시 문구(push_sender) · 검사 */
+function displayName(name) { return own(DISPLAY_RENAME, name) ? DISPLAY_RENAME[name] : name; }
+
+/**
+ * 한 구독자의 구역 목록 — 옛 앱이 저장한 구독이면 이름이 그대로인 개편 구역을 새 넓이만큼 넓힌다(사용자 「이어받기 그대로」).
+ *   「남해동부안쪽먼바다」만 해당(옛 넓이 = 지금 안쪽 + 중간). 옛 앱 구독 = 새 앱 표시(zoneSchema:2 — client/capacitor-plugins.js 가 보낸다)가 없는 구독.
+ *   새 앱이 저장한 구독은 고른 그대로 둔다(안쪽만 고른 사람에게 중간을 붙이지 않는다). 처음엔 「개편 코드가 켜진 시각」으로 갈랐는데,
+ *   배포 순간 열려 있던 옛 화면이 다시 구독하면 시각이 새로워져 중간이 빠졌다 → 앱이 직접 알리는 표시로 바꿨다(독립 검토 2026-11-28).
+ * 예: legacyExpand({zones:['남해동부안쪽먼바다']}) → ['남해동부안쪽먼바다','남해동부중간먼바다']
+ *     legacyExpand({zones:['남해동부안쪽먼바다'], zoneSchema: 2}) → ['남해동부안쪽먼바다']
+ * @param {{zones?: string[], zoneSchema?: number}} sub 구독 한 줄(routes/push.js SUBS_FILE)
+ * @returns {string[]}
+ * [연계] ← routes/push.js(발송 대상 고르기·구독자 통계) — expandToMinorZones 에 넘기기 전에
+ */
+function legacyExpand(sub) {
+    const zones = (sub && Array.isArray(sub.zones)) ? sub.zones : [];
+    if (!zones.length || (sub && sub.zoneSchema >= 2)) return zones;
+    const out = [];
+    for (const z of zones) for (const x of (own(SPLIT2_LEGACY, z) ? SPLIT2_LEGACY[z] : [z])) if (!out.includes(x)) out.push(x);
     return out;
 }
 
@@ -176,4 +263,6 @@ function markNotified() {
 /** 검사용: 전환 여부를 고정한다(true/false), null 이면 저장된 상태를 본다. 기억해 둔 상태·연속 횟수도 비운다. [연계] ← test_zone_split 등 */
 function _forceForTest(v) { _forced = (v === true || v === false) ? v : null; _state = null; _streak.quiet = 0; }
 
-module.exports = { OLD, NEW, NEW_WEST, NEW_EAST, OLD_CODE, NEW_CODES, QUIET_FROM_MS, STATE_FILE, isActive, activate, observe, splitNames, status, markNotified, _forceForTest };
+module.exports = { OLD, NEW, NEW_WEST, NEW_EAST, OLD_CODE, NEW_CODES, QUIET_FROM_MS, STATE_FILE, isActive, activate, observe, splitNames, status, markNotified, _forceForTest,
+    SPLIT2, SPLIT2_NEW_CODES, SPLIT2_OLD_CODES, SPLIT2_PENDING, SPLIT2_LEGACY, OLD_INNER_SE, DISPLAY_RENAME,
+    isOldName, oldNamesOf, isPendingZone, displayName, legacyExpand };

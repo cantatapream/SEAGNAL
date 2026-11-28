@@ -107,11 +107,17 @@ const ZONE_TO_OFFICE_MAP = {
     '동해남부북쪽바깥먼바다': '143',
     '서해중부안쪽먼바다': '109',
     '서해중부바깥먼바다': '109',
+    // [구역 개편2 2026-11-28] 수도권청 05시 PDF(11-28)에 새 네 줄이 실려 그대로 읽힌다(옛 두 이름은 남겨 둔다)
+    '서해중부북쪽안쪽먼바다': '109',
+    '서해중부북쪽바깥먼바다': '109',
+    '서해중부남쪽안쪽먼바다': '109',
+    '서해중부남쪽바깥먼바다': '109',
     '서해남부북쪽안쪽먼바다': '156',
     '서해남부북쪽바깥먼바다': '156',
     '서해남부남쪽안쪽먼바다': '156',
     '서해남부남쪽바깥먼바다': '156',
     '남해동부안쪽먼바다': '159',
+    '남해동부중간먼바다': '159',   // [구역 개편2 2026-11-28] 부산청 PDF 「중간먼바다」 줄
     '남해동부바깥먼바다': '159',
     '남해서부서쪽먼바다': '156',
     '남해서부동쪽먼바다': '156',
@@ -770,7 +776,7 @@ function parseMarineForecast(text, publishTimestamp) {
             // "먼바다" → "서쪽먼바다" (남해서부 서쪽/동쪽먼바다)
             if (lastDirectionPrefix && (
                 zoneName === '먼바다' ||
-                zoneName.startsWith('안쪽') || zoneName.startsWith('바깥'))) {
+                zoneName.startsWith('안쪽') || zoneName.startsWith('바깥') || zoneName.startsWith('중간'))) {
                 zoneName = lastDirectionPrefix + zoneName;
             }
 
@@ -779,7 +785,10 @@ function parseMarineForecast(text, publishTimestamp) {
             if (zoneName === '앞바다' || zoneName === '먼바다' ||
                 zoneName.startsWith('남쪽') || zoneName.startsWith('북쪽') ||
                 zoneName.startsWith('서쪽') || zoneName.startsWith('동쪽') ||
-                zoneName.startsWith('안쪽') || zoneName.startsWith('바깥')) {
+                zoneName.startsWith('안쪽') || zoneName.startsWith('바깥') ||
+                // [구역 개편2 2026-11-28] 부산청 PDF 의 「남해동부 / 안쪽먼바다 / 중간먼바다 / 바깥먼바다」 — 「중간」도 상위 이름(남해동부)을 붙인다.
+                //   없으면: 「중간먼바다」라는 이름으로 저장돼 남해동부중간먼바다 카드의 기상예보가 비고, 그 뒤 칸 수 판정에도 끼어든다(2026-11-28 실측).
+                zoneName.startsWith('중간')) {
                 if (currentParent) {
                     zoneName = currentParent + zoneName;
                 }

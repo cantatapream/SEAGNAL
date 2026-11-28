@@ -13,6 +13,13 @@
  *   「카드의 시정 뱃지와 평균 파고·풍속 … 수치 부분을 -로 표시하고 누르면 추후 나오게 될거라는 토스트 메시지」
  * 사용자 확정 2026-11-24: 전환은 시각이 아니라 「MMIS에서 새로운 구역 신호줄때와 … 남쪽바깥먼바다에 특보가 없을때」(서버 config/zone_split.js 가 정한다) ·
  *   「기상버튼 등 해당버튼은 회색으로 비활성화상태로 두자」 「부이버튼은 활성화해줘」.
+ * [2차 개편 — 2026-11-28 반영, 늘 적용] 서해중부 먼바다 2 → 4 · 남해동부 먼바다 2 → 3 (서버 짝 local_server/config/zone_split.js 머리 [2차 개편]).
+ *   MMIS 가 이미 새 코드로 특보를 줘서 「전환 대기」가 없다. 사용자 확정 2026-11-28: 「바로시작」「이어받기 그대로」「전남광주 이름 변경」
+ *   「우리가 제주도 남쪽 바깥 먼바다를 분할하면서 했던 과정을 모두 거쳐야 된다는 거야.」
+ *   · 저장값: 서해중부안쪽 → 북쪽안쪽+남쪽안쪽, 서해중부바깥 → 북쪽바깥+남쪽바깥(옛 키 삭제) ·
+ *     남해동부안쪽은 이름이 그대로라 기기마다 **한 번만** 중간에 같은 값을 넣는다(SPLIT2_ONCE_KEY — 그 뒤로 중간만 끄는 것을 막지 않으려고).
+ *   · 「수정 진행 중」 카드: 서해중부 새 4구역 · 남해동부 안쪽(넓이가 바뀜)·중간.
+ *   · 화면 이름(전남 → 전남광주, 코드·내부 이름 그대로): displayName.
  * ----------------------------------------------------------------------------
  * [연계]
  *  - 사용하는 파일 : 없음 (토스트는 core/index2_patch.js 의 window._showOceanToast — 누를 때 부른다)
@@ -31,6 +38,18 @@
     var SETTINGS_KEY = 'weatherAppSettings_v1';
     var MSG_BUTTON = '기상청 특보구역 변경에 따른\n수정 진행 중입니다.';
     var MSG_VALUE = '기상청 특보구역 변경에 따라 준비 중입니다.\n추후 제공될 예정입니다.';
+    // ── 2차 개편(늘 적용 — 파일 머리 [2차 개편]. 서버 짝 config/zone_split.js 의 SPLIT2·SPLIT2_PENDING·DISPLAY_RENAME 과 같게) ──
+    var SPLIT2 = {
+        '서해중부안쪽먼바다': ['서해중부북쪽안쪽먼바다', '서해중부남쪽안쪽먼바다'],
+        '서해중부바깥먼바다': ['서해중부북쪽바깥먼바다', '서해중부남쪽바깥먼바다']
+    };
+    var SPLIT2_PENDING = ['서해중부북쪽안쪽먼바다', '서해중부북쪽바깥먼바다', '서해중부남쪽안쪽먼바다', '서해중부남쪽바깥먼바다', '남해동부안쪽먼바다', '남해동부중간먼바다'];
+    var SPLIT2_ONCE_KEY = 'zoneSplit2Migrated_v1';   // 남해동부안쪽 → 중간 이어받기를 이 기기에서 이미 했는가
+    var DISPLAY_RENAME = {
+        '전남북부서해앞바다': '전남광주북부서해앞바다', '전남중부서해앞바다': '전남광주중부서해앞바다',
+        '전남남부서해앞바다': '전남광주남부서해앞바다', '전남서부남해앞바다': '전남광주서부남해앞바다',
+        '전남동부남해앞바다': '전남광주동부남해앞바다'
+    };
     var _forced = null;   // 검사용(window.__ZONE_SPLIT_FORCE = true/false 를 이 파일보다 먼저 두면 고정)
     if (root.__ZONE_SPLIT_FORCE === true || root.__ZONE_SPLIT_FORCE === false) _forced = root.__ZONE_SPLIT_FORCE;
     // 「지금 새 구역 기준인가」는 서버가 index2.html 에 실어 준다(window.__ZONE_SPLIT__ = {active} — local_server/routes/health.js).
@@ -61,7 +80,10 @@
      * @returns {boolean}
      * [연계] ← render.js·windy.js(버튼 4개 비활성) · zone_avg.js(시정·파고·풍속 「-」)
      */
-    function isPending(zoneName) { return isActive() && NEW.indexOf(String(zoneName || '').replace(/\s+/g, '')) !== -1; }
+    function isPending(zoneName) {
+        var z = String(zoneName || '').replace(/\s+/g, '');
+        return (isActive() && NEW.indexOf(z) !== -1) || SPLIT2_PENDING.indexOf(z) !== -1;   // 2차 개편 구역은 늘
+    }
 
     /**
      * 구역 이름 배열에서 옛 이름을 새 두 이름으로 바꾼 새 배열(전환 뒤에만. 순서 유지).
@@ -71,10 +93,37 @@
      * [연계] ← config.js(SUB_REGION_ZONES 제주해역) · capacitor-plugins.js(푸시 구독 목록)
      */
     function splitNames(names) {
-        if (!isActive()) return names.slice();
+        var jeju = isActive();
         var out = [];
-        names.forEach(function (n) { (n === OLD ? NEW : [n]).forEach(function (x) { if (out.indexOf(x) === -1) out.push(x); }); });
+        names.forEach(function (n) { (jeju && n === OLD ? NEW : (Object.prototype.hasOwnProperty.call(SPLIT2, n) ? SPLIT2[n] : [n])).forEach(function (x) { if (out.indexOf(x) === -1) out.push(x); }); });
         return out;
+    }
+
+    /**
+     * 화면에 보일 구역 이름 — 기상청이 「전남…」 앞바다 5곳을 「전남광주…」로 이름만 바꿨다(코드 그대로, 2026-11-28 MMIS 실측).
+     *   내부 이름(특보 나무·저장값·구독 열쇠)은 그대로 두고 **보이는 글자만** 바꾼다(사용자 「전남광주 이름 변경」 — 열쇠를 바꾸면 구독·설정을 모두 옮겨야 한다).
+     * 예: displayName('전남북부서해앞바다') → '전남광주북부서해앞바다' · displayName('부산앞바다') → '부산앞바다'
+     * @param {string} name
+     * @returns {string}
+     * [연계] ← 카드 제목(render.js·windy.js)·설정 목록·지도 이름표 등 구역 이름을 글자로 보이는 곳
+     */
+    function displayName(name) {
+        var z = String(name == null ? '' : name);
+        var k = z.replace(/\s+/g, '');
+        return Object.prototype.hasOwnProperty.call(DISPLAY_RENAME, k) ? DISPLAY_RENAME[k] : z;   // 표의 자기 칸만('constructor' 같은 이름에 Object 것이 잡히지 않게)
+    }
+
+    /**
+     * 글 안의 옛 「전남…」 구역 이름을 모두 새 이름으로 바꾼다(이미 「전남광주…」인 곳은 그대로).
+     * 예: displayText('전남북부서해앞바다 풍랑주의보') → '전남광주북부서해앞바다 풍랑주의보'
+     * @param {string} text
+     * @returns {string}
+     * [연계] ← 이름이 문장 속에 섞여 나오는 곳(특보 목록 줄 등)
+     */
+    function displayText(text) {
+        var t = String(text == null ? '' : text);
+        Object.keys(DISPLAY_RENAME).forEach(function (o) { t = t.split(o).join(DISPLAY_RENAME[o]); });
+        return t;
     }
 
     /**
@@ -82,20 +131,35 @@
      *   옛 구역을 꺼 둔 사람은 새 두 구역도 꺼진 채로 시작한다(안 이어 주면 없는 키 = 켬 이라 원치 않는 구역이 켜진다).
      *   옛 키를 남기면 「관심해역을 골랐다」 판정(false 가 하나라도 있나)이 새 구역을 다 켜도 풀리지 않는다 → 지운다.
      * 예: {'제주도남쪽바깥먼바다': false} → {'제주도남서쪽바깥먼바다': false, '제주도남동쪽바깥먼바다': false}
+     *     2차 개편(늘): {'서해중부안쪽먼바다': false} → {'서해중부북쪽안쪽먼바다': false, '서해중부남쪽안쪽먼바다': false} ·
+     *     {'남해동부안쪽먼바다': false} → {…, '남해동부중간먼바다': false}(이 기기에서 처음 한 번만)
      * @returns {boolean} 고쳤으면 true
      * [연계] ← 이 파일(로드 즉시) — settings.js 의 UserSettings.init·capacitor-plugins.js 가 저장값을 읽기 전에
      */
     function migrateSettings() {
-        if (!isActive()) return false;
         try {
             var raw = root.localStorage.getItem(SETTINGS_KEY);
-            if (!raw) return false;
-            var s = JSON.parse(raw);
-            if (!s || typeof s !== 'object' || !Object.prototype.hasOwnProperty.call(s, OLD)) return false;
-            NEW.forEach(function (n) { if (!Object.prototype.hasOwnProperty.call(s, n)) s[n] = s[OLD]; });
-            delete s[OLD];
-            root.localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
-            return true;
+            var s = raw ? JSON.parse(raw) : null;
+            var has = function (k) { return Object.prototype.hasOwnProperty.call(s, k); };
+            var changed = false;
+            if (s && typeof s === 'object') {
+                // 제주(전환 뒤) + 2차 개편 서해중부(늘): 옛 키 값 → 새 키들, 옛 키 삭제
+                var pairs = Object.keys(SPLIT2).map(function (o) { return [o, SPLIT2[o]]; });
+                if (isActive()) pairs.unshift([OLD, NEW]);
+                pairs.forEach(function (p) {
+                    if (!has(p[0])) return;
+                    p[1].forEach(function (n) { if (!has(n)) s[n] = s[p[0]]; });
+                    delete s[p[0]];
+                    changed = true;
+                });
+                // 2차 개편 남해동부: 이름이 그대로인 안쪽 → 새로 생긴 중간에 같은 값(이 기기에서 한 번만 — 뒤에 중간만 끈 사람을 다시 켜지 않게)
+                var once = false;
+                try { once = root.localStorage.getItem(SPLIT2_ONCE_KEY) === '1'; } catch (e) { once = false; }
+                if (!once && has('남해동부안쪽먼바다') && !has('남해동부중간먼바다')) { s['남해동부중간먼바다'] = s['남해동부안쪽먼바다']; changed = true; }
+            }
+            if (changed) root.localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+            try { root.localStorage.setItem(SPLIT2_ONCE_KEY, '1'); } catch (e) { /* 저장 못 하면 다음에 또 하지만, 중간 키가 생겼으면 위 조건에서 걸러진다 */ }
+            return changed;
         } catch (e) {
             console.warn('[구역 분할] 저장값 이어받기 실패:', e && e.message);
             return false;
@@ -160,7 +224,8 @@
 
     root.ZoneSplit = {
         OLD: OLD, NEW: NEW, MSG_BUTTON: MSG_BUTTON, MSG_VALUE: MSG_VALUE,
-        isActive: isActive, isPending: isPending, splitNames: splitNames,
+        SPLIT2: SPLIT2, SPLIT2_PENDING: SPLIT2_PENDING, DISPLAY_RENAME: DISPLAY_RENAME,
+        isActive: isActive, isPending: isPending, splitNames: splitNames, displayName: displayName, displayText: displayText,
         migrateSettings: migrateSettings, makeDisabledButton: makeDisabledButton, toast: toast
     };
 })(typeof window !== 'undefined' ? window : globalThis);

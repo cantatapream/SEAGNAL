@@ -227,7 +227,11 @@ function countFeatures(rel) {
 function has(text, s) { return text.indexOf(s) >= 0; }
 
 (function () {
-    const warn = countFeatures(path.join('assets', 'warn_zones.geojson'));
+    // 앱이 실제로 받는 그림(/api/warn-zones = services/warn_zones_split.body())의 개수. 이 검사는 안내 글을 ZoneSplit 없이 읽으므로
+    //   제주 전환 전 기준(47 = 원본 44 + 2026-11-28 개편2 3)과 견준다. 원본 파일 개수(44)와 견주던 것을 바꿨다(개편2 는 늘 적용).
+    require('../config/zone_split')._forceForTest(false);
+    const warn = JSON.parse(require('../services/warn_zones_split').body()).features.length;
+    require('../config/zone_split')._forceForTest(null);
     const sub = countFeatures(path.join('assets', 'warn_zones_sub.geojson'));
     ok(`특보구역 부모 ${warn}개가 안내와 같다`, has(oceanText, `${warn}개 구역`), String(warn));
     ok(`특보구역 자식 ${sub}개가 안내와 같다`, has(oceanText, `평수구역 ${sub}개`), String(sub));

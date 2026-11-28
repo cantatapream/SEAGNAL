@@ -70,14 +70,18 @@ function gradeInterpret(c, text) {
     const reasons = [];
     const timeOk = (e, t) => !t || String(t).split(/\s+/).every((w) => norm(e.시간_후).includes(norm(w)));
     const looseKinds = new Set(c.need.filter((n) => !n.zones.length).map((n) => n.종류));
-    for (const n of c.need) {
+    // 정답표(ai_compare_cases.json)는 그때 이름이다 — 구역 개편(제주 2026-11-26 · 서해중부·남해동부 2026-11-28) 뒤 이름으로 바꿔 견준다
+    //   (없으면: 「서해중부먼바다」 답이 새 구역 4개로 펼쳐져 정답 「서해중부안쪽·바깥먼바다」와 안 맞아 맞는 답이 「틀림」이 된다 — 2026-11-28 verify_all 실측).
+    const ZS = require('../config/zone_split');
+    for (const n0 of c.need) {
+        const n = Object.assign({}, n0, { zones: ZS.splitNames(n0.zones) });
         const hit = events.filter((e) => e.종류 === n.종류 && timeOk(e, n.time) && (n.zones.length ? e.판정 !== '확인필요' : true));
         const got = new Set(hit.flatMap((e) => e.zones || []));
         if (!hit.length) reasons.push(`빠짐: ${n.종류}${n.zones.length ? ' ' + n.zones.join('·') : ''}${n.time ? ' (시각 「' + n.time + '」)' : ''}`);
         else if (n.zones.some((z) => !got.has(z))) reasons.push(`해역 모자람: ${n.종류} — 없는 해역 ${n.zones.filter((z) => !got.has(z)).join('·')}`);
     }
     for (const e of events) {
-        if (e.판정 === '후보' && (c.deny || []).some((z) => (e.zones || []).includes(z))) reasons.push(`넓혀 적음: ${e.종류} 「${e.해역표현}」 → ${(e.zones || []).join('·')}`);
+        if (e.판정 === '후보' && ZS.splitNames(c.deny || []).some((z) => (e.zones || []).includes(z))) reasons.push(`넓혀 적음: ${e.종류} 「${e.해역표현}」 → ${(e.zones || []).join('·')}`);
         if (c.noAuto && e.판정 === '후보') reasons.push(`없는 사건을 자동 반영 후보로: ${e.종류} 「${e.해역표현}」`);
         if (e.판정 === '확인필요' && !looseKinds.has(e.종류)) reasons.push(`검사에 걸림: ${e.종류} 「${e.해역표현 || ''}」 — ${e.까닭}`);
     }

@@ -113,7 +113,7 @@ const ZONE_HIERARCHY = {
         '서해중부해상': [
             '인천·경기북부앞바다', '인천·경기남부앞바다',
             '충남북부앞바다', '충남남부앞바다',
-            '서해중부안쪽먼바다', '서해중부바깥먼바다'
+            '서해중부북쪽안쪽먼바다', '서해중부북쪽바깥먼바다', '서해중부남쪽안쪽먼바다', '서해중부남쪽바깥먼바다'
         ],
         '서해남부해상': [
             '전북북부앞바다', '전북남부앞바다',
@@ -130,7 +130,7 @@ const ZONE_HIERARCHY = {
         ],
         '남해동부해상': [
             '부산앞바다', '경남서부남해앞바다', '경남중부남해앞바다', '거제시동부앞바다',
-            '남해동부안쪽먼바다', '남해동부바깥먼바다'
+            '남해동부안쪽먼바다', '남해동부중간먼바다', '남해동부바깥먼바다'
         ]
     },
     // 대분류: 제주
@@ -243,12 +243,14 @@ function generateMessage(filteredPayload) {
             it.zones.forEach(z => { childStateByZone[z] = it.childState; });
         }
     });
+    // [구역 개편2 2026-11-28] 푸시 글에 보이는 이름만 「전남…」 → 「전남광주…」(코드·구독 열쇠는 그대로 — config/zone_split.displayName)
+    const shown = (zone) => ZONE_SPLIT.displayName(zone);
     const decorateZone = (zone) => {
-        if (!showChildZones) return zone;
+        if (!showChildZones) return shown(zone);
         const cs = childStateByZone[zone];
-        if (!cs) return zone;
+        if (!cs) return shown(zone);
         const qual = buildChildQualifier(zone, cs, templateId);   // 함수 선언 호이스팅
-        return zone + (qual || '');
+        return shown(zone) + (qual || '');
     };
 
     // 시각 포맷 헬퍼: D일 HH:mm 또는 D일 범위시간 형식으로 변환
@@ -469,7 +471,7 @@ function generateMessage(filteredPayload) {
     // Fallback
     else {
         genTitle = `📢 ${fullTitle} 알림`;
-        genBody = items.map(i => i.zones.join(', ')).join('\n');
+        genBody = items.map(i => i.zones.map(shown).join(', ')).join('\n');
     }
 
     return { title: genTitle, body: genBody };
